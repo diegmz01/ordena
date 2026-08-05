@@ -17,9 +17,22 @@ APP_DIR="${APP_DIR:-/var/www/ordena}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 SKIP_PULL=0
 
+# En un VPS compartido con otras apps, los puertos suelen reasignarse en el
+# .env para evitar choques; si no vienen ya en el entorno, se leen de ahí
+# antes de caer al default de este proyecto.
+dotenv_value() {
+  local key="$1"
+  [[ -f "$APP_DIR/.env" ]] || return 0
+  grep -E "^${key}=" "$APP_DIR/.env" 2>/dev/null | tail -1 | cut -d'=' -f2-
+}
+
+WEB_PORT="${WEB_PORT:-$(dotenv_value WEB_PORT)}"
 WEB_PORT="${WEB_PORT:-3000}"
+ADMIN_PORT="${ADMIN_PORT:-$(dotenv_value ADMIN_PORT)}"
 ADMIN_PORT="${ADMIN_PORT:-3001}"
+BRANCH_PORT="${BRANCH_PORT:-$(dotenv_value BRANCH_PORT)}"
 BRANCH_PORT="${BRANCH_PORT:-3002}"
+API_PORT="${API_PORT:-$(dotenv_value API_PORT)}"
 API_PORT="${API_PORT:-4000}"
 
 # Llave SSH de solo lectura registrada en GitHub → Deploy keys
