@@ -795,8 +795,8 @@
     "semantic_hash": ""
   },
   "docs/DEPLOY.md": {
-    "mtime": 1785898292.8112857,
-    "ast_hash": "f6e32d31487a0607f964f9143b89a35e",
+    "mtime": 1785899235.9756148,
+    "ast_hash": "8a728c976054eef566a731f5b965d054",
     "semantic_hash": ""
   },
   "apps/branch/public/push-dev-sw.js": {
@@ -870,13 +870,13 @@
     "semantic_hash": ""
   },
   "apps/admin/src/app/finanzas/page.tsx": {
-    "mtime": 1785898260.6393583,
-    "ast_hash": "04ecd888a32bc8e56d25b9937465f321",
+    "mtime": 1785899223.3025465,
+    "ast_hash": "6a2bb3d874edf3a2939aa1ac42adc28c",
     "semantic_hash": ""
   },
   "apps/api/src/routes/finance.ts": {
-    "mtime": 1785898199.0550697,
-    "ast_hash": "8152977692b8dee41ae045dd4cc0d582",
+    "mtime": 1785899157.616768,
+    "ast_hash": "8104938419e8fe4d3611318337ddacd7",
     "semantic_hash": ""
   },
   "apps/api/src/utils/validate-cart-stock.ts": {

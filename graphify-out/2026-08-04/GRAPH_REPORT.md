@@ -1,7 +1,7 @@
 # Graph Report - Ordena  (2026-08-04)
 
 ## Corpus Check
-- 158 files · ~67,847 words
+- 158 files · ~68,242 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -93,6 +93,7 @@
 - branch-menu-modal.tsx
 - web/src/lib/auth.ts
 - arctic
+- morgan
 - env.ts
 - branch/src/sw.ts
 - cookie-parser
@@ -102,7 +103,6 @@
 - @ordena/database
 - pusher
 - zod
-- @ordena/shared
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 21 edges
@@ -186,7 +186,7 @@ Nodes (32): Admin Next.js README, Geist font, Next.js, Vercel Platform, Branch N
 
 ### Community 8 - "dependencies"
 Cohesion: 0.12
-Nodes (17): dependencies, bcryptjs, express, express-rate-limit, jsonwebtoken, morgan, stripe, tsx (+9 more)
+Nodes (17): dependencies, bcryptjs, express, express-rate-limit, jsonwebtoken, @ordena/shared, stripe, tsx (+9 more)
 
 ### Community 9 - "cart.tsx"
 Cohesion: 0.26
@@ -452,7 +452,7 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **Why does `BranchHomePage()` connect `branch/src/app/page.tsx` to `getAuthToken`, `pusher`, `cn`, `print-order.ts`?**
   _High betweenness centrality (0.041) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `dependencies` to `@ordena/shared`, `api/package.json`, `arctic`, `cookie-parser`, `cors`, `dotenv`, `helmet`, `@ordena/database`, `pusher`, `zod`?**
+- **Why does `dependencies` connect `dependencies` to `api/package.json`, `arctic`, `morgan`, `cookie-parser`, `cors`, `dotenv`, `helmet`, `@ordena/database`, `pusher`, `zod`?**
   _High betweenness centrality (0.040) - this node is a cross-community bridge._
 - **Why does `pusher` connect `pusher` to `dependencies`, `branch/src/app/page.tsx`?**
   _High betweenness centrality (0.040) - this node is a cross-community bridge._
