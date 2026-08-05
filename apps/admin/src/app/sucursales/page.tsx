@@ -944,7 +944,7 @@ export default function AdminBranchesPage() {
               </div>
               <div>
                 <label className="field-label" htmlFor="staff-password">
-                  Contraseña
+                  Contraseña (mín. 12)
                 </label>
                 <input
                   id="staff-password"
@@ -955,7 +955,7 @@ export default function AdminBranchesPage() {
                     setForm((f) => ({ ...f, staffPassword: e.target.value }))
                   }
                   required
-                  minLength={6}
+                  minLength={12}
                   autoComplete="new-password"
                 />
               </div>

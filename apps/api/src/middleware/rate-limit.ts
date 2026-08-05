@@ -1,12 +1,32 @@
 import rateLimit from "express-rate-limit";
 
-/** Login / register / OAuth exchange */
+/** Login / register / OAuth exchange — límite por IP. */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 40,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo." },
+});
+
+/**
+ * Login — límite por cuenta (independiente de la IP), para contener
+ * credential stuffing distribuido contra una cuenta puntual (ej. un admin).
+ * No reemplaza authRateLimiter (por IP): se aplican ambos.
+ */
+export const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const email =
+      typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    return email || "unknown";
+  },
+  message: {
+    error: "Demasiados intentos para esta cuenta. Espera unos minutos e inténtalo de nuevo.",
+  },
 });
 
 /** Checkout sessions (Stripe) */

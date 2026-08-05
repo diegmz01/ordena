@@ -106,14 +106,14 @@ function RegisterForm() {
             </div>
             <div>
               <label htmlFor="password" className="field-label">
-                Contraseña
+                Contraseña (mín. 10)
               </label>
               <input
                 id="password"
                 name="password"
                 type="password"
                 required
-                minLength={6}
+                minLength={10}
                 className="input-field"
               />
             </div>

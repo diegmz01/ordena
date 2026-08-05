@@ -44,19 +44,20 @@ const branchOrderInclude = {
   },
 } as const;
 
-type MoneyItem = { unavailable: boolean; lineTotal: number };
+export type MoneyItem = { unavailable: boolean; lineTotal: number };
 
-function itemsSubtotal(items: MoneyItem[]) {
+/** Exportadas (no solo usadas acá) para poder testearlas directamente. */
+export function itemsSubtotal(items: MoneyItem[]) {
   return items.reduce((sum, item) => sum + item.lineTotal, 0);
 }
 
-function itemsDiscount(items: MoneyItem[]) {
+export function itemsDiscount(items: MoneyItem[]) {
   return items
     .filter((item) => item.unavailable)
     .reduce((sum, item) => sum + item.lineTotal, 0);
 }
 
-function chargeableTotal(items: MoneyItem[]) {
+export function chargeableTotal(items: MoneyItem[]) {
   return itemsSubtotal(items) - itemsDiscount(items);
 }
 

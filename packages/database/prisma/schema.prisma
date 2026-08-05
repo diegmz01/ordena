@@ -209,6 +209,9 @@ model Order {
   orderNumber           String      @unique
   /// Token opaco para tracking de invitados (no adivinar por id)
   viewToken             String      @unique @default(cuid())
+  /// Key idempotente generada por el cliente al iniciar el checkout; evita
+  /// crear pedidos/Stripe Sessions duplicados por doble submit o retry de red.
+  idempotencyKey        String?     @unique
   status                OrderStatus @default(PENDING_PAYMENT)
   branchId              String
   branch                Branch      @relation(fields: [branchId], references: [id])

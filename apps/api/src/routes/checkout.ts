@@ -53,6 +53,34 @@ async function assertBranchAcceptingOrders(branchId: string) {
   return branch;
 }
 
+/** Respuesta de checkout para un pedido ya existente (retry idempotente). */
+async function existingOrderCheckoutResponse(orderId: string) {
+  const existing = await prisma.order.findUniqueOrThrow({
+    where: { id: orderId },
+  });
+  if (existing.status === "CANCELLED") {
+    throw new AppError(
+      409,
+      "Este intento de pago ya fue cancelado. Recarga la página e intenta de nuevo.",
+    );
+  }
+  if (!existing.stripeSessionId) {
+    throw new AppError(
+      409,
+      "Tu pedido anterior todavía se está procesando. Espera unos segundos.",
+    );
+  }
+  const session = await getStripe().checkout.sessions.retrieve(
+    existing.stripeSessionId,
+  );
+  return {
+    orderId: existing.id,
+    viewToken: existing.viewToken,
+    checkoutUrl: session.url,
+    sessionId: session.id,
+  };
+}
+
 /** Público: valida stock del carrito en vivo (sin crear pedido ni Stripe). */
 checkoutRouter.post("/validate", checkoutRateLimiter, async (req, res, next) => {
   try {
@@ -80,6 +108,19 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
 
     const parsed = guestCheckoutSchema.parse(req.body);
     const user = req.authUser;
+
+    // Doble submit / retry de red con la misma idempotencyKey → reusar el
+    // pedido/Stripe Session ya creados en vez de duplicarlos.
+    if (parsed.idempotencyKey) {
+      const existing = await prisma.order.findUnique({
+        where: { idempotencyKey: parsed.idempotencyKey },
+        select: { id: true },
+      });
+      if (existing) {
+        res.json(await existingOrderCheckoutResponse(existing.id));
+        return;
+      }
+    }
 
     if (!user) {
       if (!parsed.guestName || !parsed.guestEmail || !parsed.guestPhone) {
@@ -172,42 +213,64 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
     const subtotal = resolvedItems.reduce((sum, item) => sum + item.lineTotal, 0);
 
     const viewToken = generateViewToken();
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: generateOrderNumber(),
-        viewToken,
-        branchId: branch.id,
-        userId: user?.id ?? null,
-        guestName: user ? null : parsed.guestName,
-        guestEmail: user ? null : parsed.guestEmail,
-        guestPhone: user ? null : parsed.guestPhone,
-        subtotal,
-        discount: 0,
-        total: subtotal,
-        notes: parsed.notes,
-        items: {
-          create: resolvedItems.map(
-            ({
-              productId,
-              productName,
-              variantName,
-              plateLabel,
-              unitPrice,
-              quantity,
-              lineTotal,
-            }) => ({
-              productId,
-              productName,
-              variantName,
-              plateLabel,
-              unitPrice,
-              quantity,
-              lineTotal,
-            }),
-          ),
+    let order;
+    try {
+      order = await prisma.order.create({
+        data: {
+          orderNumber: generateOrderNumber(),
+          viewToken,
+          idempotencyKey: parsed.idempotencyKey ?? null,
+          branchId: branch.id,
+          userId: user?.id ?? null,
+          guestName: user ? null : parsed.guestName,
+          guestEmail: user ? null : parsed.guestEmail,
+          guestPhone: user ? null : parsed.guestPhone,
+          subtotal,
+          discount: 0,
+          total: subtotal,
+          notes: parsed.notes,
+          items: {
+            create: resolvedItems.map(
+              ({
+                productId,
+                productName,
+                variantName,
+                plateLabel,
+                unitPrice,
+                quantity,
+                lineTotal,
+              }) => ({
+                productId,
+                productName,
+                variantName,
+                plateLabel,
+                unitPrice,
+                quantity,
+                lineTotal,
+              }),
+            ),
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      // Carrera: dos requests con la misma idempotencyKey crearon el Order casi
+      // a la vez; el constraint único la detecta acá. Devolvemos el que ganó.
+      const isUniqueClash =
+        parsed.idempotencyKey &&
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: string }).code === "P2002";
+      if (isUniqueClash) {
+        const winner = await prisma.order.findUniqueOrThrow({
+          where: { idempotencyKey: parsed.idempotencyKey },
+          select: { id: true },
+        });
+        res.json(await existingOrderCheckoutResponse(winner.id));
+        return;
+      }
+      throw error;
+    }
     createdOrderId = order.id;
 
     const appUrl = process.env.CUSTOMER_URL ?? "http://localhost:3000";
@@ -250,7 +313,7 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
       },
       success_url: `${appUrl}/pedido/${order.id}?success=1&t=${encodeURIComponent(viewToken)}`,
       cancel_url: `${appUrl}/checkout?canceled=1&branch=${branch.id}`,
-    });
+    }, parsed.idempotencyKey ? { idempotencyKey: parsed.idempotencyKey } : undefined);
 
     await prisma.order.update({
       where: { id: order.id },

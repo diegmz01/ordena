@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { AuthUser } from "@ordena/shared";
@@ -38,6 +38,10 @@ export default function CheckoutClient() {
   const [customer, setCustomer] = useState<AuthUser | null>(null);
   const [mode, setMode] = useState<CheckoutMode>("guest");
   const [showAltForm, setShowAltForm] = useState(false);
+  // Misma key en todos los submits de este intento de checkout: si el usuario
+  // reenvía (doble clic, retry de red), la API reusa el pedido/Stripe Session
+  // en vez de duplicarlos. Se renueva solo al volver a montar la página.
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   const effectiveBranch = branchParam || branchId;
 
@@ -128,6 +132,7 @@ export default function CheckoutClient() {
         method: "POST",
         body: JSON.stringify({
           branchId: effectiveBranch,
+          idempotencyKey: idempotencyKeyRef.current,
           guestName: asGuest
             ? String(form.get("guestName") || "") || undefined
             : undefined,
@@ -201,6 +206,9 @@ export default function CheckoutClient() {
       await payWithToken(null, form, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+      // Intento fallido (ej. producto agotado): un reintento deliberado del
+      // usuario es un pedido nuevo, no debe chocar con la key ya cancelada.
+      idempotencyKeyRef.current = crypto.randomUUID();
     } finally {
       setPending(false);
     }
@@ -507,9 +515,9 @@ export default function CheckoutClient() {
                     <input
                       name="regPassword"
                       type="password"
-                      placeholder="Contraseña (mín. 6)"
+                      placeholder="Contraseña (mín. 10)"
                       required
-                      minLength={6}
+                      minLength={10}
                       className="input-field"
                       autoComplete="new-password"
                     />

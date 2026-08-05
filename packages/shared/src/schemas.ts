@@ -1,6 +1,46 @@
 import { z } from "zod";
 import { ROLES } from "./constants";
 
+/**
+ * Denylist mínima de contraseñas triviales (sin depender de un servicio externo
+ * tipo HaveIBeenPwned). No reemplaza políticas de contraseña reales, solo
+ * bloquea los casos más obvios.
+ */
+const COMMON_PASSWORDS = new Set([
+  "password",
+  "password1",
+  "password123",
+  "12345678",
+  "123456789",
+  "1234567890",
+  "qwerty123",
+  "qwertyuiop",
+  "letmein123",
+  "admin1234",
+  "admin123",
+  "welcome123",
+  "changeme123",
+  "ordena123",
+]);
+
+/** Password schema con longitud mínima real y bloqueo de valores triviales. */
+function strongPasswordSchema(minLength: number) {
+  return z
+    .string()
+    .min(
+      minLength,
+      `La contraseña debe tener al menos ${minLength} caracteres`,
+    )
+    .max(72, "Contraseña demasiado larga") // límite de bcrypt
+    .refine(
+      (value) => !COMMON_PASSWORDS.has(value.toLowerCase()),
+      "Esa contraseña es demasiado común, elige otra",
+    );
+}
+
+/** Login mantiene el mínimo histórico (6): no se puede subirlo retroactivamente
+ * sin bloquear cuentas ya creadas con contraseñas más cortas. La política fuerte
+ * aplica en registro/creación (strongPasswordSchema). */
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -10,7 +50,7 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: strongPasswordSchema(10),
   phone: z.string().optional(),
 });
 
@@ -29,6 +69,12 @@ export const guestCheckoutSchema = z.object({
   guestPhone: z.string().min(8).optional(),
   branchId: z.string().min(1),
   notes: z.string().max(500).optional(),
+  /**
+   * Generada por el cliente (crypto.randomUUID()) al entrar a checkout y
+   * reenviada tal cual en reintentos: evita crear pedidos/Stripe Sessions
+   * duplicados por doble submit o retry de red.
+   */
+  idempotencyKey: z.string().uuid().optional(),
   items: z
     .array(
       z.object({
@@ -38,12 +84,13 @@ export const guestCheckoutSchema = z.object({
         /** Ignorado en servidor: el precio se recalcula. */
         unitPrice: z.number().int().nonnegative().optional(),
         productName: z.string().min(1).optional(),
-        modifierIds: z.array(z.string().min(1)).optional(),
+        modifierIds: z.array(z.string().min(1)).max(20).optional(),
         /** Agrupación visual Plato/Persona; no afecta el cobro. */
         plateLabel: z.string().trim().min(1).max(40).optional(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(50, "Máximo 50 productos por pedido"),
 });
 
 /** Validación en vivo del carrito antes de pagar (sin crear pedido). */
@@ -54,10 +101,11 @@ export const checkoutValidateSchema = z.object({
       z.object({
         productId: z.string().min(1),
         productName: z.string().min(1).optional(),
-        modifierIds: z.array(z.string().min(1)).optional(),
+        modifierIds: z.array(z.string().min(1)).max(20).optional(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(50, "Máximo 50 productos por pedido"),
 });
 
 /** Destinos de `PATCH /orders/:id/status` (PREPARING va por `/start-prep`). */
@@ -132,7 +180,7 @@ export const productCreateSchema = z.object({
     .union([z.string().url(), z.literal(""), z.null()])
     .optional(),
   isActive: z.boolean().optional(),
-  modifierIds: z.array(z.string().min(1)).optional(),
+  modifierIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 export const productUpdateSchema = z.object({
@@ -145,7 +193,7 @@ export const productUpdateSchema = z.object({
     .optional(),
   isActive: z.boolean().optional(),
   /** IDs de modificadores asignados al producto (reemplazo completo). */
-  modifierIds: z.array(z.string().min(1)).optional(),
+  modifierIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 export const modifierCreateSchema = z.object({
@@ -218,7 +266,7 @@ export const branchCreateSchema = z.object({
   hours: branchHoursSchema.optional().nullable(),
   isActive: z.boolean().optional(),
   staffEmail: z.string().email("Email de staff inválido"),
-  staffPassword: z.string().min(6, "Contraseña mínimo 6 caracteres"),
+  staffPassword: strongPasswordSchema(12),
 });
 
 export const branchUpdateSchema = z.object({
@@ -231,7 +279,7 @@ export const branchUpdateSchema = z.object({
   hours: branchHoursSchema.optional().nullable(),
   isActive: z.boolean().optional(),
   staffEmail: z.string().email().optional(),
-  staffPassword: z.string().min(6).optional(),
+  staffPassword: strongPasswordSchema(12).optional(),
 });
 
 export type BranchHours = z.infer<typeof branchHoursSchema>;
@@ -301,5 +349,6 @@ export const branchMenuUpdateSchema = z.object({
         available: z.boolean(),
       }),
     )
-    .min(1),
+    .min(1)
+    .max(1000, "Demasiados productos en una sola actualización"),
 });

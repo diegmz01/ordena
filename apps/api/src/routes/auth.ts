@@ -29,7 +29,7 @@ import {
   sanitizeNext,
   upsertOAuthUser,
 } from "../lib/oauth";
-import { authRateLimiter } from "../middleware/rate-limit";
+import { authRateLimiter, loginRateLimiter } from "../middleware/rate-limit";
 import {
   clearSessionCookie,
   resolveAudience,
@@ -124,7 +124,7 @@ function clearOAuthCookie(res: import("express").Response) {
   res.clearCookie(OAUTH_COOKIE, { path: "/auth/oauth" });
 }
 
-authRouter.post("/login", authRateLimiter, async (req, res, next) => {
+authRouter.post("/login", authRateLimiter, loginRateLimiter, async (req, res, next) => {
   try {
     const { email, password, expectedRole } = loginSchema.parse(req.body);
 
