@@ -15,6 +15,14 @@ export function cookieNameForAudience(audience: AuthAudience): string {
   return AUTH_COOKIE_CUSTOMER;
 }
 
+/**
+ * Lee X-Ordena-Client, el header que cada app Next manda en toda request.
+ * Es solo un hint de "desde qué app llama el browser" — hoy únicamente se usa
+ * para decidir qué cookie limpiar en /auth/logout. NO debe usarse para decidir
+ * qué cookie de sesión emitir en login/oauth-exchange: eso sale siempre del
+ * rol real en DB (ver audienceForRole en routes/auth.ts), porque el header
+ * lo controla el cliente y un usuario puede llamar la API con cualquier valor.
+ */
 export function resolveAudience(req: Request): AuthAudience {
   const raw = req.headers["x-ordena-client"];
   const value = Array.isArray(raw) ? raw[0] : raw;

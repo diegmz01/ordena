@@ -162,6 +162,12 @@ export const pushSubscribeSchema = z.object({
   staffBranch: z.boolean().optional(),
 });
 
+export const pushUnsubscribeSchema = z.object({
+  endpoint: z.string().url(),
+  /** Mismo viewToken de invitado usado al crear la suscripción, si aplica. */
+  viewToken: z.string().min(1).optional(),
+});
+
 export const categoryCreateSchema = z.object({
   name: z.string().min(2, "Nombre demasiado corto"),
   sortOrder: z.number().int().optional(),

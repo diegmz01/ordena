@@ -22,6 +22,7 @@ import {
   unavailableProductIdsForBranch,
 } from "../utils/branch-menu-stock";
 import { uniqueSlug } from "../utils/slug";
+import { recordAdminAction } from "../utils/audit-log";
 
 export const menuRouter = Router();
 
@@ -405,7 +406,7 @@ menuRouter.patch(
   "/admin/products/:id",
   authenticate,
   requireAdmin,
-  async (req, res, next) => {
+  async (req: AuthenticatedRequest, res, next) => {
     try {
       const body = productUpdateSchema.parse(req.body);
       const existing = await prisma.product.findUnique({
@@ -456,6 +457,20 @@ menuRouter.patch(
 
       if (body.modifierIds) {
         await syncProductModifiers(existing.id, body.modifierIds);
+      }
+
+      if (body.price !== undefined) {
+        await recordAdminAction({
+          actorId: req.authUser!.id,
+          action: "product.price_update",
+          entityType: "Product",
+          entityId: existing.id,
+          metadata: {
+            productName: existing.name,
+            fromCents: existing.basePrice,
+            toCents: Math.round(body.price * 100),
+          },
+        });
       }
 
       const product = await prisma.product.findUniqueOrThrow({

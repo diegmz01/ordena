@@ -17,7 +17,9 @@ import { healthRouter } from "./routes/health";
 import { pusherRouter } from "./routes/pusher";
 import { financeRouter } from "./routes/finance";
 import { errorHandler } from "./middleware/error-handler";
+import { globalRateLimiter } from "./middleware/rate-limit";
 import { assertProductionEnv, corsOrigins } from "./utils/env";
+import { startPromoteReadyOrdersJob } from "./jobs/promote-ready-orders-job";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../.env"), override: true });
 dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true });
@@ -45,6 +47,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/health", healthRouter);
+
+// Red de contención por defecto para todo lo que sigue (auth/checkout/pusher
+// ya tienen sus propios limiters más estrictos; este es el piso general).
+app.use(globalRateLimiter);
+
 app.use("/auth", authRouter);
 app.use("/branches", branchesRouter);
 app.use("/menu", menuRouter);
@@ -60,3 +67,5 @@ app.use(errorHandler);
 app.listen(port, () => {
   console.log(`API running on http://localhost:${port}`);
 });
+
+startPromoteReadyOrdersJob();

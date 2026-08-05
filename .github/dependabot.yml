@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: "npm" # pnpm workspaces se detectan vía este ecosistema
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      # Next.js + su config de eslint van juntos en las 3 apps: un solo PR
+      # en vez de 6 (next + eslint-config-next × 3 apps) por actualización.
+      next:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+          - "@serwist/next"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

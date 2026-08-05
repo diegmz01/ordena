@@ -46,3 +46,17 @@ export const pusherAuthRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Demasiadas solicitudes." },
 });
+
+/**
+ * Red de contención por defecto para el resto de la API (menú/sucursales
+ * públicos, CRUD admin, etc.) que no tiene un limiter específico. Umbral alto
+ * a propósito: no debe afectar uso normal, solo cortar abuso/scraping franco.
+ * Se monta después de /health y /stripe/webhook para no afectarlos.
+ */
+export const globalRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Demasiadas solicitudes. Espera un momento." },
+});

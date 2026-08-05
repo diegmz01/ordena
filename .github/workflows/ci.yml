@@ -72,3 +72,11 @@ jobs:
       - name: Lint (frontend)
         run: pnpm --filter @ordena/web --filter @ordena/admin --filter @ordena/branch lint
         continue-on-error: true
+
+      # CVEs conocidos en dependencias (directas o transitivas). Bloqueante:
+      # hoy corre limpio (ver overrides de sharp/postcss en package.json#pnpm
+      # para lo que next todavía no actualizó él mismo). Si un audit futuro
+      # bloquea por algo sin fix disponible todavía, se documenta acá y se
+      # excluye puntualmente en vez de volver esto continue-on-error.
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high

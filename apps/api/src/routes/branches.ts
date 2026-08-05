@@ -35,6 +35,7 @@ import {
   createExpressAccount,
   syncBranchStripeStatus,
 } from "../utils/stripe";
+import { recordAdminAction } from "../utils/audit-log";
 
 export const branchesRouter = Router();
 
@@ -362,6 +363,18 @@ branchesRouter.patch(
           pausedUntil,
         },
         select: staffBranchSelect,
+      });
+
+      await recordAdminAction({
+        actorId: req.authUser!.id,
+        action: "branch.availability_update",
+        entityType: "Branch",
+        entityId: branchId,
+        metadata: {
+          actorRole: req.authUser!.role,
+          availability: body.availability,
+          pauseMinutes: body.pauseMinutes ?? null,
+        },
       });
 
       res.json({ data: toStaffBranchPayload(branch) });

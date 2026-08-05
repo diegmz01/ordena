@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "@ordena/database";
-import { pushSubscribeSchema } from "@ordena/shared";
+import { pushSubscribeSchema, pushUnsubscribeSchema } from "@ordena/shared";
 import {
   optionalAuth,
   type AuthenticatedRequest,
@@ -123,15 +123,56 @@ pushRouter.post(
 pushRouter.delete(
   "/subscribe",
   optionalAuth,
-  async (req, res, next) => {
+  async (req: AuthenticatedRequest, res, next) => {
     try {
-      const endpoint =
-        typeof req.body?.endpoint === "string" ? req.body.endpoint : null;
-      if (!endpoint) {
-        throw new AppError(400, "endpoint requerido");
+      const body = pushUnsubscribeSchema.parse(req.body);
+      const user = req.authUser;
+
+      const subscription = await prisma.pushSubscription.findUnique({
+        where: { endpoint: body.endpoint },
+      });
+
+      // Idempotente: si ya no existe, no hay nada que autorizar ni borrar.
+      if (!subscription) {
+        res.json({ ok: true });
+        return;
       }
 
-      await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+      const isOwner = Boolean(
+        subscription.userId && user && user.id === subscription.userId,
+      );
+      const isBranchStaff = Boolean(
+        subscription.branchId &&
+          user &&
+          (user.role === "ADMIN" ||
+            (user.role === "BRANCH_STAFF" &&
+              user.branchId === subscription.branchId)),
+      );
+
+      // orderId no tiene relación Prisma (columna suelta): resolver aparte.
+      let isOrderOwner = false;
+      if (subscription.orderId && !isOwner && !isBranchStaff) {
+        const order = await prisma.order.findUnique({
+          where: { id: subscription.orderId },
+          select: { userId: true, viewToken: true },
+        });
+        isOrderOwner = Boolean(
+          order &&
+            ((user && order.userId && user.id === order.userId) ||
+              (body.viewToken && body.viewToken === order.viewToken)),
+        );
+      }
+
+      if (!isOwner && !isBranchStaff && !isOrderOwner) {
+        throw new AppError(
+          403,
+          "No autorizado para eliminar esta suscripción",
+        );
+      }
+
+      await prisma.pushSubscription.delete({
+        where: { endpoint: body.endpoint },
+      });
       res.json({ ok: true });
     } catch (error) {
       next(error);

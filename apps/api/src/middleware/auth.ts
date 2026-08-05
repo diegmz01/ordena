@@ -28,7 +28,9 @@ export async function authenticate(
       throw new AppError(401, "Missing or invalid authorization");
     }
 
-    const payload = jwt.verify(token, getJwtSecret()) as AuthPayload;
+    const payload = jwt.verify(token, getJwtSecret(), {
+      algorithms: ["HS256"],
+    }) as AuthPayload;
     if (!payload.sub) {
       throw new AppError(401, "Invalid token payload");
     }

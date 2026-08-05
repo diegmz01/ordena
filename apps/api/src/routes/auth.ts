@@ -87,7 +87,7 @@ function issueToken(user: {
 }
 
 function issueSession(
-  req: import("express").Request,
+  _req: import("express").Request,
   res: import("express").Response,
   user: {
     id: string;
@@ -99,10 +99,10 @@ function issueSession(
   },
 ) {
   const payload = issueToken(user);
-  const audience =
-    resolveAudience(req) !== "customer"
-      ? resolveAudience(req)
-      : audienceForRole(user.role);
+  // La cookie a setear siempre sale del rol real en DB, nunca de un header
+  // que pone el cliente (X-Ordena-Client es solo un hint informativo, ver
+  // resolveAudience — no debe decidir qué cookie de sesión se emite).
+  const audience = audienceForRole(user.role);
   setSessionCookie(res, payload.access_token, audience);
   return payload;
 }

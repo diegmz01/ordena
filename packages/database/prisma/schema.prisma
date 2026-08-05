@@ -57,6 +57,7 @@ model User {
   orders            Order[]
   pushSubscriptions PushSubscription[]
   oauthAccounts     OAuthAccount[]
+  adminAuditLogs    AdminAuditLog[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 }
@@ -305,4 +306,25 @@ model PushSubscription {
   @@index([branchId])
   @@index([orderId])
   @@index([guestEmail])
+}
+
+/// Registro mínimo de acciones administrativas sensibles (cancelaciones,
+/// cambios de precio/menú, cambios de disponibilidad de sucursal) para
+/// disputas de cobro e investigación de incidentes. Best-effort: un fallo acá
+/// nunca debe bloquear la acción real que se está auditando.
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  /// ej. "order.admin_cancel", "product.update", "branch.availability_update"
+  action     String
+  entityType String
+  entityId   String
+  /// Detalle puntual de la acción (ej. { from: "PAID", to: "CANCELLED" })
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

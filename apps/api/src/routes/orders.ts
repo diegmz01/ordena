@@ -25,6 +25,11 @@ import {
 } from "../utils/web-push";
 import { settleStripePayment } from "../utils/stripe";
 import { getBusinessDate } from "../utils/branch-day-number";
+import { recordAdminAction } from "../utils/audit-log";
+import {
+  branchOrderInclude,
+  promoteDuePreparingOrders,
+} from "../utils/promote-ready-orders";
 
 export const ordersRouter = Router();
 
@@ -36,13 +41,6 @@ const ACTIVE_BRANCH_STATUSES = [
 ] as const;
 
 const HISTORY_BRANCH_STATUSES = ["COMPLETED", "CANCELLED"] as const;
-
-const branchOrderInclude = {
-  items: true,
-  user: {
-    select: { id: true, name: true, email: true, phone: true },
-  },
-} as const;
 
 export type MoneyItem = { unavailable: boolean; lineTotal: number };
 
@@ -76,42 +74,6 @@ function assertStatusTransition(from: OrderStatus, to: OrderStatus) {
     400,
     `Transición inválida: no se puede pasar de ${from} a ${to}`,
   );
-}
-
-async function promoteDuePreparingOrders(branchId: string) {
-  const due = await prisma.order.findMany({
-    where: {
-      branchId,
-      status: "PREPARING",
-      readyAt: { lte: new Date() },
-    },
-    include: branchOrderInclude,
-  });
-
-  const promoted = [];
-  for (const order of due) {
-    const updated = await prisma.order.update({
-      where: { id: order.id },
-      data: { status: "READY" },
-      include: branchOrderInclude,
-    });
-
-    await notifyBranchOrderUpdated(order.branchId, {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      status: "READY",
-    });
-
-    try {
-      await notifyCustomerOrderStatus(updated);
-    } catch (pushError) {
-      console.error("[orders.auto-ready] web-push", pushError);
-    }
-
-    promoted.push(updated);
-  }
-
-  return promoted;
 }
 
 ordersRouter.get(
@@ -481,6 +443,14 @@ ordersRouter.post(
         where: { id: order.id },
         data: { status: "CANCELLED" },
         include: branchOrderInclude,
+      });
+
+      await recordAdminAction({
+        actorId: req.authUser!.id,
+        action: "order.admin_cancel",
+        entityType: "Order",
+        entityId: order.id,
+        metadata: { from: currentStatus, orderNumber: order.orderNumber },
       });
 
       await notifyBranchOrderUpdated(order.branchId, {

@@ -119,7 +119,9 @@ export function readOAuthStateCookie(
     throw new AppError(400, "Sesión OAuth inválida o expirada");
   }
   try {
-    const data = jwt.verify(cookieValue, getJwtSecret()) as OAuthStatePayload;
+    const data = jwt.verify(cookieValue, getJwtSecret(), {
+      algorithms: ["HS256"],
+    }) as OAuthStatePayload;
     if (!data.state || !data.provider || !isOAuthProviderSlug(data.provider)) {
       throw new Error("invalid");
     }
