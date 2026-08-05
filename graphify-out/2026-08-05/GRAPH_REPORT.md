@@ -1,11 +1,11 @@
 # Graph Report - Ordena  (2026-08-05)
 
 ## Corpus Check
-- 159 files · ~68,612 words
+- 158 files · ~68,502 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1401 nodes · 2269 edges · 93 communities (76 shown, 17 thin omitted)
+- 1401 nodes · 2265 edges · 94 communities (77 shown, 17 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 81 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
@@ -46,14 +46,14 @@
 - Web White Logo SVG
 - Branch Orange Logo SVG
 - Web Public Orange Logo
-- api/src/index.ts
+- middleware/auth.ts
 - order-client.tsx
 - Web App Dir White Logo
 - Web App Dir Orange Logo
 - admin/src/lib/auth.ts
 - admin/src/app/pedidos/page.tsx
 - admin/src/app/sucursales/page.tsx
-- checkout.ts
+- menu.ts
 - API TypeScript Config
 - admin/src/app/api-backend/[...path]/route.ts
 - Database TS Config
@@ -94,14 +94,15 @@
 - social-auth-buttons.tsx
 - constants.ts
 - morgan
-- env.ts
+- api/src/index.ts
 - branch/src/sw.ts
 - cookie-parser
 - cors
 - dotenv
 - helmet
-- arctic
+- @ordena/shared
 - @ordena/database
+- checkout.ts
 - pusher
 - zod
 
@@ -151,7 +152,7 @@
 - **Glifos E-L-B-A-J-I-T-O forman el wordmark El Bajito** — apps_web_src_app_logos_logo_orange_glyph_e, apps_web_src_app_logos_logo_orange_glyph_l, apps_web_src_app_logos_logo_orange_glyph_b, apps_web_src_app_logos_logo_orange_glyph_a, apps_web_src_app_logos_logo_orange_glyph_j, apps_web_src_app_logos_logo_orange_glyph_i, apps_web_src_app_logos_logo_orange_glyph_t, apps_web_src_app_logos_logo_orange_glyph_o [EXTRACTED 1.00]
 - **El Bajito Letter Sequence (E-L-B-A-J-I-T-O)** — apps_web_src_app_logos_logo_letter_e, apps_web_src_app_logos_logo_letter_l, apps_web_src_app_logos_logo_letter_b, apps_web_src_app_logos_logo_letter_a, apps_web_src_app_logos_logo_letter_j, apps_web_src_app_logos_logo_letter_i, apps_web_src_app_logos_logo_letter_t, apps_web_src_app_logos_logo_letter_o [EXTRACTED 1.00]
 
-## Communities (93 total, 17 thin omitted)
+## Communities (94 total, 17 thin omitted)
 
 ### Community 0 - "branch/src/app/page.tsx"
 Cohesion: 0.19
@@ -178,8 +179,8 @@ Cohesion: 0.06
 Nodes (34): dependencies, bcryptjs, dotenv, @prisma/client, devDependencies, @ordena/shared, prisma, tsx (+26 more)
 
 ### Community 6 - "routes/auth.ts"
-Cohesion: 0.11
-Nodes (39): applePrivateKeyBytes(), buildAuthorizationUrl(), callbackUrl(), consumeOneTimeCode(), createApple(), createFacebook(), createGoogle(), createOAuthStateCookie() (+31 more)
+Cohesion: 0.13
+Nodes (34): applePrivateKeyBytes(), buildAuthorizationUrl(), callbackUrl(), consumeOneTimeCode(), createApple(), createFacebook(), createGoogle(), createOAuthStateCookie() (+26 more)
 
 ### Community 7 - "App README Docs"
 Cohesion: 0.09
@@ -187,7 +188,7 @@ Nodes (32): Admin Next.js README, Geist font, Next.js, Vercel Platform, Branch N
 
 ### Community 8 - "dependencies"
 Cohesion: 0.12
-Nodes (17): dependencies, bcryptjs, express, express-rate-limit, jsonwebtoken, @ordena/shared, stripe, tsx (+9 more)
+Nodes (17): dependencies, arctic, bcryptjs, express, express-rate-limit, jsonwebtoken, stripe, tsx (+9 more)
 
 ### Community 9 - "cart.tsx"
 Cohesion: 0.26
@@ -214,8 +215,8 @@ Cohesion: 0.09
 Nodes (22): devDependencies, turbo, typescript, engines, node, turbo, typescript, name (+14 more)
 
 ### Community 15 - "branches.ts"
-Cohesion: 0.06
-Nodes (32): adminBranchInclude, staffBranchSelect, staffSelect, menuRouter, productAdminInclude, isProductInStock(), unavailableProductIdsForBranch(), slugify() (+24 more)
+Cohesion: 0.09
+Nodes (22): adminBranchInclude, staffBranchSelect, staffSelect, isProductInStock(), branchAvailabilitySchema, BranchAvailabilityStatus, branchAvailabilityUpdateSchema, branchCodeSchema (+14 more)
 
 ### Community 16 - "Web Public Brand Icon"
 Cohesion: 0.14
@@ -223,7 +224,7 @@ Nodes (19): Ordena Web App Icon (icono.png), Solid Brand Orange Fill, Flat Minim
 
 ### Community 17 - "orders.ts"
 Cohesion: 0.12
-Nodes (22): ACTIVE_BRANCH_STATUSES, assertStatusTransition(), branchOrderInclude, chargeableTotal(), HISTORY_BRANCH_STATUSES, itemsDiscount(), itemsSubtotal(), MoneyItem (+14 more)
+Nodes (21): ACTIVE_BRANCH_STATUSES, assertStatusTransition(), branchOrderInclude, chargeableTotal(), HISTORY_BRANCH_STATUSES, itemsDiscount(), itemsSubtotal(), MoneyItem (+13 more)
 
 ### Community 18 - "Shared Package Exports"
 Cohesion: 0.12
@@ -277,9 +278,9 @@ Nodes (13): Brand Orange #EA5E1F, Custom Vector Letterforms, El Bajito Wordmark,
 Cohesion: 0.27
 Nodes (13): Brand Orange #EA5E1F, Custom Vector Letterforms, El Bajito Wordmark, Letter A Glyph, Letter B Glyph, Letter E Glyph, Letter I Glyph, Letter J Glyph (+5 more)
 
-### Community 31 - "api/src/index.ts"
-Cohesion: 0.11
-Nodes (21): app, port, authenticate(), AuthenticatedRequest, AuthPayload, optionalAuth(), requireAdmin, AppError (+13 more)
+### Community 31 - "middleware/auth.ts"
+Cohesion: 0.13
+Nodes (16): authenticate(), AuthenticatedRequest, AuthPayload, optionalAuth(), requireAdmin, AppError, errorHandler(), customersRouter (+8 more)
 
 ### Community 32 - "order-client.tsx"
 Cohesion: 0.16
@@ -305,9 +306,9 @@ Nodes (11): AdminOrdersPage(), customerInitial(), customerLabel(), formatDate(),
 Cohesion: 0.18
 Nodes (16): AdminBranchesPage(), availabilityBadgeClass(), AvailabilityDetail, Branch, DAY_KEYS, DAY_LABELS, DayKey, defaultDay() (+8 more)
 
-### Community 38 - "checkout.ts"
-Cohesion: 0.14
-Nodes (18): checkoutRouter, isManualUnavailable(), listedBranchProductWhere(), MANUAL_UNAVAILABLE_UNTIL, orderableBranchProductWhere(), resolveUnavailableUntil(), restoreExpiredBranchStock(), startOfNextDayInTimeZone() (+10 more)
+### Community 38 - "menu.ts"
+Cohesion: 0.12
+Nodes (22): menuRouter, productAdminInclude, isManualUnavailable(), listedBranchProductWhere(), MANUAL_UNAVAILABLE_UNTIL, orderableBranchProductWhere(), resolveUnavailableUntil(), restoreExpiredBranchStock() (+14 more)
 
 ### Community 39 - "API TypeScript Config"
 Cohesion: 0.17
@@ -330,8 +331,8 @@ Cohesion: 0.17
 Nodes (11): compilerOptions, esModuleInterop, forceConsistentCasingInFileNames, lib, module, moduleResolution, resolveJsonModule, skipLibCheck (+3 more)
 
 ### Community 44 - "routes/pusher.ts"
-Cohesion: 0.22
-Nodes (11): requireBranchStaff, authRateLimiter, checkoutRateLimiter, pusherAuthRateLimiter, promoteDuePreparingOrders(), pusherRouter, branchChannel(), getPusher() (+3 more)
+Cohesion: 0.33
+Nodes (8): requireBranchStaff, promoteDuePreparingOrders(), pusherRouter, branchChannel(), getPusher(), notifyBranchNewOrder(), notifyBranchOrderUpdated(), parseBranchChannel()
 
 ### Community 45 - "web/src/app/pedidos/page.tsx"
 Cohesion: 0.24
@@ -422,8 +423,8 @@ Cohesion: 0.21
 Nodes (10): StockToggle(), BrandLogo(), BrandLogoProps, OrderCard(), OrderCardProps, OrderCardSkeleton(), STATUS_ACCENT, STATUS_BADGE (+2 more)
 
 ### Community 77 - "shared/src/index.ts"
-Cohesion: 0.07
-Nodes (56): BranchMe, ConfiguracionPage(), PREP_PRESETS, buildReceiptDocument(), escapeHtml(), getOrCreatePrintFrame(), lineToHtml(), printReceiptHtml() (+48 more)
+Cohesion: 0.06
+Nodes (58): config, BranchMe, ConfiguracionPage(), PREP_PRESETS, buildReceiptDocument(), escapeHtml(), getOrCreatePrintFrame(), lineToHtml() (+50 more)
 
 ### Community 78 - "branch-menu-modal.tsx"
 Cohesion: 0.24
@@ -434,19 +435,23 @@ Cohesion: 0.16
 Nodes (11): LoginForm(), safeNext(), RegisterForm(), safeNext(), ALL_PROVIDERS, Provider, PROVIDER_LABEL, SocialAuthButtons() (+3 more)
 
 ### Community 80 - "constants.ts"
-Cohesion: 0.14
-Nodes (11): config, config, ADMIN_ORDER_CANCEL_FROM, AUTH_COOKIE_ADMIN, AUTH_COOKIE_BRANCH, AUTH_COOKIE_CUSTOMER, AUTH_COOKIE_NAME, AUTH_PRESENCE_COOKIE (+3 more)
+Cohesion: 0.17
+Nodes (14): AuthAudience, clearSessionCookie(), cookieNameForAudience(), sessionCookieOptions(), setSessionCookie(), ADMIN_ORDER_CANCEL_FROM, AUTH_COOKIE_ADMIN, AUTH_COOKIE_BRANCH (+6 more)
 
-### Community 82 - "env.ts"
-Cohesion: 0.53
-Nodes (5): assertProductionEnv(), corsOrigins(), DEV_JWT_PLACEHOLDERS, required(), warn()
+### Community 82 - "api/src/index.ts"
+Cohesion: 0.19
+Nodes (12): app, port, authRouter, branchesRouter, healthRouter, ordersRouter, stripeWebhookRouter, assertProductionEnv() (+4 more)
+
+### Community 90 - "checkout.ts"
+Cohesion: 0.21
+Nodes (8): authRateLimiter, checkoutRateLimiter, pusherAuthRateLimiter, checkoutRouter, generateOrderNumber(), generateViewToken(), checkoutValidateSchema, guestCheckoutSchema
 
 ## Ambiguous Edges - Review These
 - `apps/web — PWA clientes (puerto 3000)` → `Admin Next.js README`  [AMBIGUOUS]
   apps/admin/README.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **569 isolated node(s):** `eslintConfig`, `nextConfig`, `name`, `version`, `private` (+564 more)
+- **569 isolated node(s):** `config`, `config`, `eslintConfig`, `nextConfig`, `name` (+564 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -456,12 +461,12 @@ _Questions this graph is uniquely positioned to answer:_
 - **What is the exact relationship between `apps/web — PWA clientes (puerto 3000)` and `Admin Next.js README`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **Why does `BranchHomePage()` connect `branch/src/app/page.tsx` to `getAuthToken`, `pusher`, `cn`, `shared/src/index.ts`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
-- **Why does `dependencies` connect `dependencies` to `api/package.json`, `morgan`, `cookie-parser`, `cors`, `dotenv`, `helmet`, `arctic`, `@ordena/database`, `pusher`, `zod`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
+  _High betweenness centrality (0.035) - this node is a cross-community bridge._
 - **Why does `pusher` connect `pusher` to `dependencies`, `branch/src/app/page.tsx`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
-- **What connects `eslintConfig`, `nextConfig`, `name` to the rest of the system?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **Why does `dependencies` connect `dependencies` to `api/package.json`, `morgan`, `cookie-parser`, `cors`, `dotenv`, `helmet`, `@ordena/shared`, `@ordena/database`, `pusher`, `zod`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **What connects `config`, `config`, `eslintConfig` to the rest of the system?**
   _569 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Admin App Dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.04081632653061224 - nodes in this community are weakly interconnected._
