@@ -50,13 +50,11 @@ export function StaffPresence() {
     const token = getAuthToken();
     if (!token || isLogin) return;
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setBrowserOnline(false);
-      setApiOk(false);
-      dispatchPresence({ ok: false, browserOnline: false });
-      return;
-    }
-
+    // navigator.onLine solo refleja si hay una interfaz de red activa, no si
+    // hay internet real: puede reportar "offline" en falso (VPN, redes
+    // corporativas, ciertos adaptadores) aunque el equipo sí tenga conexión.
+    // Por eso el heartbeat real al API es la única señal de verdad; onLine
+    // solo se usa para matizar el mensaje cuando el heartbeat también falla.
     try {
       await apiFetch<{ data: unknown }>("/branches/me/heartbeat", token, {
         method: "POST",
@@ -65,12 +63,10 @@ export function StaffPresence() {
       setBrowserOnline(true);
       dispatchPresence({ ok: true, browserOnline: true });
     } catch {
+      const online = typeof navigator === "undefined" ? true : navigator.onLine;
       setApiOk(false);
-      dispatchPresence({
-        ok: false,
-        browserOnline:
-          typeof navigator === "undefined" ? true : navigator.onLine,
-      });
+      setBrowserOnline(online);
+      dispatchPresence({ ok: false, browserOnline: online });
     }
   }, [isLogin]);
 
@@ -84,13 +80,12 @@ export function StaffPresence() {
     }, STAFF_HEARTBEAT_INTERVAL_MS);
 
     const onOnline = () => {
-      setBrowserOnline(true);
       void sendHeartbeat();
     };
     const onOffline = () => {
-      setBrowserOnline(false);
-      setApiOk(false);
-      dispatchPresence({ ok: false, browserOnline: false });
+      // No confiamos ciegamente en el evento "offline": puede ser un falso
+      // positivo. Verificamos con un heartbeat real antes de mostrar el banner.
+      void sendHeartbeat();
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {

@@ -317,7 +317,11 @@ branchesRouter.post(
       const branch = await prisma.branch.update({
         where: { id: branchId },
         data: {
-          staffLastSeenAt: new Date(),
+          // null (no "now"): esta es una señal explícita de que el staff se
+          // fue, así que el gate de presencia debe pausar de inmediato en vez
+          // de esperar hasta STAFF_HEARTBEAT_STALE_MS como con un heartbeat
+          // simplemente ausente.
+          staffLastSeenAt: null,
           staffAwayReason: body.reason,
         },
         select: staffBranchSelect,
