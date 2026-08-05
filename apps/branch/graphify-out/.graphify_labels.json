@@ -1,0 +1,20 @@
+{
+  "0": "print-order.ts",
+  "1": "app/page.tsx",
+  "2": "compilerOptions",
+  "3": "devDependencies",
+  "4": "branch-header.tsx",
+  "5": "dependencies",
+  "6": "menu/page.tsx",
+  "7": "layout.tsx",
+  "8": "browser-print.ts",
+  "9": "route.ts",
+  "10": "README.md",
+  "11": "next.config.ts",
+  "12": "middleware.ts",
+  "13": "sw.ts",
+  "14": "eslint.config.mjs",
+  "15": "postcss.config.mjs",
+  "16": "manifest.ts",
+  "17": "push-dev-sw.js"
+}

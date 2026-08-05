@@ -1,0 +1,305 @@
+// Ordena — single restaurant, multiple branches
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  BRANCH_STAFF
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  ACCEPTED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum OAuthProvider {
+  GOOGLE
+  APPLE
+  FACEBOOK
+}
+
+enum BranchAvailability {
+  AUTO
+  OPEN
+  PAUSED
+  CLOSED
+}
+
+/** Motivo de ausencia de la PWA staff. */
+enum StaffAwayReason {
+  APP_CLOSED
+  CONNECTION_LOST
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  passwordHash      String?
+  image             String?
+  role              Role               @default(CUSTOMER)
+  phone             String?
+  branchId          String?
+  branch            Branch?            @relation(fields: [branchId], references: [id])
+  orders            Order[]
+  pushSubscriptions PushSubscription[]
+  oauthAccounts     OAuthAccount[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model OAuthAccount {
+  id                String        @id @default(cuid())
+  provider          OAuthProvider
+  providerAccountId String
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Branch {
+  id           String             @id @default(cuid())
+  name         String
+  slug         String             @unique
+  address      String
+  phone        String?
+  latitude     Float?
+  longitude    Float?
+  isActive     Boolean            @default(true)
+  availability    BranchAvailability @default(AUTO)
+  pausedUntil     DateTime?
+  /** Último heartbeat de la PWA staff; si caduca, no se aceptan pedidos. */
+  staffLastSeenAt DateTime?
+  /** APP_CLOSED = staff cerró la app; CONNECTION_LOST = red/API sin señal de cierre. */
+  staffAwayReason StaffAwayReason?
+  prepTimeMinutes Int                @default(20)
+  /** Si true, el staff puede gestionar stock (agotar productos) desde la PWA. */
+  menuStockEnabled Boolean           @default(false)
+  hours           Json?
+  /** Stripe Connect Express account (`acct_…`) para destination charges. */
+  stripeAccountId            String?  @unique
+  stripeChargesEnabled       Boolean  @default(false)
+  stripePayoutsEnabled       Boolean  @default(false)
+  stripeDetailsSubmitted     Boolean  @default(false)
+  /** True cuando charges + details permiten cobrar (sincronizado desde Stripe). */
+  stripeOnboardingComplete   Boolean  @default(false)
+  staff        User[]
+  products     BranchProduct[]
+  modifiers    BranchModifier[]
+  orders       Order[]
+  pushSubscriptions PushSubscription[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  imageUrl    String?
+  basePrice   Int
+  isActive    Boolean          @default(true)
+  categoryId  String
+  category    Category         @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+  modifiers   ProductModifier[]
+  branches    BranchProduct[]
+  orderItems  OrderItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  name       String
+  priceDelta Int      @default(0)
+  isActive   Boolean  @default(true)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// Extra reutilizable (ej. Extra queso +$20) asignable a varios productos.
+model Modifier {
+  id         String           @id @default(cuid())
+  name       String
+  slug       String           @unique
+  /// Incremento de precio en centavos (MXN * 100).
+  priceDelta Int              @default(0)
+  sortOrder  Int              @default(0)
+  /// Si es false, el cliente decide agregarlo o no. Si es true, va incluido.
+  isRequired Boolean          @default(false)
+  isActive   Boolean          @default(true)
+  products   ProductModifier[]
+  branches   BranchModifier[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+model ProductModifier {
+  id         String   @id @default(cuid())
+  productId  String
+  modifierId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifier   Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, modifierId])
+}
+
+model BranchProduct {
+  id               String    @id @default(cuid())
+  branchId         String
+  productId        String
+  /** Admin: si la sucursal vende este producto (catálogo de la sucursal). */
+  available        Boolean   @default(true)
+  /** Staff: agotado temporal; null = con stock. No cambia `available`. */
+  unavailableUntil DateTime?
+  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, productId])
+}
+
+/** Staff: agotado temporal de un modificador en una sucursal. Sin fila = con stock. */
+model BranchModifier {
+  id               String    @id @default(cuid())
+  branchId         String
+  modifierId       String
+  /** Staff: agotado temporal; null = con stock. */
+  unavailableUntil DateTime?
+  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  modifier         Modifier  @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, modifierId])
+}
+
+model Order {
+  id                    String      @id @default(cuid())
+  orderNumber           String      @unique
+  /// Token opaco para tracking de invitados (no adivinar por id)
+  viewToken             String      @unique @default(cuid())
+  status                OrderStatus @default(PENDING_PAYMENT)
+  branchId              String
+  branch                Branch      @relation(fields: [branchId], references: [id])
+  userId                String?
+  user                  User?       @relation(fields: [userId], references: [id])
+  guestName             String?
+  guestEmail            String?
+  guestPhone            String?
+  subtotal              Int
+  /// Suma de lineTotal de ítems marcados agotados (centavos)
+  discount              Int         @default(0)
+  /// subtotal - discount (monto a capturar en Stripe)
+  total                 Int
+  currency              String      @default("mxn")
+  stripeSessionId       String?     @unique
+  stripePaymentIntentId String?
+  /// Marca de tarjeta (visa, mastercard, …)
+  paymentBrand          String?
+  /// funding de Stripe: credit | debit | prepaid | unknown
+  paymentFunding        String?
+  /// Últimos 4 dígitos
+  paymentLast4          String?
+  /// Número de ticket en la PTV (pantalla / cocina)
+  ptvTicket             Int?
+  /// Consecutivo del día por sucursal (#1, #2…); se reinicia cada día
+  dayNumber             Int?
+  /// Día operativo (calendario local) asociado a dayNumber
+  businessDate          DateTime?   @db.Date
+  /// Minutos de preparación asignados al iniciar prep
+  prepMinutes           Int?
+  /// Momento en que el pedido debe pasar a READY
+  readyAt               DateTime?
+  notes                 String?
+  items                 OrderItem[]
+  paidAt                DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@unique([branchId, businessDate, dayNumber])
+  @@index([branchId, status])
+  @@index([createdAt])
+  @@index([readyAt])
+}
+
+model OAuthOneTimeCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  productName String
+  variantName String?
+  /// Etiqueta visual "Persona 1", "Ana", etc. Null = sin separar
+  plateLabel  String?
+  unitPrice   Int
+  quantity    Int
+  lineTotal   Int
+  /// Marcado por sucursal: no se prepara ni se cobra
+  unavailable Boolean @default(false)
+}
+
+/// Web Push: clientes (pedido) y staff (sucursal / pedidos nuevos)
+model PushSubscription {
+  id         String   @id @default(cuid())
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /** Staff: push de pedidos nuevos de esta sucursal. */
+  branchId   String?
+  branch     Branch?  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  orderId    String?
+  guestEmail String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([orderId])
+  @@index([guestEmail])
+}

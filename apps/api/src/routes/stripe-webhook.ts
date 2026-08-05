@@ -1,0 +1,128 @@
+import { Router } from "express";
+import express from "express";
+import {
+  applyConnectFlagsToBranch,
+  fetchStripeCardSummary,
+  getStripe,
+  mapConnectAccountFlags,
+} from "../utils/stripe";
+import { notifyBranchNewOrder } from "../utils/pusher";
+import { notifyStaffNewOrder } from "../utils/web-push";
+import { nextBranchDayNumber } from "../utils/branch-day-number";
+import { prisma } from "@ordena/database";
+
+export const stripeWebhookRouter = Router();
+
+stripeWebhookRouter.post(
+  "/",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    const signature = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!signature || typeof signature !== "string" || !webhookSecret) {
+      return res.status(400).json({ error: "Missing signature or secret" });
+    }
+
+    let event;
+    try {
+      event = getStripe().webhooks.constructEvent(
+        req.body,
+        signature,
+        webhookSecret,
+      );
+    } catch (err) {
+      console.error("[stripe.webhook]", err);
+      return res.status(400).json({ error: "Invalid signature" });
+    }
+
+    // Con capture_method: manual, session completed = fondos autorizados
+    // (congelados), no cobrados aún. El cobro ocurre al marcar COMPLETED.
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object;
+      const order = await prisma.order.findUnique({
+        where: { stripeSessionId: session.id },
+      });
+
+      if (order && order.status === "PENDING_PAYMENT") {
+        const paymentIntentId =
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id;
+
+        const paidAt = new Date();
+        let dayMeta = await nextBranchDayNumber(
+          prisma,
+          order.branchId,
+          paidAt,
+        );
+        const card = await fetchStripeCardSummary(paymentIntentId);
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            await prisma.order.update({
+              where: { id: order.id },
+              data: {
+                status: "PAID",
+                paidAt,
+                stripePaymentIntentId: paymentIntentId ?? null,
+                dayNumber: dayMeta.dayNumber,
+                businessDate: dayMeta.businessDate,
+                paymentBrand: card.paymentBrand,
+                paymentFunding: card.paymentFunding,
+                paymentLast4: card.paymentLast4,
+              },
+            });
+            break;
+          } catch (err) {
+            const code =
+              err && typeof err === "object" && "code" in err
+                ? String((err as { code?: string }).code)
+                : "";
+            if (code !== "P2002" || attempt === 4) throw err;
+            dayMeta = await nextBranchDayNumber(prisma, order.branchId, paidAt);
+          }
+        }
+
+        try {
+          await notifyBranchNewOrder(order.branchId, {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+          });
+        } catch (pusherError) {
+          console.error("[stripe.webhook] pusher", pusherError);
+        }
+
+        try {
+          await notifyStaffNewOrder({
+            branchId: order.branchId,
+            id: order.id,
+            orderNumber: order.orderNumber,
+          });
+        } catch (pushError) {
+          console.error("[stripe.webhook] web-push", pushError);
+        }
+      }
+    }
+
+    if (event.type === "account.updated") {
+      const account = event.data.object;
+      try {
+        const branch = await prisma.branch.findUnique({
+          where: { stripeAccountId: account.id },
+          select: { id: true },
+        });
+        if (branch) {
+          await applyConnectFlagsToBranch(
+            branch.id,
+            mapConnectAccountFlags(account),
+          );
+        }
+      } catch (syncError) {
+        console.error("[stripe.webhook] account.updated", syncError);
+      }
+    }
+
+    return res.json({ received: true });
+  },
+);

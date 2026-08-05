@@ -1,0 +1,10 @@
+# graphify skill / output (meta, not Ordena product code)
+.agents/
+graphify-out/
+
+# Next.js placeholder public assets (not product UI)
+**/public/file.svg
+**/public/globe.svg
+**/public/next.svg
+**/public/vercel.svg
+**/public/window.svg

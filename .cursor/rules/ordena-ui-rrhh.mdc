@@ -1,0 +1,68 @@
+---
+description: UI/UX de Ordena debe seguir el design system de RRHH (brand naranja, tokens y patrones CSS compartidos)
+alwaysApply: true
+---
+
+# UI/UX Ordena = línea visual RRHH
+
+Ordena reutiliza el mismo lenguaje visual que RRHH (El Bajito): brand naranja, Geist, paneles blancos, botones `btn-*` y PWA con header gradient.
+
+## Fuente de verdad
+
+- Tokens y patrones: [`packages/shared/src/design-system.css`](packages/shared/src/design-system.css)
+- Cada app importa en `globals.css`:
+  ```css
+  @import "tailwindcss";
+  @import "../../../../packages/shared/src/design-system.css";
+  ```
+- Tipografía: **Geist** / **Geist Mono** (`--font-geist-sans`, `--font-geist-mono`)
+- Idioma UI: `lang="es"`
+
+## Brand / colores (no inventar otra paleta)
+
+| Token | Valor light |
+| --- | --- |
+| Brand | `#ea5e1f` |
+| Primary / accent | `#f97316` (orange-500) |
+| Background | `#f8fafc` |
+| Surface | `#ffffff` |
+| Foreground | `#1f2937` |
+| Muted | `#6b7280` |
+| Destructive | `#dc2626` |
+| Success | `#16a34a` |
+
+- CTAs principales: naranja (`btn-primary`, `bg-orange-500`, focus ring `orange-500/50`)
+- Evitar temas púrpura, cream/terracotta genéricos de AI, o dark-first sin pedirlo
+- Dark mode: soportado vía clase `.dark` y tokens ya definidos; no forzar dark por defecto
+
+## Patrones CSS obligatorios (preferir clases del design system)
+
+| Uso | Clase |
+| --- | --- |
+| Botón principal | `btn-primary` |
+| Botón secundario | `btn-secondary` |
+| Input | `input-field` / PWA `pwa-input` |
+| Label | `field-label` |
+| Panel/card admin | `admin-panel` + `admin-panel-header` / `admin-panel-body` |
+| Título / descripción | `page-title` / `page-description` |
+| Login | `login-card` + `login-card-body` |
+| PWA card / CTA | `pwa-card` / `pwa-btn-primary` |
+| Header PWA | `pwa-header-gradient` |
+| Alertas | `admin-alert-error`, `pwa-alert-brand` |
+| Badges | `status-badge-brand`, `status-badge-active` |
+| Links de acción | `link-action` |
+| Contenedores | `container-page`, `container-admin`, `container-app` |
+
+## Layout
+
+- **Web (clientes)**: header blanco (`site-header`); también es **PWA** instalable (`manifest`, SW Serwist, push de estado de pedido)
+- **Admin**: header blanco con borde (`site-header`), nav `site-nav-link`, fondo `bg-background`
+- **Branch PWA**: header `pwa-header-gradient` (orange → amber), `themeColor` naranja, cards `pwa-card`
+- Login centrado con `login-card` (borde gris, shadow-sm, título bold) — igual que RRHH employee/admin
+
+## Al crear UI nueva
+
+1. Reutilizar clases de `design-system.css` antes de inventar utilidades sueltas
+2. Si falta un patrón compartido, **añadirlo al design system** (no copiar CSS solo en una app)
+3. Mantener densidad similar a RRHH: `rounded-lg` / `rounded-xl`, `shadow-sm`, bordes `gray-200`, tipografía semibold en CTAs
+4. No introducir otra librería de tema (shadcn “nova”, purple themes, etc.) que rompa esta línea

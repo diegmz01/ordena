@@ -1,0 +1,25 @@
+{
+  "name": "ordena",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "start:api": "pnpm --filter @ordena/api start",
+    "db:generate": "pnpm --filter @ordena/database generate",
+    "db:migrate": "pnpm --filter @ordena/database migrate",
+    "db:migrate:deploy": "pnpm --filter @ordena/database exec prisma migrate deploy",
+    "db:push": "pnpm --filter @ordena/database push",
+    "db:seed": "pnpm --filter @ordena/database seed",
+    "db:setup": "pnpm db:generate && pnpm --filter @ordena/database exec prisma migrate deploy && pnpm db:seed",
+    "db:studio": "pnpm --filter @ordena/database studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

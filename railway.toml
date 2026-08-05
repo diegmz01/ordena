@@ -1,0 +1,14 @@
+# Railway: root directory = monorepo root, Dockerfile path = apps/api/Dockerfile
+# Or set Dockerfile path in service settings.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "apps/api/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+# Release phase (migrations) — configure in Railway UI if not picked up:
+# pnpm db:migrate:deploy
+startCommand = "pnpm --filter @ordena/api start"

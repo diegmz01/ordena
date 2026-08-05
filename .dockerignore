@@ -1,0 +1,16 @@
+node_modules
+.turbo
+.next
+.git
+graphify-out
+**/.env
+**/.env.*
+!.env.example
+**/dist
+**/coverage
+apps/web
+apps/admin
+apps/branch
+*.md
+.agents
+.cursor
