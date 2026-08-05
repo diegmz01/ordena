@@ -333,6 +333,18 @@ ln -sf "$APP_DIR/.env" "$APP_DIR/apps/branch/.env.local"
 ln -sf "$APP_DIR/.env" "$APP_DIR/apps/api/.env"
 ok "Symlinks de entorno listos"
 
+# turbo calcula el hash de caché del build a partir de las variables ya
+# presentes en el entorno del shell (ver turbo.json "env"); Next.js carga
+# .env.local dentro del proceso hijo, así que si no las exportamos aquí
+# turbo no detecta cambios en NEXT_PUBLIC_* y sirve un build cacheado
+# desactualizado.
+log "Exportando variables de $APP_DIR/.env para el build"
+set -a
+# shellcheck disable=SC1091
+source "$APP_DIR/.env"
+set +a
+ok "Variables cargadas"
+
 log "Generando cliente Prisma"
 pnpm db:generate
 ok "Cliente Prisma generado"
