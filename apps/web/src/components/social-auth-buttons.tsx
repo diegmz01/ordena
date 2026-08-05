@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_URL } from "@/lib/api";
+import { API_URL, DIRECT_API_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Provider = "google" | "apple" | "facebook";
@@ -61,10 +61,13 @@ export function SocialAuthButtons({
       );
       return;
     }
-    const url = new URL(
-      `${API_URL}/auth/oauth/${provider}/start`,
-      window.location.origin,
-    );
+    // Navegación de página completa directo al dominio público de la API
+    // (NO al proxy /api-backend): la cookie de estado OAuth que fija este
+    // paso debe quedar en el mismo host al que el provider redirige de
+    // vuelta (OAUTH_REDIRECT_BASE, el dominio de la API). Si esto pasara
+    // por el proxy, la cookie quedaría en el dominio de apps/web y nunca
+    // llegaría al callback en producción (dominios separados).
+    const url = new URL(`${DIRECT_API_URL}/auth/oauth/${provider}/start`);
     url.searchParams.set("next", nextPath);
     window.location.assign(url.toString());
   }

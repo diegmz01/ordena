@@ -211,7 +211,12 @@ async function fetchGoogleProfile(
   if (idToken) {
     const claims = decodeJwtPayload(idToken);
     const email = String(claims.email ?? "").toLowerCase();
-    if (email) {
+    // upsertOAuthUser enlaza por email a una cuenta ya existente (ej. creada
+    // con password) sin más verificación — un email no verificado permitiría
+    // a cualquiera tomar una cuenta ajena con solo declarar ese correo ante
+    // el provider. sub es más seguro pero el email_verified es la señal que
+    // Google expone para confiar en el correo.
+    if (email && claims.email_verified === true) {
       return {
         providerAccountId: String(claims.sub ?? ""),
         email,
@@ -229,14 +234,15 @@ async function fetchGoogleProfile(
   const data = (await res.json()) as {
     sub?: string;
     email?: string;
+    email_verified?: boolean;
     name?: string;
     picture?: string;
   };
   const email = (data.email ?? "").toLowerCase();
-  if (!email || !data.sub) {
+  if (!email || !data.sub || !data.email_verified) {
     throw new AppError(
       400,
-      "Google no compartió un email. Usa otro método de acceso.",
+      "Google no compartió un email verificado. Usa otro método de acceso.",
     );
   }
   return {
@@ -254,10 +260,14 @@ async function fetchAppleProfile(
   const claims = decodeJwtPayload(idToken);
   const email = String(claims.email ?? "").toLowerCase();
   const sub = String(claims.sub ?? "");
-  if (!email || !sub) {
+  // Apple manda email_verified como boolean o como string "true"/"false"
+  // según el cliente; aceptamos ambas formas.
+  const emailVerified =
+    claims.email_verified === true || claims.email_verified === "true";
+  if (!email || !sub || !emailVerified) {
     throw new AppError(
       400,
-      "Apple no compartió un email. Usa otro método de acceso.",
+      "Apple no compartió un email verificado. Usa otro método de acceso.",
     );
   }
   return {
