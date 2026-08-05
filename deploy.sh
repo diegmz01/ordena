@@ -22,8 +22,11 @@ SKIP_PULL=0
 # antes de caer al default de este proyecto.
 dotenv_value() {
   local key="$1"
-  [[ -f "$APP_DIR/.env" ]] || return 0
-  grep -E "^${key}=" "$APP_DIR/.env" 2>/dev/null | tail -1 | cut -d'=' -f2-
+  local val=""
+  if [[ -f "$APP_DIR/.env" ]]; then
+    val="$(grep -E "^${key}=" "$APP_DIR/.env" 2>/dev/null | tail -1 | cut -d'=' -f2- || true)"
+  fi
+  printf '%s' "$val"
 }
 
 WEB_PORT="${WEB_PORT:-$(dotenv_value WEB_PORT)}"
