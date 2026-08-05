@@ -30,6 +30,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icons|logos|manifest.webmanifest|sw.js|~partytown).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icons|logos|manifest.webmanifest|sw.js|api-backend|~partytown).*)",
   ],
 };
