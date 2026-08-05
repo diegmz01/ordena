@@ -55,6 +55,7 @@ export function ProductSheet({ product, open, onClose }: Props) {
 
   useEffect(() => {
     if (!product) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resetea el formulario del sheet al abrir otro producto
     setQty(1);
     setSelectedOptional([]);
     setPlateId(plates.length > 0 ? plates[plates.length - 1]!.id : "");

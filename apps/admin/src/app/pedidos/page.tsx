@@ -126,6 +126,7 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sin sesión no hay fetch que hacer al montar
       setError("Inicia sesión como admin");
       setLoading(false);
       return;

@@ -81,6 +81,7 @@ export default function CarritoPage() {
   }, [branchId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de disponibilidad de sucursal al montar y en poll periódico
     void checkBranch();
     const onVisible = () => {
       if (document.visibilityState === "visible") void checkBranch();
@@ -96,6 +97,7 @@ export default function CarritoPage() {
   useEffect(() => {
     const names = readUnavailableAlert();
     if (names.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- lee alerta persistida (localStorage) una sola vez al montar
       setUnavailableAlert(names);
       clearUnavailableAlert();
     }

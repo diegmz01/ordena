@@ -64,6 +64,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     if (!effectiveBranch) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetea el listado al perder la sucursal seleccionada
       setLoading(false);
       setProducts([]);
       return;

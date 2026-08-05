@@ -26,6 +26,7 @@ function AuthCallbackInner() {
     const code = searchParams.get("code");
 
     if (error) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- procesa params de la redirección OAuth al montar, no hay estado derivable en render
       setMessage(error);
       const t = window.setTimeout(() => router.replace(next), 2500);
       return () => window.clearTimeout(t);

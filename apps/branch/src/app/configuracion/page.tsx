@@ -56,10 +56,12 @@ export default function ConfiguracionPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de configuración al montar
     void load();
   }, [load]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- feature-detect e impresora solo disponibles en cliente
     setSerialSupported(isWebSerialSupported());
     setPaperWidthState(getPrintSettings().paperWidth);
     void getConnectedSerialPort().then((port) => setSerialConnected(!!port));

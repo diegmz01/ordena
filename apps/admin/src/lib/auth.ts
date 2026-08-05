@@ -83,6 +83,6 @@ export async function getAccessToken(): Promise<string> {
   return token;
 }
 
-export function setAuthCookie(_token?: string) {
+export function setAuthCookie() {
   setPresenceCookie();
 }

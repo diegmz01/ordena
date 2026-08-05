@@ -147,6 +147,7 @@ export default function AdminMenuPage() {
   }, [tokenOrThrow]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch del menú al montar
     void load();
   }, [load]);
 

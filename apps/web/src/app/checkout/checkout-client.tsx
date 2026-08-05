@@ -59,6 +59,7 @@ export default function CheckoutClient() {
 
   useEffect(() => {
     const token = getAuthToken();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza con el token de auth (localStorage) al montar
     setHasToken(!!token);
     if (!token) {
       setCustomer(null);

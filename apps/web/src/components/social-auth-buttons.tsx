@@ -66,7 +66,7 @@ export function SocialAuthButtons({
       window.location.origin,
     );
     url.searchParams.set("next", nextPath);
-    window.location.href = url.toString();
+    window.location.assign(url.toString());
   }
 
   return (

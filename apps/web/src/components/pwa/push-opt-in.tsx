@@ -33,6 +33,7 @@ export function PushOptIn({ orderId, viewToken, guestEmail, embedded }: Props) {
 
   useEffect(() => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- feature-detect solo disponible en cliente
       setStatus("unsupported");
     }
   }, []);

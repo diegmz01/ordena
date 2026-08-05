@@ -171,6 +171,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = loadCart();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hidrata el carrito desde localStorage tras montar (SSR-safe)
     setBranchId(saved.branchId);
     setBranchName(saved.branchName);
     setPlates(saved.plates);

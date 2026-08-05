@@ -65,13 +65,9 @@ jobs:
 
       # ESLint de las 3 apps Next: a diferencia de los errores de tipos,
       # `next build` NO corre ESLint en este proyecto (verificado), así que
-      # históricamente esto nunca bloqueó el pipeline. Hoy hay errores
-      # preexistentes sin relación con cambios de seguridad/pagos — se deja
-      # como warning por ahora; ver seguimiento para limpiarlos y quitar
-      # continue-on-error.
+      # este paso es la única verificación de lint para web/admin/branch.
       - name: Lint (frontend)
         run: pnpm --filter @ordena/web --filter @ordena/admin --filter @ordena/branch lint
-        continue-on-error: true
 
       # CVEs conocidos en dependencias (directas o transitivas). Bloqueante:
       # hoy corre limpio (ver overrides de sharp/postcss en package.json#pnpm

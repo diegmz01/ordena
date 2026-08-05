@@ -26,6 +26,7 @@ export function PushOptInStaff() {
 
   useEffect(() => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- feature-detect solo disponible en cliente
       setStatus("unsupported");
       return;
     }

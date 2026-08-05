@@ -85,6 +85,6 @@ export async function getAccessToken(): Promise<string> {
 }
 
 /** Tras OAuth exchange: solo marca presencia (cookie HttpOnly ya seteada). */
-export function setAuthCookie(_token?: string) {
+export function setAuthCookie() {
   setPresenceCookie();
 }

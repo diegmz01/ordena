@@ -2,8 +2,7 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, useHydrated } from "@/lib/utils";
 
 type ThemeToggleProps = {
   className?: string;
@@ -11,9 +10,7 @@ type ThemeToggleProps = {
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
   const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useHydrated();
 
   const buttonClass = cn(
     "inline-flex size-10 items-center justify-center rounded-full transition",

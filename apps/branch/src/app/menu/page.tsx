@@ -165,6 +165,7 @@ export default function MenuStockPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch del menú al montar
     void load();
   }, [load]);
 
@@ -228,10 +229,12 @@ export default function MenuStockPage() {
   }, [tab, categories, modifiers]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- limpia la selección al cambiar de tab
     setSelectedIds(new Set());
   }, [tab]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- descarta seleccionados que dejaron de estar visibles/en stock
     setSelectedIds((prev) => {
       if (prev.size === 0) return prev;
       const allowed = new Set(visibleInStockIds);

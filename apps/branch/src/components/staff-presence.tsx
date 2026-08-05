@@ -77,6 +77,7 @@ export function StaffPresence() {
   useEffect(() => {
     if (isLogin) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- heartbeat de presencia al montar y en intervalo periódico
     void sendHeartbeat();
     const id = window.setInterval(() => {
       void sendHeartbeat();

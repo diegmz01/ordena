@@ -284,6 +284,7 @@ export default function BranchHomePage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de pedidos en curso al montar
     refreshOrders().catch((err: Error) => {
       setError(err.message);
       setLiveLoading(false);
@@ -292,6 +293,7 @@ export default function BranchHomePage() {
 
   useEffect(() => {
     if (tab !== "history") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch del historial al entrar a esa tab
     setError(null);
     refreshHistory().catch((err: Error) => setError(err.message));
   }, [tab, refreshHistory]);
@@ -545,6 +547,7 @@ export default function BranchHomePage() {
       if (autoReadyRef.current.has(order.id)) continue;
       if (busyKey === `${order.id}:status:READY`) continue;
       autoReadyRef.current.add(order.id);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- transición automática de estado cuando vence el timer de preparación
       void updateStatus(order.id, "READY");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo reacciona a now/orders

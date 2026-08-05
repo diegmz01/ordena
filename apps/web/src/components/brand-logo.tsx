@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, useHydrated } from "@/lib/utils";
 
 type BrandLogoProps = {
   className?: string;
@@ -18,9 +17,7 @@ export function BrandLogo({
   priority = false,
 }: BrandLogoProps) {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useHydrated();
 
   const isDark = mounted && resolvedTheme === "dark";
   // viewBox 1224 x 456.6 ≈ ratio 2.68

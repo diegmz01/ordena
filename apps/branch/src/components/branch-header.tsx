@@ -157,6 +157,7 @@ export function BranchHeader() {
   }, [isLogin]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch del estado de la sucursal al montar
     void loadBranch();
   }, [loadBranch]);
 

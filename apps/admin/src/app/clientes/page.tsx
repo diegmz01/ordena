@@ -63,6 +63,7 @@ export default function AdminCustomersPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de clientes al montar
     void load();
   }, [load]);
 

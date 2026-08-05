@@ -261,6 +261,7 @@ export default function AdminBranchesPage() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de sucursales al montar
     void load();
   }, [load]);
 
@@ -297,7 +298,7 @@ export default function AdminBranchesPage() {
         token,
         { method: "POST" },
       );
-      window.location.href = res.data.url;
+      window.location.assign(res.data.url);
     } catch (err) {
       setStripeBusyId(null);
       setError(

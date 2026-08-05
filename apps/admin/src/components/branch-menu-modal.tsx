@@ -72,6 +72,7 @@ export function BranchMenuModal({
 
   useEffect(() => {
     if (open && branchId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch del menú de la sucursal al abrir el modal
       void load(branchId);
     }
     if (!open) {

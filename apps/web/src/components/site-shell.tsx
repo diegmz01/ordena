@@ -27,6 +27,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza con el token de auth (localStorage) al montar/cambiar de ruta
       setCustomer(null);
       return;
     }

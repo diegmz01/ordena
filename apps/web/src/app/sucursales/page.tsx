@@ -66,7 +66,9 @@ function BranchesPageInner() {
   const { branchId, items, setBranch, pruneUnavailableProducts } = useCart();
   const autoSelectedRef = useRef(false);
   const branchIdRef = useRef(branchId);
-  branchIdRef.current = branchId;
+  useEffect(() => {
+    branchIdRef.current = branchId;
+  });
 
   const applyGeoResult = useCallback(
     (result: Awaited<ReturnType<typeof requestUserPositionDetailed>>) => {
@@ -101,10 +103,12 @@ function BranchesPageInner() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de sucursales al montar
     void refreshBranches();
   }, [refreshBranches]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- geolocalización del usuario al montar
     void locate();
   }, [locate]);
 

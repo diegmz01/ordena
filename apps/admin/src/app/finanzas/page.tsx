@@ -190,14 +190,17 @@ export default function FinanzasPage() {
   }, [from, to, branchId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de sucursales al montar
     void loadBranches();
   }, [loadBranches]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch del resumen al montar o cambiar filtros
     void loadSummary();
   }, [loadSummary]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de estado de Stripe al montar o cambiar filtros
     void loadStripe();
   }, [loadStripe]);
 
