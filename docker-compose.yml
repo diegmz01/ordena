@@ -6,9 +6,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: ordena
+      # Compose lee .env del mismo directorio automáticamente. Los defaults
+      # de abajo son solo para que `docker compose up -d` funcione out of the
+      # box en dev; para no usar la password de ejemplo, define POSTGRES_*
+      # en tu .env (deben coincidir con lo que uses en DATABASE_URL).
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-ordena}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

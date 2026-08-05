@@ -18,6 +18,11 @@ COPY apps/api ./apps/api
 RUN pnpm install --frozen-lockfile --filter @ordena/api...
 RUN pnpm --filter @ordena/database generate
 
+# Corre en runtime como el usuario "node" (no-root) que ya trae la imagen
+# oficial, en vez de root por defecto.
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 4000
 
 # Migrations: run as Railway release command → pnpm db:migrate:deploy

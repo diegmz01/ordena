@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { captureError } from "../utils/sentry";
 
 export class AppError extends Error {
   statusCode: number;
@@ -16,6 +17,9 @@ export function errorHandler(
   _next: NextFunction,
 ) {
   if (err instanceof AppError) {
+    // 4xx son respuestas esperadas (validación, permisos, etc.) — no son
+    // "bugs". 5xx (Stripe caído, etc.) sí valen la pena reportar.
+    if (err.statusCode >= 500) captureError(err);
     return res.status(err.statusCode).json({ error: err.message });
   }
 
@@ -32,6 +36,7 @@ export function errorHandler(
   }
 
   console.error(err);
+  captureError(err);
 
   if (
     err &&

@@ -12,6 +12,7 @@
   "dependencies": {
     "@ordena/database": "workspace:*",
     "@ordena/shared": "workspace:*",
+    "@sentry/node": "^10.69.0",
     "arctic": "^3.7.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",

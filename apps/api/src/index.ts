@@ -20,10 +20,12 @@ import { errorHandler } from "./middleware/error-handler";
 import { globalRateLimiter } from "./middleware/rate-limit";
 import { assertProductionEnv, corsOrigins } from "./utils/env";
 import { startPromoteReadyOrdersJob } from "./jobs/promote-ready-orders-job";
+import { initSentry } from "./utils/sentry";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../.env"), override: true });
 dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true });
 
+initSentry();
 assertProductionEnv();
 
 const app = express();
