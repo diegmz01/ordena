@@ -625,12 +625,21 @@ export default function AdminOrderDetailPage() {
                       <span>−{formatMoney(order.discount, order.currency)}</span>
                     </div>
                   )}
+                  {order.status === "CANCELLED" && (
+                    <div className="flex justify-between text-sm font-medium text-red-600">
+                      <span>Devolución</span>
+                      <span>−{formatMoney(order.total, order.currency)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                     <span>
                       {order.status === "COMPLETED" ? "Cobrado" : "A cobrar"}
                     </span>
                     <span className="text-orange-600">
-                      {formatMoney(order.total, order.currency)}
+                      {formatMoney(
+                        order.status === "CANCELLED" ? 0 : order.total,
+                        order.currency,
+                      )}
                     </span>
                   </div>
                 </div>
@@ -784,6 +793,22 @@ export default function AdminOrderDetailPage() {
                         {formatMoney(order.total, order.currency)}
                       </dd>
                     </div>
+                    {order.status === "CANCELLED" && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">Devolución</dt>
+                          <dd className="font-semibold text-red-600">
+                            −{formatMoney(order.total, order.currency)}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">A cobrar</dt>
+                          <dd className="font-semibold text-orange-600">
+                            {formatMoney(0, order.currency)}
+                          </dd>
+                        </div>
+                      </>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <dt className="text-gray-500">Autorizado en</dt>
                       <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
