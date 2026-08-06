@@ -482,16 +482,6 @@ export default function AdminOrderDetailPage() {
                       ? `Ticket PTV #${order.ptvTicket}`
                       : "Asignar ticket PTV"}
                   </button>
-                  {canCancel && (
-                    <button
-                      type="button"
-                      onClick={openCancelModal}
-                      className="btn-red inline-flex items-center justify-center gap-2"
-                    >
-                      <Ban className="h-4 w-4" />
-                      Cancelar y devolver
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
@@ -851,6 +841,17 @@ export default function AdminOrderDetailPage() {
                         )}
                       </div>
                     </details>
+                  )}
+
+                  {canCancel && (
+                    <button
+                      type="button"
+                      onClick={openCancelModal}
+                      className="btn-red inline-flex w-full items-center justify-center gap-2"
+                    >
+                      <Ban className="h-4 w-4" />
+                      Cancelar y devolver
+                    </button>
                   )}
                 </div>
               </section>
