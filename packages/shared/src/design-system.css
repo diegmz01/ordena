@@ -435,6 +435,11 @@ button:disabled {
     @apply relative overflow-hidden bg-gradient-to-br from-orange-500 via-orange-500 to-amber-600 text-white;
   }
 
+  /* Banda superior sutil (sucursales, menú, carrito, pedidos) */
+  .customer-page-band {
+    @apply border-b border-orange-100 bg-gradient-to-b from-orange-50 to-transparent dark:border-orange-950/40 dark:from-orange-950/30;
+  }
+
   .customer-hero-mesh {
     background-image:
       radial-gradient(ellipse 80% 60% at 20% 20%, rgb(255 255 255 / 0.22), transparent),
