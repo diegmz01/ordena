@@ -486,12 +486,22 @@ export default function OrderPageClient({
                     </span>
                   </div>
                 )}
+                {order.status === "CANCELLED" && (
+                  <div className="flex justify-between font-medium text-red-600">
+                    <span>Devolución</span>
+                    <span className="tabular-nums">
+                      −{formatMoney(order.total)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                   <span>
                     {order.status === "COMPLETED" ? "Cobrado" : "A cobrar"}
                   </span>
                   <span className="tabular-nums text-orange-600">
-                    {formatMoney(order.total)}
+                    {formatMoney(
+                      order.status === "CANCELLED" ? 0 : order.total,
+                    )}
                   </span>
                 </div>
               </div>

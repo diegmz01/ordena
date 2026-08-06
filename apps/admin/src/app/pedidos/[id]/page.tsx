@@ -608,12 +608,21 @@ export default function AdminOrderDetailPage() {
                       <span>−{formatMoney(order.discount, order.currency)}</span>
                     </div>
                   )}
+                  {order.status === "CANCELLED" && (
+                    <div className="flex justify-between text-sm font-medium text-red-600">
+                      <span>Devolución</span>
+                      <span>−{formatMoney(order.total, order.currency)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                     <span>
                       {order.status === "COMPLETED" ? "Cobrado" : "A cobrar"}
                     </span>
                     <span className="text-orange-600">
-                      {formatMoney(order.total, order.currency)}
+                      {formatMoney(
+                        order.status === "CANCELLED" ? 0 : order.total,
+                        order.currency,
+                      )}
                     </span>
                   </div>
                 </div>
