@@ -1030,7 +1030,7 @@ export default function AdminBranchesPage() {
               value={credPassword}
               onChange={(e) => setCredPassword(e.target.value)}
               required={!credentialsBranch?.staff}
-              minLength={credentialsBranch?.staff ? undefined : 6}
+              minLength={12}
               placeholder={
                 credentialsBranch?.staff
                   ? "Dejar vacío para no cambiar"
