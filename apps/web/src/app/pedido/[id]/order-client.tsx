@@ -203,11 +203,11 @@ export default function OrderPageClient({
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const { clear } = useCart();
+  const { clear, hydrated } = useCart();
 
   useEffect(() => {
-    if (success) clear();
-  }, [success, clear]);
+    if (success && hydrated) clear();
+  }, [success, hydrated, clear]);
 
   useEffect(() => {
     if (viewToken) {

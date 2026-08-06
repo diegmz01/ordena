@@ -33,6 +33,8 @@ type CartState = {
 };
 
 type CartContextValue = CartState & {
+  /** true una vez que el carrito terminó de leer localStorage al montar */
+  hydrated: boolean;
   itemCount: number;
   subtotal: number;
   setBranch: (id: string, name: string) => void;
@@ -368,6 +370,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       branchName,
       plates,
       items,
+      hydrated,
       itemCount,
       subtotal,
       setBranch,
@@ -387,6 +390,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       branchName,
       plates,
       items,
+      hydrated,
       itemCount,
       subtotal,
       setBranch,
