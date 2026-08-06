@@ -296,18 +296,23 @@ ordersRouter.get(
         return res.json({ data: safe });
       }
 
-      // Tracking con viewToken: sin PII de contacto ni datos de tarjeta
-      const { viewToken: _vt, guestEmail, guestPhone, user: _user, ...publicOrder } =
-        order;
+      // Tracking con viewToken: sin PII de contacto ni IDs de Stripe;
+      // sí se muestra marca/últimos 4 (como en el comprobante del cliente).
+      const {
+        viewToken: _vt,
+        guestEmail,
+        guestPhone,
+        user: _user,
+        stripeSessionId: _session,
+        stripePaymentIntentId: _pi,
+        ...publicOrder
+      } = order;
       return res.json({
         data: {
           ...publicOrder,
           guestEmail: null,
           guestPhone: null,
           user: null,
-          paymentBrand: null,
-          paymentFunding: null,
-          paymentLast4: null,
           stripeSessionId: null,
           stripePaymentIntentId: null,
         },

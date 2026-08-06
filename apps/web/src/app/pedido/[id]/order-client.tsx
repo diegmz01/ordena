@@ -8,6 +8,7 @@ import {
   ChefHat,
   CircleDot,
   Clock3,
+  CreditCard,
   FileText,
   KeyRound,
   MapPin,
@@ -43,6 +44,7 @@ type Order = {
   subtotal: number;
   discount: number;
   total: number;
+  currency?: string;
   notes: string | null;
   prepMinutes: number | null;
   readyAt: string | null;
@@ -50,6 +52,11 @@ type Order = {
   createdAt: string;
   ptvTicket: number | null;
   pickupCode: string | null;
+  paymentBrand: string | null;
+  paymentFunding: string | null;
+  paymentLast4: string | null;
+  stripeSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
   items: OrderItem[];
   branch: {
     id: string;
@@ -136,6 +143,91 @@ function formatReadyAt(iso: string | null) {
 
 function showsOrderProgress(status: string) {
   return status !== "CANCELLED" && status !== "PENDING_PAYMENT";
+}
+
+function formatCardBrand(brand: string | null) {
+  if (!brand) return null;
+  const map: Record<string, string> = {
+    visa: "Visa",
+    mastercard: "Mastercard",
+    amex: "Amex",
+    american_express: "Amex",
+    discover: "Discover",
+    diners: "Diners",
+    jcb: "JCB",
+    unionpay: "UnionPay",
+  };
+  return map[brand.toLowerCase()] ?? brand;
+}
+
+function formatCardFunding(funding: string | null) {
+  switch (funding) {
+    case "credit":
+      return "crédito";
+    case "debit":
+      return "débito";
+    case "prepaid":
+      return "prepago";
+    default:
+      return null;
+  }
+}
+
+function formatPaymentMethodLabel(order: Order) {
+  const brand = formatCardBrand(order.paymentBrand);
+  const funding = formatCardFunding(order.paymentFunding);
+  const last4 = order.paymentLast4;
+
+  if (brand || funding || last4) {
+    return [brand, funding, last4 ? `····${last4}` : null]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  if (order.stripeSessionId || order.stripePaymentIntentId) {
+    return "Tarjeta";
+  }
+  if (order.status === "PENDING_PAYMENT") {
+    return "Pendiente de pago";
+  }
+  return "Pago en línea";
+}
+
+function paymentStatus(order: Order) {
+  if (order.status === "CANCELLED") {
+    return {
+      label: "Cancelado",
+      tone: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
+    };
+  }
+  if (order.status === "PENDING_PAYMENT") {
+    return {
+      label: "Pendiente",
+      tone: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
+    };
+  }
+  if (order.status === "COMPLETED") {
+    return {
+      label: "Cobrado",
+      tone: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
+    };
+  }
+  return {
+    label: "Autorizado",
+    tone: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
+  };
+}
+
+function formatPaidAt(iso: string | null) {
+  if (!iso) return "—";
+  try {
+    return new Intl.DateTimeFormat("es-MX", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
 }
 
 function OrderTimeline({ status }: { status: string }) {
@@ -276,6 +368,7 @@ export default function OrderPageClient({
   const Icon = meta?.icon ?? ShoppingBag;
   const displayNumber =
     order?.dayNumber != null ? `#${order.dayNumber}` : order?.orderNumber;
+  const pay = order ? paymentStatus(order) : null;
 
   return (
     <div className="pb-28">
@@ -486,12 +579,22 @@ export default function OrderPageClient({
                     </span>
                   </div>
                 )}
+                {order.status === "CANCELLED" && (
+                  <div className="flex justify-between font-medium text-red-600">
+                    <span>Devolución</span>
+                    <span className="tabular-nums">
+                      −{formatMoney(order.total)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                   <span>
                     {order.status === "COMPLETED" ? "Cobrado" : "A cobrar"}
                   </span>
                   <span className="tabular-nums text-orange-600">
-                    {formatMoney(order.total)}
+                    {formatMoney(
+                      order.status === "CANCELLED" ? 0 : order.total,
+                    )}
                   </span>
                 </div>
               </div>
@@ -500,6 +603,79 @@ export default function OrderPageClient({
                   Nota: {order.notes}
                 </p>
               )}
+            </div>
+
+            <div className="customer-card overflow-hidden">
+              <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Pago
+                </p>
+              </div>
+              <div className="space-y-4 p-5 text-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">
+                      {formatPaymentMethodLabel(order)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Autorización al pagar; cobro al entregar
+                    </p>
+                  </div>
+                </div>
+
+                <dl className="space-y-3 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50">
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-gray-500">Estado</dt>
+                    <dd>
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold",
+                          pay?.tone,
+                        )}
+                      >
+                        {pay?.label}
+                      </span>
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-gray-500">Total</dt>
+                    <dd className="font-semibold tabular-nums text-orange-600">
+                      {formatMoney(order.total)}
+                    </dd>
+                  </div>
+                  {order.status === "CANCELLED" && (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <dt className="text-gray-500">Devolución</dt>
+                        <dd className="font-semibold tabular-nums text-red-600">
+                          −{formatMoney(order.total)}
+                        </dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <dt className="text-gray-500">A cobrar</dt>
+                        <dd className="font-semibold tabular-nums text-orange-600">
+                          {formatMoney(0)}
+                        </dd>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-gray-500">Autorizado en</dt>
+                    <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
+                      {formatPaidAt(order.paidAt)}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <dt className="text-gray-500">Moneda</dt>
+                    <dd className="font-medium uppercase text-gray-800 dark:text-gray-100">
+                      {(order.currency ?? "mxn").toUpperCase()}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </div>
 
             {live && (
