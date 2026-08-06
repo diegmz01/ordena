@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckSquare, Filter, Search, Square } from "lucide-react";
+import { BackToLiveOrders } from "@/components/back-to-live";
 import { Modal } from "@/components/ui/modal";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
@@ -528,6 +529,7 @@ export default function MenuStockPage() {
     return (
       <div className="space-y-4">
         <div>
+          <BackToLiveOrders />
           <h2 className="page-title">Menú</h2>
           <p className="page-description">Cargando…</p>
         </div>
@@ -560,6 +562,7 @@ export default function MenuStockPage() {
   return (
     <div className="space-y-5 pb-24">
       <div>
+        <BackToLiveOrders />
         <h2 className="page-title">Menú</h2>
         <p className="page-description">
           Activa o desactiva productos, secciones y modificadores. La búsqueda
