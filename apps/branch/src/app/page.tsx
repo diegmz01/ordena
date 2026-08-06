@@ -221,6 +221,8 @@ export default function BranchHomePage() {
   const [acceptTicketOpen, setAcceptTicketOpen] = useState(false);
   const [printFailOpen, setPrintFailOpen] = useState(false);
   const [printFailMessage, setPrintFailMessage] = useState<string | null>(null);
+  const [pickupCodeOpen, setPickupCodeOpen] = useState(false);
+  const [pickupCodeInput, setPickupCodeInput] = useState("");
   const [ticketInput, setTicketInput] = useState("");
   const [prepMinutes, setPrepMinutes] = useState(20);
   const [now, setNow] = useState(() => Date.now());
@@ -453,6 +455,43 @@ export default function BranchHomePage() {
     setAcceptTicketOpen(true);
   }
 
+  function openPickupCode() {
+    setError(null);
+    setPickupCodeInput("");
+    setPickupCodeOpen(true);
+  }
+
+  async function confirmDelivery(order: Order) {
+    const token = getAuthToken();
+    if (!token) return;
+    const code = pickupCodeInput.trim();
+    if (!code) {
+      setError("Ingresa el código de entrega");
+      return;
+    }
+    const key = `${order.id}:status:COMPLETED`;
+    setBusyKey(key);
+    setError(null);
+    try {
+      const res = await apiFetch<{ data: Order }>(
+        `/orders/${order.id}/status`,
+        token,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status: "COMPLETED", pickupCode: code }),
+        },
+      );
+      applyOrderUpdate(order.id, res.data);
+      setPickupCodeOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Código de entrega incorrecto",
+      );
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   async function runPrint(order: Order) {
     await printOrder(
       {
@@ -544,6 +583,8 @@ export default function BranchHomePage() {
   function openOrder(order: Order) {
     setError(null);
     setAcceptTicketOpen(false);
+    setPickupCodeOpen(false);
+    setPickupCodeInput("");
     setSelectedId(order.id);
     setTicketInput(order.ptvTicket != null ? String(order.ptvTicket) : "");
     setPrepMinutes(order.prepMinutes ?? defaultPrepMinutes);
@@ -712,6 +753,11 @@ export default function BranchHomePage() {
               setError(null);
               return;
             }
+            if (pickupCodeOpen) {
+              setPickupCodeOpen(false);
+              setError(null);
+              return;
+            }
             setSelectedId(null);
           }}
           title={displayOrderLabel(selected)}
@@ -783,7 +829,7 @@ export default function BranchHomePage() {
                 <button
                   type="button"
                   disabled={busyKey === `${selected.id}:status:COMPLETED`}
-                  onClick={() => void updateStatus(selected.id, "COMPLETED")}
+                  onClick={() => openPickupCode()}
                   className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
                 >
                   Entregar · cobrar
@@ -1169,6 +1215,72 @@ export default function BranchHomePage() {
             </div>
           </Modal>
         )}
+
+      {selected && pickupCodeOpen && selected.status === "READY" && (
+        <Modal
+          open={pickupCodeOpen}
+          nested
+          onClose={() => {
+            setPickupCodeOpen(false);
+            setError(null);
+          }}
+          title="Código de entrega"
+          description={`Pedido ${displayOrderLabel(selected)} · ${customerName(selected)}`}
+          footer={
+            <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={!!busyKey}
+                onClick={() => {
+                  setPickupCodeOpen(false);
+                  setError(null);
+                }}
+                className="btn-secondary w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={busyKey === `${selected.id}:status:COMPLETED`}
+                onClick={() => void confirmDelivery(selected)}
+                className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
+              >
+                Confirmar entrega
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {error && <p className="admin-alert-error">{error}</p>}
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+              Pide al cliente el código de entrega antes de cobrar y marcar el
+              pedido como entregado.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="pickup-code" className="field-label">
+                Código de entrega
+              </label>
+              <input
+                id="pickup-code"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={5}
+                value={pickupCodeInput}
+                onChange={(e) =>
+                  setPickupCodeInput(e.target.value.replace(/\D/g, ""))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void confirmDelivery(selected);
+                }}
+                className="pwa-input text-center text-2xl font-bold tracking-[0.4em]"
+                placeholder="0000"
+                autoFocus
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

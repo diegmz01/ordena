@@ -1,6 +1,7 @@
 import { prisma } from "@ordena/database";
 import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
+import { generatePickupCode } from "./pickup-code";
 
 export const branchOrderInclude = {
   items: true,
@@ -29,7 +30,7 @@ export async function promoteDuePreparingOrders(branchId?: string) {
   for (const order of due) {
     const updated = await prisma.order.update({
       where: { id: order.id },
-      data: { status: "READY" },
+      data: { status: "READY", pickupCode: generatePickupCode() },
       include: branchOrderInclude,
     });
 
@@ -40,7 +41,9 @@ export async function promoteDuePreparingOrders(branchId?: string) {
     });
 
     try {
-      await notifyCustomerOrderStatus(updated);
+      await notifyCustomerOrderStatus(updated, {
+        body: `Listo para recoger · Código: ${updated.pickupCode}`,
+      });
     } catch (pushError) {
       console.error("[orders.auto-ready] web-push", pushError);
     }

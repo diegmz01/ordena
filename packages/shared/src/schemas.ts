@@ -120,6 +120,8 @@ export const checkoutValidateSchema = z.object({
 /** Destinos de `PATCH /orders/:id/status` (PREPARING va por `/start-prep`). */
 export const updateOrderStatusSchema = z.object({
   status: z.enum(["ACCEPTED", "READY", "COMPLETED", "CANCELLED"]),
+  /** Requerido al pasar a COMPLETED: código de entrega dado por el cliente. */
+  pickupCode: z.string().trim().min(1).max(10).optional(),
 });
 
 export const updateOrderItemAvailabilitySchema = z.object({

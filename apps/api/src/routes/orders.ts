@@ -26,6 +26,7 @@ import {
 import { settleStripePayment } from "../utils/stripe";
 import { getBusinessDate } from "../utils/branch-day-number";
 import { recordAdminAction } from "../utils/audit-log";
+import { generatePickupCode } from "../utils/pickup-code";
 import {
   branchOrderInclude,
   promoteDuePreparingOrders,
@@ -323,7 +324,7 @@ ordersRouter.patch(
   requireBranchStaff,
   async (req: AuthenticatedRequest, res, next) => {
     try {
-      const { status } = updateOrderStatusSchema.parse(req.body);
+      const { status, pickupCode } = updateOrderStatusSchema.parse(req.body);
       const user = req.authUser!;
 
       const order = await prisma.order.findUnique({
@@ -350,6 +351,10 @@ ordersRouter.patch(
       assertStatusTransition(currentStatus, status);
 
       if (status === "COMPLETED") {
+        if (!order.pickupCode || pickupCode !== order.pickupCode) {
+          throw new AppError(400, "Código de entrega incorrecto");
+        }
+
         const amount = order.total;
         if (amount <= 0) {
           await settleStripePayment(
@@ -392,7 +397,10 @@ ordersRouter.patch(
 
       const updated = await prisma.order.update({
         where: { id: order.id },
-        data: { status },
+        data: {
+          status,
+          ...(status === "READY" ? { pickupCode: generatePickupCode() } : {}),
+        },
         include: branchOrderInclude,
       });
 
@@ -403,7 +411,12 @@ ordersRouter.patch(
       });
 
       try {
-        await notifyCustomerOrderStatus(updated);
+        await notifyCustomerOrderStatus(
+          updated,
+          status === "READY" && updated.pickupCode
+            ? { body: `Listo para recoger · Código: ${updated.pickupCode}` }
+            : undefined,
+        );
       } catch (pushError) {
         console.error("[orders.status] web-push", pushError);
       }

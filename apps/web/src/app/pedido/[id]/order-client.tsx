@@ -9,6 +9,7 @@ import {
   CircleDot,
   Clock3,
   FileText,
+  KeyRound,
   MapPin,
   PackageCheck,
   ShoppingBag,
@@ -48,6 +49,7 @@ type Order = {
   paidAt: string | null;
   createdAt: string;
   ptvTicket: number | null;
+  pickupCode: string | null;
   items: OrderItem[];
   branch: {
     id: string;
@@ -357,6 +359,25 @@ export default function OrderPageClient({
               </p>
               <OrderTimeline status={order.status} />
             </div>
+
+            {order.status === "READY" && order.pickupCode && (
+              <div className="customer-card overflow-hidden border-2 border-orange-200 dark:border-orange-900/60">
+                <div className="border-b border-orange-100 bg-orange-50/80 px-5 py-3 dark:border-gray-800 dark:bg-orange-950/30">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-orange-700 dark:text-orange-300">
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Código de entrega
+                  </p>
+                </div>
+                <div className="p-5 text-center">
+                  <p className="text-4xl font-bold tabular-nums tracking-[0.3em] text-gray-900 dark:text-white">
+                    {order.pickupCode}
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Muéstralo o dilo en sucursal para recoger tu pedido
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="customer-card overflow-hidden">
               <div className="border-b border-gray-100 bg-orange-50/80 px-5 py-3 dark:border-gray-800 dark:bg-orange-950/30">
