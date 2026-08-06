@@ -12,6 +12,7 @@ import {
   FileText,
   KeyRound,
   MapPin,
+  Navigation,
   PackageCheck,
   ShoppingBag,
   UtensilsCrossed,
@@ -536,6 +537,17 @@ export default function OrderPageClient({
                       {order.branch.phone}
                     </a>
                   )}
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      `${order.branch.name}, ${order.branch.address}`,
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary btn-compact mt-3"
+                  >
+                    <Navigation className="h-3.5 w-3.5" />
+                    Cómo llegar
+                  </a>
                 </div>
               </div>
             </div>
