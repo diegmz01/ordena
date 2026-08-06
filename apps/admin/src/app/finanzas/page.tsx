@@ -362,7 +362,7 @@ export default function FinanzasPage() {
                 Por sucursal
               </h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="admin-panel-table">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/60">
                   <tr>
@@ -457,7 +457,7 @@ export default function FinanzasPage() {
                 Últimos cobros
               </h2>
             </div>
-            <div className="overflow-x-auto">
+            <div className="admin-panel-table">
               <table className="w-full min-w-[560px] text-left text-sm">
                 <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/60">
                   <tr>

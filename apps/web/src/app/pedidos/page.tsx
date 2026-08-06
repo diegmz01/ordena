@@ -191,88 +191,92 @@ export default function PedidosPage() {
   }
 
   return (
-    <div className="container-page flex min-h-[calc(100vh-3.5rem)] max-w-xl flex-col pb-28">
-      <header className="mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-          Cuenta
-        </p>
-        <h1 className="page-title">Mis pedidos</h1>
-        <p className="page-description">
-          {name ? `Hola, ${name.split(/\s+/)[0]}` : "Tu historial de pedidos"}
-        </p>
-      </header>
-
-      {error && <p className="admin-alert-error mt-4">{error}</p>}
-
-      {orders === null && !error && (
-        <div className="mt-6 space-y-3">
-          <OrderSkeleton />
-          <OrderSkeleton />
+    <div className="pb-28">
+      <div className="customer-page-band">
+        <div className="container-page max-w-xl !pb-6 !pt-8">
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
+            Cuenta
+          </p>
+          <h1 className="page-title mt-1">Mis pedidos</h1>
+          <p className="page-description">
+            {name ? `Hola, ${name.split(/\s+/)[0]}` : "Tu historial de pedidos"}
+          </p>
         </div>
-      )}
+      </div>
 
-      {orders && orders.length === 0 && (
-        <div className="customer-empty mt-8">
-          <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-orange-50 text-orange-500 dark:bg-orange-950/40">
-            <ShoppingBag className="h-5 w-5" />
+      <div className="container-page flex min-h-[calc(100vh-12rem)] max-w-xl flex-col !pt-6">
+        {error && <p className="admin-alert-error">{error}</p>}
+
+        {orders === null && !error && (
+          <div className="space-y-3">
+            <OrderSkeleton />
+            <OrderSkeleton />
           </div>
-          <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
-            Aún no tienes pedidos
-          </p>
-          <p className="mt-1 text-sm text-gray-500">
-            Cuando ordenes con tu cuenta, aparecerán aquí.
-          </p>
-          <Link href="/sucursales" className="btn-primary mt-5 inline-flex">
-            Empezar a pedir
-          </Link>
-        </div>
-      )}
+        )}
 
-      {orders && orders.length > 0 && (
-        <div className="mt-6 space-y-8">
-          {active.length > 0 && (
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <Package className="h-4 w-4 text-orange-500" />
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  En curso
+        {orders && orders.length === 0 && (
+          <div className="customer-empty mt-2">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-orange-50 text-orange-500 dark:bg-orange-950/40">
+              <ShoppingBag className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
+              Aún no tienes pedidos
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Cuando ordenes con tu cuenta, aparecerán aquí.
+            </p>
+            <Link href="/sucursales" className="btn-primary mt-5 inline-flex">
+              Empezar a pedir
+            </Link>
+          </div>
+        )}
+
+        {orders && orders.length > 0 && (
+          <div className="space-y-8">
+            {active.length > 0 && (
+              <section>
+                <div className="mb-3 flex items-center gap-2">
+                  <Package className="h-4 w-4 text-orange-500" />
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    En curso
+                  </h2>
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
+                    {active.length}
+                  </span>
+                </div>
+                <ul className="space-y-3">
+                  {active.map((order) => (
+                    <OrderCard key={order.id} order={order} />
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {past.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-sm font-semibold text-gray-500">
+                  Anteriores
                 </h2>
-                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
-                  {active.length}
-                </span>
-              </div>
-              <ul className="space-y-3">
-                {active.map((order) => (
-                  <OrderCard key={order.id} order={order} />
-                ))}
-              </ul>
-            </section>
-          )}
+                <ul className="space-y-3">
+                  {past.map((order) => (
+                    <OrderCard key={order.id} order={order} />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
 
-          {past.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-sm font-semibold text-gray-500">
-                Anteriores
-              </h2>
-              <ul className="space-y-3">
-                {past.map((order) => (
-                  <OrderCard key={order.id} order={order} />
-                ))}
-              </ul>
-            </section>
-          )}
+        <div className="mt-auto border-t border-gray-200 pt-6 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="btn-secondary w-full gap-2 py-3"
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar sesión
+          </button>
         </div>
-      )}
-
-      <div className="mt-auto border-t border-gray-200 pt-6 dark:border-gray-700">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="btn-secondary w-full gap-2 py-3"
-        >
-          <LogOut className="h-4 w-4" />
-          Cerrar sesión
-        </button>
       </div>
     </div>
   );

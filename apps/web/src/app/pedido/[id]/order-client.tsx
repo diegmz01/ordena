@@ -66,51 +66,43 @@ const STATUS_META: Record<
   {
     title: string;
     description: string;
-    hero: string;
     icon: typeof Clock3;
   }
 > = {
   PENDING_PAYMENT: {
     title: "Esperando pago",
     description: "Completa el pago para que la sucursal prepare tu orden.",
-    hero: "from-amber-500 to-orange-500",
     icon: Clock3,
   },
   PAID: {
     title: "Pago autorizado",
     description:
       "Retuvimos el monto. Se cobrará al entregar. La sucursal está revisando tu pedido.",
-    hero: "from-orange-500 to-amber-500",
     icon: CircleDot,
   },
   ACCEPTED: {
     title: "Pedido aceptado",
     description: "Confirmamos tu orden. Pronto empieza la preparación.",
-    hero: "from-sky-500 to-orange-500",
     icon: Check,
   },
   PREPARING: {
     title: "Preparando tu pedido",
     description: "La cocina está armando tu orden.",
-    hero: "from-orange-600 to-amber-500",
     icon: ChefHat,
   },
   READY: {
     title: "¡Listo para recoger!",
     description: "Pasa a la sucursal — tu pedido te espera.",
-    hero: "from-emerald-500 to-teal-500",
     icon: PackageCheck,
   },
   COMPLETED: {
     title: "Entregado",
     description: "¡Buen provecho! Gracias por ordenar.",
-    hero: "from-slate-600 to-slate-500",
     icon: UtensilsCrossed,
   },
   CANCELLED: {
     title: "Cancelado",
     description: "Este pedido fue cancelado. Si hubo cobro, se devolvió.",
-    hero: "from-rose-500 to-red-600",
     icon: X,
   },
 };
@@ -256,7 +248,6 @@ export default function OrderPageClient({
     ? STATUS_META[order.status] ?? {
         title: order.status,
         description: "",
-        hero: "from-gray-600 to-gray-500",
         icon: ShoppingBag,
       }
     : null;
@@ -276,47 +267,41 @@ export default function OrderPageClient({
 
   return (
     <div className="pb-28">
-      <section
-        className={cn(
-          "relative overflow-hidden bg-gradient-to-br text-white",
-          meta?.hero ?? "from-orange-500 to-amber-600",
-        )}
-      >
-        <div className="customer-hero-mesh absolute inset-0 opacity-60" />
-        <div className="relative mx-auto max-w-xl px-4 pb-10 pt-8">
+      <section className="customer-page-band">
+        <div className="mx-auto max-w-xl px-4 pb-8 pt-8">
           {success && (
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur">
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-800 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-200">
               <Check className="h-3.5 w-3.5" />
               Pago autorizado
             </p>
           )}
           {!order && !error && (
             <div className="space-y-3">
-              <div className="h-4 w-24 animate-pulse rounded bg-white/30" />
-              <div className="h-10 w-48 animate-pulse rounded-xl bg-white/30" />
-              <div className="h-4 w-64 animate-pulse rounded bg-white/20" />
+              <div className="skeleton h-4 w-24" />
+              <div className="skeleton h-10 w-48" />
+              <div className="skeleton h-4 w-64" />
             </div>
           )}
           {order && meta && (
             <>
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-white/80">
+                  <p className="text-sm font-medium text-gray-500">
                     Pedido {order.orderNumber}
                     {order.dayNumber != null && (
-                      <span className="ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
+                      <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
                         Día {displayNumber}
                       </span>
                     )}
                   </p>
-                  <h1 className="mt-2 text-balance text-3xl font-bold tracking-tight sm:text-4xl">
+                  <h1 className="page-title mt-2 text-balance text-3xl tracking-tight sm:text-4xl">
                     {meta.title}
                   </h1>
-                  <p className="mt-2 max-w-md text-pretty text-sm leading-relaxed text-white/90 sm:text-base">
+                  <p className="page-description mt-2 max-w-md text-pretty leading-relaxed sm:text-base">
                     {meta.description}
                   </p>
                   {order.status === "PREPARING" && readyLabel && (
-                    <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
+                    <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-800 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-200">
                       <Clock3 className="h-3.5 w-3.5" />
                       Estimado listo ~{readyLabel}
                     </p>
@@ -324,7 +309,7 @@ export default function OrderPageClient({
                 </div>
                 <div
                   className={cn(
-                    "flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur",
+                    "flex size-14 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-300",
                     live && order.status !== "READY" && "status-pulse",
                     order.status === "READY" && "status-pulse",
                   )}
@@ -333,14 +318,14 @@ export default function OrderPageClient({
                 </div>
               </div>
               {live && (
-                <p className="mt-5 flex items-center gap-2 text-xs text-white/70">
+                <p className="mt-5 flex items-center gap-2 text-xs text-gray-500">
                   <span className="relative flex size-2">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-60" />
-                    <span className="relative inline-flex size-2 rounded-full bg-white" />
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-orange-400 opacity-60" />
+                    <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
                   </span>
                   Seguimiento en vivo
                   {updatedAt && (
-                    <span className="text-white/50">
+                    <span className="text-gray-400">
                       · actualizado{" "}
                       {updatedAt.toLocaleTimeString("es-MX", {
                         hour: "2-digit",
