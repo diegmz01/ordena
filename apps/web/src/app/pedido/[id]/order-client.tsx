@@ -366,8 +366,6 @@ export default function OrderPageClient({
     !["COMPLETED", "CANCELLED", "PENDING_PAYMENT"].includes(order.status);
 
   const Icon = meta?.icon ?? ShoppingBag;
-  const displayNumber =
-    order?.dayNumber != null ? `#${order.dayNumber}` : order?.orderNumber;
   const pay = order ? paymentStatus(order) : null;
 
   return (
@@ -393,11 +391,6 @@ export default function OrderPageClient({
                 <div>
                   <p className="text-sm font-medium text-gray-500">
                     Pedido {order.orderNumber}
-                    {order.dayNumber != null && (
-                      <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
-                        Día {displayNumber}
-                      </span>
-                    )}
                   </p>
                   <h1 className="page-title mt-2 text-balance text-3xl tracking-tight sm:text-4xl">
                     {meta.title}
