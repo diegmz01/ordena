@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Ban,
   CreditCard,
   ClipboardList,
   History,
@@ -9,6 +10,7 @@ import {
   Phone,
   Plus,
   Printer,
+  RotateCcw,
   StickyNote,
   User,
 } from "lucide-react";
@@ -973,36 +975,52 @@ export default function BranchHomePage() {
                             key={item.id}
                             className="flex items-start justify-between gap-2 bg-white px-3.5 py-3 dark:bg-surface-muted"
                           >
-                            <div className="min-w-0 flex-1">
-                              <p
+                            <div className="flex min-w-0 flex-1 items-start gap-1.5">
+                              <span
                                 className={cn(
-                                  "text-base font-semibold leading-snug",
+                                  "shrink-0 text-base font-semibold tabular-nums leading-snug",
                                   item.unavailable
-                                    ? "text-slate-400 line-through"
-                                    : "text-slate-900 dark:text-white",
+                                    ? "text-slate-400"
+                                    : "text-slate-500",
                                 )}
                               >
-                                <span className="mr-1.5 tabular-nums text-slate-500">
-                                  {item.quantity}×
-                                </span>
-                                {item.productName}
-                              </p>
-                              {item.variantName && (
-                                <p className="mt-0.5 text-base font-normal leading-snug text-slate-700 dark:text-slate-200">
-                                  {item.variantName}
+                                {item.quantity}×
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={cn(
+                                    "text-base font-semibold leading-snug",
+                                    item.unavailable
+                                      ? "text-slate-400 line-through"
+                                      : "text-slate-900 dark:text-white",
+                                  )}
+                                >
+                                  {item.productName}
                                 </p>
-                              )}
-                              {item.unavailable && (
-                                <p className="mt-0.5 text-xs font-semibold text-rose-600">
-                                  Agotado · descuento aplicado
-                                </p>
-                              )}
+                                {item.variantName && (
+                                  <p
+                                    className={cn(
+                                      "mt-0.5 text-base font-normal leading-snug",
+                                      item.unavailable
+                                        ? "text-slate-400 line-through"
+                                        : "text-slate-700 dark:text-slate-200",
+                                    )}
+                                  >
+                                    {item.variantName}
+                                  </p>
+                                )}
+                                {item.unavailable && (
+                                  <p className="mt-0.5 text-xs font-semibold text-rose-600">
+                                    Descuento aplicado
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex shrink-0 flex-col items-end gap-1.5">
+                            <div className="flex shrink-0 items-center gap-2">
                               <p className="text-sm font-bold tabular-nums text-orange-600">
                                 {formatMoney(item.lineTotal, selected.currency)}
                               </p>
-                              {selected.status === "PAID" && (
+                              {selected.status === "PAID" ? (
                                 <button
                                   type="button"
                                   disabled={
@@ -1012,14 +1030,39 @@ export default function BranchHomePage() {
                                   onClick={() =>
                                     void toggleUnavailable(selected, item)
                                   }
-                                  className={
+                                  title={
                                     item.unavailable
-                                      ? "btn-secondary btn-compact"
-                                      : "btn-red btn-compact"
+                                      ? "Restaurar producto"
+                                      : "Marcar como agotado"
                                   }
+                                  aria-label={
+                                    item.unavailable
+                                      ? "Restaurar producto"
+                                      : "Marcar como agotado"
+                                  }
+                                  className={cn(
+                                    "inline-flex size-8 items-center justify-center rounded-lg transition",
+                                    item.unavailable
+                                      ? "bg-gray-100 text-slate-600 hover:bg-gray-200 dark:bg-surface dark:text-slate-300 dark:hover:bg-surface-muted"
+                                      : "bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950/70",
+                                  )}
                                 >
-                                  {item.unavailable ? "Restaurar" : "Agotado"}
+                                  {item.unavailable ? (
+                                    <RotateCcw className="size-4" strokeWidth={2.25} />
+                                  ) : (
+                                    <Ban className="size-4" strokeWidth={2.25} />
+                                  )}
                                 </button>
+                              ) : (
+                                item.unavailable && (
+                                  <span
+                                    title="Agotado"
+                                    aria-label="Agotado"
+                                    className="inline-flex size-8 items-center justify-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                                  >
+                                    <Ban className="size-4" strokeWidth={2.25} />
+                                  </span>
+                                )
                               )}
                             </div>
                           </li>
