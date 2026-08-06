@@ -88,9 +88,21 @@ function LoginForm() {
               />
             </div>
             <div>
-              <label htmlFor="password" className="field-label">
-                Contraseña
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="field-label">
+                  Contraseña
+                </label>
+                <Link
+                  href={
+                    next === "/"
+                      ? "/olvide-password"
+                      : `/olvide-password?next=${encodeURIComponent(next)}`
+                  }
+                  className="link-action px-0 text-xs"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
               <input
                 id="password"
                 name="password"

@@ -65,6 +65,39 @@ export async function register(payload: {
   return data;
 }
 
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ordena-Client": "customer",
+    },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json().catch(() => ({ error: "Error" }));
+  if (!response.ok) throw new Error(data.error ?? "Error");
+  return data.data;
+}
+
+export async function resetPassword(
+  token: string,
+  password: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ordena-Client": "customer",
+    },
+    credentials: "include",
+    body: JSON.stringify({ token, password }),
+  });
+  const data = await response.json().catch(() => ({ error: "Error" }));
+  if (!response.ok) throw new Error(data.error ?? "Error");
+  return data.data;
+}
+
 export async function logout() {
   try {
     await fetch(`${API_URL}/auth/logout`, {

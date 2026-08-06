@@ -54,6 +54,15 @@ export const registerSchema = z.object({
   phone: z.string().optional(),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: strongPasswordSchema(10),
+});
+
 export const updateCustomerPhoneSchema = z.object({
   phone: z
     .string()
@@ -357,4 +366,15 @@ export const branchMenuUpdateSchema = z.object({
     )
     .min(1)
     .max(1000, "Demasiados productos en una sola actualización"),
+});
+
+/** `password` vacío u omitido = conservar la contraseña SMTP ya guardada. */
+export const smtpSettingsSchema = z.object({
+  host: z.string().min(1, "Host requerido"),
+  port: z.number().int().min(1).max(65535),
+  secure: z.boolean(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  fromEmail: z.string().email("Correo remitente inválido"),
+  fromName: z.string().optional(),
 });

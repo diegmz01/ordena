@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Home,
   LogOut,
+  Settings,
   Store,
   Users,
   UtensilsCrossed,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/finanzas", label: "Finanzas", icon: Wallet },
+  { href: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
 const customerUrl =

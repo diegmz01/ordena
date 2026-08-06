@@ -65,6 +65,12 @@ export function assertProductionEnv() {
   ) {
     warn("VAPID incompleto: push a clientes deshabilitado.");
   }
+
+  if (!process.env.SMTP_ENCRYPTION_KEY?.trim()) {
+    warn(
+      "SMTP_ENCRYPTION_KEY no definido: restablecer contraseña por correo deshabilitado.",
+    );
+  }
 }
 
 export function corsOrigins(): string[] {

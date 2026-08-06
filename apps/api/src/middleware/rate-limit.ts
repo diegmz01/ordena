@@ -29,6 +29,26 @@ export const loginRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Forgot-password — límite por email normalizado (mismo patrón que
+ * loginRateLimiter), para que no se pueda inundar de correos de reset a una
+ * cuenta ajena. Se aplica junto con authRateLimiter (por IP).
+ */
+export const forgotPasswordRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const email =
+      typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    return email || "unknown";
+  },
+  message: {
+    error: "Demasiadas solicitudes de restablecimiento. Espera unos minutos.",
+  },
+});
+
 /** Checkout sessions (Stripe) */
 export const checkoutRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

@@ -1,10 +1,13 @@
+import { createHash, randomBytes } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "@ordena/database";
 import {
+  forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resetPasswordSchema,
   updateCustomerPhoneSchema,
   type AuthUser,
   type LoginResponse,
@@ -29,13 +32,24 @@ import {
   sanitizeNext,
   upsertOAuthUser,
 } from "../lib/oauth";
-import { authRateLimiter, loginRateLimiter } from "../middleware/rate-limit";
+import { sendPasswordResetEmail } from "../lib/mailer";
+import {
+  authRateLimiter,
+  forgotPasswordRateLimiter,
+  loginRateLimiter,
+} from "../middleware/rate-limit";
 import {
   clearSessionCookie,
   resolveAudience,
   setSessionCookie,
   type AuthAudience,
 } from "../utils/session-cookie";
+
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+
+function hashResetToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export const authRouter = Router();
 
@@ -177,6 +191,93 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
     next(error);
   }
 });
+
+authRouter.post(
+  "/forgot-password",
+  authRateLimiter,
+  forgotPasswordRateLimiter,
+  async (req, res, next) => {
+    try {
+      const { email } = forgotPasswordSchema.parse(req.body);
+      const genericResponse = {
+        data: {
+          message:
+            "Si el correo existe, enviamos un enlace para restablecer la contraseña",
+        },
+      };
+
+      // Solo clientes con login por correo (no OAuth-only, no admin/staff),
+      // pero siempre respondemos igual para no revelar si la cuenta existe.
+      const user = await prisma.user.findFirst({
+        where: {
+          email: email.toLowerCase(),
+          role: "CUSTOMER",
+          passwordHash: { not: null },
+        },
+      });
+
+      if (user) {
+        const token = randomBytes(32).toString("hex");
+        await prisma.passwordResetToken.deleteMany({
+          where: { userId: user.id },
+        });
+        await prisma.passwordResetToken.create({
+          data: {
+            tokenHash: hashResetToken(token),
+            userId: user.id,
+            expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+          },
+        });
+
+        const customerUrl = process.env.CUSTOMER_URL ?? "http://localhost:3000";
+        const resetUrl = `${customerUrl}/reset-password?token=${token}`;
+        sendPasswordResetEmail(user.email, resetUrl, user.name).catch(
+          (error) => console.error("[forgot-password]", error),
+        );
+      }
+
+      res.json(genericResponse);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+authRouter.post(
+  "/reset-password",
+  authRateLimiter,
+  async (req, res, next) => {
+    try {
+      const { token, password } = resetPasswordSchema.parse(req.body);
+      const tokenHash = hashResetToken(token);
+
+      const entry = await prisma.passwordResetToken.findUnique({
+        where: { tokenHash },
+      });
+      if (entry) {
+        await prisma.passwordResetToken
+          .delete({ where: { id: entry.id } })
+          .catch(() => undefined);
+      }
+      if (!entry || entry.expiresAt.getTime() < Date.now()) {
+        throw new AppError(400, "Enlace inválido o expirado");
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      await prisma.user.update({
+        where: { id: entry.userId },
+        data: { passwordHash },
+      });
+      await prisma.passwordResetToken.deleteMany({
+        where: { userId: entry.userId },
+      });
+
+      res.json({ data: { message: "Contraseña actualizada" } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 authRouter.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
   res.json({ user: toAuthUser(req.authUser!) });
