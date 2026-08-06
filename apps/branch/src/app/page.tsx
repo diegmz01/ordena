@@ -222,6 +222,8 @@ export default function BranchHomePage() {
   const [prepTimeOpen, setPrepTimeOpen] = useState(false);
   const [pickupCodeOpen, setPickupCodeOpen] = useState(false);
   const [pickupCodeInput, setPickupCodeInput] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const [ticketInput, setTicketInput] = useState("");
   const [prepMinutes, setPrepMinutes] = useState(20);
   const [now, setNow] = useState(() => Date.now());
@@ -505,6 +507,46 @@ export default function BranchHomePage() {
     }
   }
 
+  function openCancel() {
+    setError(null);
+    setCancelReason("");
+    setCancelOpen(true);
+  }
+
+  async function confirmCancel(order: Order) {
+    const token = getAuthToken();
+    if (!token) return;
+    const reason = cancelReason.trim();
+    if (!reason) {
+      setError("Ingresa el motivo de cancelación");
+      return;
+    }
+    const key = `${order.id}:status:CANCELLED`;
+    setBusyKey(key);
+    setError(null);
+    try {
+      const res = await apiFetch<{ data: Order }>(
+        `/orders/${order.id}/status`,
+        token,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            status: "CANCELLED",
+            cancellationReason: reason,
+          }),
+        },
+      );
+      applyOrderUpdate(order.id, res.data);
+      setCancelOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Error al cancelar el pedido",
+      );
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   async function runPrint(order: Order) {
     await printOrder(
       {
@@ -748,6 +790,11 @@ export default function BranchHomePage() {
               setError(null);
               return;
             }
+            if (cancelOpen) {
+              setCancelOpen(false);
+              setError(null);
+              return;
+            }
             setSelectedId(null);
           }}
           title={displayOrderLabel(selected)}
@@ -777,8 +824,8 @@ export default function BranchHomePage() {
                 <>
                   <button
                     type="button"
-                    disabled={busyKey === `${selected.id}:status:CANCELLED`}
-                    onClick={() => void updateStatus(selected.id, "CANCELLED")}
+                    disabled={!!busyKey}
+                    onClick={() => openCancel()}
                     className="btn-red w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
                   >
                     Cancelar
@@ -1262,6 +1309,63 @@ export default function BranchHomePage() {
                 }}
                 className="pwa-input text-center text-2xl font-bold tracking-[0.4em]"
                 placeholder="0000"
+                autoFocus
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {selected && cancelOpen && selected.status === "PAID" && (
+        <Modal
+          open={cancelOpen}
+          nested
+          onClose={() => {
+            setCancelOpen(false);
+            setError(null);
+          }}
+          title="Cancelar pedido"
+          description={`Pedido ${displayOrderLabel(selected)} · ${customerName(selected)}`}
+          footer={
+            <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={busyKey === `${selected.id}:status:CANCELLED`}
+                onClick={() => {
+                  setCancelOpen(false);
+                  setError(null);
+                }}
+                className="btn-secondary w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={busyKey === `${selected.id}:status:CANCELLED`}
+                onClick={() => void confirmCancel(selected)}
+                className="btn-red w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
+              >
+                Confirmar cancelación
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            {error && <p className="admin-alert-error">{error}</p>}
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+              Se liberará la autorización del pago. Esta acción no se puede
+              deshacer.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="cancel-reason" className="field-label">
+                Motivo de cancelación
+              </label>
+              <textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="pwa-input min-h-[6rem] resize-none"
+                placeholder="Ej. Cliente no llegó a tiempo, producto no disponible…"
                 autoFocus
               />
             </div>

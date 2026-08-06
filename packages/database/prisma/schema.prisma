@@ -272,6 +272,8 @@ model Order {
   /// debe dar en sucursal para que staff marque el pedido como COMPLETED.
   pickupCode            String?
   notes                 String?
+  /// Motivo obligatorio ingresado por sucursal o admin al cancelar el pedido
+  cancellationReason    String?
   items                 OrderItem[]
   paidAt                DateTime?
   createdAt             DateTime    @default(now())

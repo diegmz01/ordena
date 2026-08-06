@@ -6,6 +6,7 @@ import {
   assignPtvTicketSchema,
   startOrderPrepSchema,
   acceptOrderSchema,
+  adminCancelOrderSchema,
   isValidOrderStatusTransition,
   canAdminCancelOrder,
   type OrderStatus,
@@ -324,7 +325,8 @@ ordersRouter.patch(
   requireBranchStaff,
   async (req: AuthenticatedRequest, res, next) => {
     try {
-      const { status, pickupCode } = updateOrderStatusSchema.parse(req.body);
+      const { status, pickupCode, cancellationReason } =
+        updateOrderStatusSchema.parse(req.body);
       const user = req.authUser!;
 
       const order = await prisma.order.findUnique({
@@ -400,6 +402,7 @@ ordersRouter.patch(
         data: {
           status,
           ...(status === "READY" ? { pickupCode: generatePickupCode() } : {}),
+          ...(status === "CANCELLED" ? { cancellationReason } : {}),
         },
         include: branchOrderInclude,
       });
@@ -435,9 +438,16 @@ ordersRouter.post(
   requireAdmin,
   async (req: AuthenticatedRequest, res, next) => {
     try {
+      const { cancellationReason } = adminCancelOrderSchema.parse(req.body);
+
       const order = await prisma.order.findUnique({
         where: { id: String(req.params.id) },
-        include: branchOrderInclude,
+        include: {
+          ...branchOrderInclude,
+          branch: {
+            select: { id: true, name: true, address: true, phone: true },
+          },
+        },
       });
       if (!order) {
         throw new AppError(404, "Pedido no encontrado");
@@ -460,8 +470,13 @@ ordersRouter.post(
 
       const cancelled = await prisma.order.update({
         where: { id: order.id },
-        data: { status: "CANCELLED" },
-        include: branchOrderInclude,
+        data: { status: "CANCELLED", cancellationReason },
+        include: {
+          ...branchOrderInclude,
+          branch: {
+            select: { id: true, name: true, address: true, phone: true },
+          },
+        },
       });
 
       await recordAdminAction({
@@ -469,7 +484,11 @@ ordersRouter.post(
         action: "order.admin_cancel",
         entityType: "Order",
         entityId: order.id,
-        metadata: { from: currentStatus, orderNumber: order.orderNumber },
+        metadata: {
+          from: currentStatus,
+          orderNumber: order.orderNumber,
+          cancellationReason,
+        },
       });
 
       await notifyBranchOrderUpdated(order.branchId, {

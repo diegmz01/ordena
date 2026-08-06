@@ -42,6 +42,7 @@ type OrderDetail = {
   total: number;
   currency: string;
   notes: string | null;
+  cancellationReason: string | null;
   ptvTicket: number | null;
   guestName: string | null;
   guestEmail: string | null;
@@ -211,6 +212,7 @@ export default function AdminOrderDetailPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -295,6 +297,7 @@ export default function AdminOrderDetailPage() {
 
   function openCancelModal() {
     setCancelError(null);
+    setCancelReason("");
     setCancelModalOpen(true);
   }
 
@@ -306,6 +309,11 @@ export default function AdminOrderDetailPage() {
 
   async function confirmAdminCancel() {
     if (!order) return;
+    const reason = cancelReason.trim();
+    if (!reason) {
+      setCancelError("Ingresa el motivo de cancelación");
+      return;
+    }
     const token = getAuthToken();
     if (!token) {
       setCancelError("Sesión no válida");
@@ -318,7 +326,10 @@ export default function AdminOrderDetailPage() {
       const res = await apiFetch<{ data: OrderDetail }>(
         `/orders/${order.id}/admin-cancel`,
         token,
-        { method: "POST" },
+        {
+          method: "POST",
+          body: JSON.stringify({ cancellationReason: reason }),
+        },
       );
       setOrder(res.data);
       setCancelModalOpen(false);
@@ -487,7 +498,13 @@ export default function AdminOrderDetailPage() {
 
             {order.status === "CANCELLED" ? (
               <div className="border-t border-red-200/70 bg-red-50 px-5 py-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200 sm:px-6">
-                Pedido cancelado. No continúa en el flujo de preparación.
+                <p>Pedido cancelado. No continúa en el flujo de preparación.</p>
+                {order.cancellationReason && (
+                  <p className="mt-1">
+                    <span className="font-semibold">Motivo:</span>{" "}
+                    {order.cancellationReason}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="border-t border-orange-100 px-5 py-4 dark:border-orange-900/30 sm:px-6">
@@ -896,6 +913,23 @@ export default function AdminOrderDetailPage() {
                 {formatMoney(order.total, order.currency)}. Esta acción no se
                 puede deshacer.
               </p>
+              <div>
+                <label htmlFor="cancelReasonModal" className="field-label">
+                  Motivo de cancelación
+                </label>
+                <textarea
+                  id="cancelReasonModal"
+                  autoFocus
+                  required
+                  placeholder="Ej. Cliente solicitó cancelar, producto agotado…"
+                  value={cancelReason}
+                  onChange={(e) => {
+                    setCancelReason(e.target.value);
+                    setCancelError(null);
+                  }}
+                  className="input-field mt-1 min-h-[6rem] resize-none"
+                />
+              </div>
               {cancelError && (
                 <p className="text-sm text-red-600">{cancelError}</p>
               )}
@@ -910,7 +944,7 @@ export default function AdminOrderDetailPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={cancelPending}
+                  disabled={cancelPending || !cancelReason.trim()}
                   className="btn-red"
                   onClick={() => void confirmAdminCancel()}
                 >

@@ -118,10 +118,25 @@ export const checkoutValidateSchema = z.object({
 });
 
 /** Destinos de `PATCH /orders/:id/status` (PREPARING va por `/start-prep`). */
-export const updateOrderStatusSchema = z.object({
-  status: z.enum(["ACCEPTED", "READY", "COMPLETED", "CANCELLED"]),
-  /** Requerido al pasar a COMPLETED: código de entrega dado por el cliente. */
-  pickupCode: z.string().trim().min(1).max(10).optional(),
+export const updateOrderStatusSchema = z
+  .object({
+    status: z.enum(["ACCEPTED", "READY", "COMPLETED", "CANCELLED"]),
+    /** Requerido al pasar a COMPLETED: código de entrega dado por el cliente. */
+    pickupCode: z.string().trim().min(1).max(10).optional(),
+    /** Requerido al pasar a CANCELLED: motivo ingresado por el staff. */
+    cancellationReason: z.string().trim().min(1).max(500).optional(),
+  })
+  .refine(
+    (data) => data.status !== "CANCELLED" || !!data.cancellationReason,
+    {
+      message: "El motivo de cancelación es obligatorio",
+      path: ["cancellationReason"],
+    },
+  );
+
+/** Body de `POST /orders/:id/admin-cancel`: motivo obligatorio de cancelación. */
+export const adminCancelOrderSchema = z.object({
+  cancellationReason: z.string().trim().min(1).max(500),
 });
 
 export const updateOrderItemAvailabilitySchema = z.object({
