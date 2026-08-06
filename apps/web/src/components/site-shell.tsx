@@ -59,17 +59,17 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             : "site-header",
         )}
       >
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link href="/" className="shrink-0" aria-label="Ordena inicio">
               {isHome ? (
                 <BrandLogo
-                  height={26}
+                  height={45}
                   priority
                   className="[&_img]:brightness-0 [&_img]:invert"
                 />
               ) : (
-                <BrandLogo height={26} priority />
+                <BrandLogo height={45} priority />
               )}
             </Link>
             <Link
@@ -148,25 +148,25 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               <Link
                 href="/pedidos"
                 className={cn(
-                  "inline-flex max-w-[7.5rem] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold sm:max-w-[10rem]",
+                  "inline-flex max-w-[9rem] items-center gap-2 rounded-full px-3.5 py-2 text-sm font-semibold sm:max-w-[12rem]",
                   isHome
                     ? "bg-white text-orange-600"
-                    : "btn-primary btn-compact",
+                    : "btn-primary",
                   pathname.startsWith("/pedidos") && !isHome && "ring-2 ring-orange-300",
                 )}
                 title="Mis pedidos"
               >
-                <User className="hidden h-3.5 w-3.5 sm:block" />
+                <User className="hidden h-4 w-4 sm:block" />
                 <span className="truncate">{displayName}</span>
               </Link>
             ) : (
               <Link
                 href="/login"
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-semibold",
+                  "rounded-full px-4 py-2 text-sm font-semibold",
                   isHome
                     ? "bg-white text-orange-600"
-                    : "btn-primary btn-compact",
+                    : "btn-primary",
                 )}
               >
                 Entrar

@@ -235,7 +235,7 @@ export function BranchHeader() {
               className="shrink-0 rounded-md outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-white/60"
               aria-label="Inicio · pedidos"
             >
-              <BrandLogo height={30} priority onBrand />
+              <BrandLogo height={45} priority onBrand />
             </Link>
 
             <div
