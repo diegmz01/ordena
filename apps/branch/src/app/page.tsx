@@ -959,6 +959,20 @@ export default function BranchHomePage() {
                   ))}
                 </div>
 
+                {selected.notes && (
+                  <div className="mt-3 flex gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-3 dark:border-sky-900/50 dark:bg-sky-950/40">
+                    <StickyNote className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-300" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">
+                        Nota del cliente
+                      </p>
+                      <p className="mt-0.5 text-sm text-sky-950 dark:text-sky-100">
+                        {selected.notes}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-3 space-y-1.5 rounded-xl bg-gray-50 px-3.5 py-3.5 text-sm dark:bg-surface-muted">
                   <div className="flex justify-between text-slate-500">
                     <span>Subtotal</span>
@@ -984,6 +998,26 @@ export default function BranchHomePage() {
               </section>
 
               <aside className="flex min-w-0 flex-col gap-3">
+                {selected.status === "PREPARING" && (
+                  <section className="rounded-xl bg-orange-50 px-4 py-6 text-center dark:bg-orange-950/30">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
+                      Tiempo restante
+                    </p>
+                    <p className="mt-1 text-5xl font-bold tabular-nums text-orange-600">
+                      {selected.readyAt
+                        ? formatCountdown(
+                            new Date(selected.readyAt).getTime() - now,
+                          )
+                        : "—"}
+                    </p>
+                    {selected.prepMinutes != null && (
+                      <p className="mt-1.5 text-xs text-slate-500">
+                        Estimado: {selected.prepMinutes} min
+                      </p>
+                    )}
+                  </section>
+                )}
+
                 <section className="rounded-xl border border-gray-200 bg-gray-50/80 p-3.5 dark:border-border dark:bg-surface-muted">
                   <div className="flex items-start gap-3">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm dark:bg-surface dark:text-slate-400">
@@ -1076,35 +1110,6 @@ export default function BranchHomePage() {
                     </section>
                   );
                 })()}
-
-                {selected.notes && (
-                  <section className="flex gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-3.5 py-3 dark:border-border dark:bg-surface-muted/50">
-                    <StickyNote className="mt-0.5 size-4 shrink-0 text-slate-400" />
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
-                      {selected.notes}
-                    </p>
-                  </section>
-                )}
-
-                {selected.status === "PREPARING" && (
-                  <section className="rounded-xl bg-orange-50 px-4 py-6 text-center dark:bg-orange-950/30">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-300">
-                      Tiempo restante
-                    </p>
-                    <p className="mt-1 text-5xl font-bold tabular-nums text-orange-600">
-                      {selected.readyAt
-                        ? formatCountdown(
-                            new Date(selected.readyAt).getTime() - now,
-                          )
-                        : "—"}
-                    </p>
-                    {selected.prepMinutes != null && (
-                      <p className="mt-1.5 text-xs text-slate-500">
-                        Estimado: {selected.prepMinutes} min
-                      </p>
-                    )}
-                  </section>
-                )}
               </aside>
             </div>
           </div>
