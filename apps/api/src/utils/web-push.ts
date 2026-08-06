@@ -152,11 +152,14 @@ export async function notifyCustomerOrderItemsChanged(
     viewToken?: string | null;
   },
   change: {
-    productName: string;
-    unavailable: boolean;
-    allCancelled?: boolean;
+    /** Productos que quedaron marcados como agotados al aceptar el pedido. */
+    unavailableProductNames: string[];
   },
 ) {
+  if (change.unavailableProductNames.length === 0) {
+    return { sent: 0 };
+  }
+
   if (!configureWebPush()) {
     return { sent: 0, skipped: "VAPID keys not configured" as const };
   }
@@ -176,11 +179,8 @@ export async function notifyCustomerOrderItemsChanged(
   }
 
   const customerUrl = process.env.CUSTOMER_URL ?? "http://localhost:3000";
-  const body = change.allCancelled
-    ? `Todo el pedido se canceló: productos agotados. No se cobró.`
-    : change.unavailable
-      ? `${change.productName} agotado. Descuento aplicado. A cobrar: $${(order.total / 100).toFixed(2)}`
-      : `${change.productName} restaurado. A cobrar: $${(order.total / 100).toFixed(2)}`;
+  const names = change.unavailableProductNames.join(", ");
+  const body = `${names} ${change.unavailableProductNames.length === 1 ? "agotado" : "agotados"}. Descuento aplicado. A cobrar: $${(order.total / 100).toFixed(2)}`;
 
   const tracking =
     order.viewToken != null && order.viewToken !== ""

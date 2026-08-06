@@ -565,6 +565,14 @@ ordersRouter.patch(
         await notifyCustomerOrderStatus(updated, {
           body: "Pedido aceptado · En preparación",
         });
+        const unavailableProductNames = updated.items
+          .filter((i) => i.unavailable)
+          .map((i) => i.productName);
+        if (unavailableProductNames.length > 0) {
+          await notifyCustomerOrderItemsChanged(updated, {
+            unavailableProductNames,
+          });
+        }
       } catch (pushError) {
         console.error("[orders.accept] web-push", pushError);
       }
@@ -626,6 +634,14 @@ ordersRouter.patch(
 
       try {
         await notifyCustomerOrderStatus(updated);
+        const unavailableProductNames = updated.items
+          .filter((i) => i.unavailable)
+          .map((i) => i.productName);
+        if (unavailableProductNames.length > 0) {
+          await notifyCustomerOrderItemsChanged(updated, {
+            unavailableProductNames,
+          });
+        }
       } catch (pushError) {
         console.error("[orders.start-prep] web-push", pushError);
       }
@@ -678,46 +694,12 @@ ordersRouter.patch(
       const discount = itemsDiscount(nextItems);
       const total = chargeableTotal(nextItems);
 
-      // Todos agotados → cancelar pedido y liberar retención Stripe
-      if (total <= 0) {
-        await prisma.orderItem.update({
-          where: { id: itemId },
-          data: { unavailable: true },
-        });
-
-        await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
-
-        const cancelled = await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            status: "CANCELLED",
-            subtotal,
-            discount: subtotal,
-            total: 0,
-          },
-          include: branchOrderInclude,
-        });
-
-        await notifyBranchOrderUpdated(order.branchId, {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          status: "CANCELLED",
-        });
-
-        try {
-          await notifyCustomerOrderStatus(cancelled);
-          await notifyCustomerOrderItemsChanged(cancelled, {
-            productName: item.productName,
-            unavailable: true,
-            allCancelled: true,
-          });
-        } catch (pushError) {
-          console.error("[orders.items] web-push", pushError);
-        }
-
-        return res.json({ data: cancelled });
-      }
-
+      // Nunca se cancela automáticamente: aunque el total quede en $0 porque
+      // todos los productos están agotados, el pedido sigue en PAID y es el
+      // staff quien decide (y confirma con motivo) si lo cancela vía
+      // PATCH /orders/:id/status. Tampoco se notifica al cliente aquí — eso
+      // se hace de forma consolidada al aceptar el pedido (ver /accept y
+      // /start-prep), no en cada toggle mientras el staff sigue revisando.
       await prisma.orderItem.update({
         where: { id: itemId },
         data: { unavailable },
@@ -734,15 +716,6 @@ ordersRouter.patch(
         orderNumber: order.orderNumber,
         status: order.status,
       });
-
-      try {
-        await notifyCustomerOrderItemsChanged(updated, {
-          productName: item.productName,
-          unavailable,
-        });
-      } catch (pushError) {
-        console.error("[orders.items] web-push", pushError);
-      }
 
       res.json({ data: updated });
     } catch (error) {

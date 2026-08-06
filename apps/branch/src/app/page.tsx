@@ -447,6 +447,15 @@ export default function BranchHomePage() {
         },
       );
       applyOrderUpdate(order.id, res.data);
+      // Todos los productos quedaron agotados: no se cancela solo — se pide
+      // confirmación y motivo al staff, igual que cualquier otra cancelación.
+      if (
+        res.data.status === "PAID" &&
+        res.data.items.every((i) => i.unavailable)
+      ) {
+        setCancelReason("Todos los productos del pedido están agotados");
+        setCancelOpen(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al marcar agotado");
     } finally {
