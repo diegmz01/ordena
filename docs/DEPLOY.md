@@ -34,7 +34,7 @@ Las cookies de sesión se setean vía el **Route Handler** `app/api-backend/[...
 | `VAPID_PRIVATE_KEY` | sí | misma pareja |
 | `VAPID_SUBJECT` | sí | `mailto:ops@tudominio.com` |
 | `OAUTH_REDIRECT_BASE` | si OAuth | URL pública de la **API** |
-| Google/Apple/Facebook secrets | si OAuth | |
+| Google/Facebook secrets | si OAuth | |
 
 En production la API **falla al arrancar** si faltan secretos críticos (`assertProductionEnv`).
 
