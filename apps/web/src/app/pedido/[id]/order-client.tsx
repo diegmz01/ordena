@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { groupItemsByPlateLabel } from "@ordena/shared";
 import { PushOptIn } from "@/components/pwa/push-opt-in";
+import { Modal } from "@/components/ui/modal";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { formatMoney, useCart } from "@/lib/cart";
@@ -295,6 +296,7 @@ export default function OrderPageClient({
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [notifyModalOpen, setNotifyModalOpen] = useState(false);
   const { clear, hydrated } = useCart();
 
   useEffect(() => {
@@ -365,11 +367,43 @@ export default function OrderPageClient({
     order &&
     !["COMPLETED", "CANCELLED", "PENDING_PAYMENT"].includes(order.status);
 
+  useEffect(() => {
+    if (!success || !live) return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "default") return;
+
+    const key = `ordena_push_prompt_shown:${id}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- abre el modal en respuesta a un evento externo (redirect de pago), no hay estado derivable en render
+    setNotifyModalOpen(true);
+  }, [success, live, id]);
+
   const Icon = meta?.icon ?? ShoppingBag;
   const pay = order ? paymentStatus(order) : null;
 
   return (
     <div className="pb-28">
+      <Modal
+        open={notifyModalOpen}
+        onClose={() => setNotifyModalOpen(false)}
+        title="Avisos del pedido"
+        description="Activa notificaciones para saber cuando esté listo."
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-950/50">
+            <Bell className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <PushOptIn orderId={id} viewToken={viewToken} embedded />
+          </div>
+        </div>
+      </Modal>
+
       <section className="customer-page-band">
         <div className="mx-auto max-w-xl px-4 pb-8 pt-8">
           {success && (
