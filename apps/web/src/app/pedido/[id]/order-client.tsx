@@ -133,8 +133,12 @@ function formatReadyAt(iso: string | null) {
   }
 }
 
+function showsOrderProgress(status: string) {
+  return status !== "CANCELLED" && status !== "PENDING_PAYMENT";
+}
+
 function OrderTimeline({ status }: { status: string }) {
-  if (status === "CANCELLED" || status === "PENDING_PAYMENT") return null;
+  if (!showsOrderProgress(status)) return null;
 
   const idx = FLOW.indexOf(status as (typeof FLOW)[number]);
   const current = idx < 0 ? 0 : idx;
@@ -353,12 +357,14 @@ export default function OrderPageClient({
 
         {order && (
           <div className="space-y-4">
-            <div className="customer-card p-5">
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Progreso
-              </p>
-              <OrderTimeline status={order.status} />
-            </div>
+            {showsOrderProgress(order.status) && (
+                <div className="customer-card p-5">
+                  <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Progreso
+                  </p>
+                  <OrderTimeline status={order.status} />
+                </div>
+              )}
 
             {order.status === "READY" && order.pickupCode && (
               <div className="customer-card overflow-hidden border-2 border-orange-200 dark:border-orange-900/60">
