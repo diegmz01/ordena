@@ -74,6 +74,49 @@ function formatDelta(cents: number) {
   return `${sign}${formatMoney(Math.abs(cents))}`;
 }
 
+// Misma zona horaria del negocio usada en el backend (branch-menu-stock.ts /
+// branch-availability.ts). El cálculo de "Hasta mañana" debe hacerse en esta
+// zona, no en la del dispositivo del staff, porque el valor real que guarda
+// el servidor (unavailableUntil) se calculó así.
+const BRANCH_TZ = "America/Mexico_City";
+
+function timeZoneOffsetMs(utcMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(utcMs));
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  const asUTC = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+  return asUTC - utcMs;
+}
+
+/** Instante UTC de las 00:00:00 del día calendario siguiente en `timeZone`. */
+function startOfNextDayInTimeZone(now: Date, timeZone: string): number {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const [y, m, d] = today.split("-").map(Number);
+  const guess = Date.UTC(y, m - 1, d + 1, 0, 0, 0, 0);
+  return guess - timeZoneOffsetMs(guess, timeZone);
+}
+
 function stockHint(unavailableUntil: string | null): string | null {
   if (!unavailableUntil) return null;
   const ms = Date.parse(unavailableUntil);
@@ -81,16 +124,17 @@ function stockHint(unavailableUntil: string | null): string | null {
   if (ms >= MANUAL_SENTINEL_MS) return "Hasta reactivar";
   try {
     const d = new Date(ms);
-    const now = new Date();
-    const startTomorrow = new Date(now);
-    startTomorrow.setHours(24, 0, 0, 0);
-    const endTomorrow = new Date(startTomorrow);
-    endTomorrow.setHours(24, 0, 0, 0);
-    if (ms >= startTomorrow.getTime() - 60_000 && ms <= endTomorrow.getTime()) {
+    const startTomorrow = startOfNextDayInTimeZone(new Date(), BRANCH_TZ);
+    const endTomorrow = startOfNextDayInTimeZone(
+      new Date(startTomorrow),
+      BRANCH_TZ,
+    );
+    if (ms >= startTomorrow - 60_000 && ms <= endTomorrow) {
       return "Hasta mañana";
     }
     return `Hasta ${new Intl.DateTimeFormat("es-MX", {
       timeStyle: "short",
+      timeZone: BRANCH_TZ,
     }).format(d)}`;
   } catch {
     return "Agotado";
