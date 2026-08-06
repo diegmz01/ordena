@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     "public/sw.js",
     "public/sw.js.map",
     "public/swe-worker-*.js",
+    // Copias duplicadas accidentales del build (ver commit 8832484): un
+    // build/proceso concurrente puede dejar "sw 2.js", "sw 3.js", etc. sin
+    // trackear en public/. No son código fuente tampoco.
+    "public/sw *.js",
   ]),
 ]);
 
