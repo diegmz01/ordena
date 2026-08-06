@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "branch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ordena/branch", "dev"],
+      "port": 3002
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ordena/admin", "dev"],
+      "port": 3001
+    }
+  ]
+}
