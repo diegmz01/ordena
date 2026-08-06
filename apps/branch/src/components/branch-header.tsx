@@ -18,6 +18,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Modal } from "@/components/ui/modal";
 import {
   STAFF_PRESENCE_EVENT,
+  isBrowserOnline,
   type StaffPresenceDetail,
 } from "@/components/staff-presence";
 import { apiFetch } from "@/lib/api";
@@ -49,10 +50,7 @@ const PAUSE_PRESETS = [
 ];
 
 function initialPresence(): StaffPresenceDetail {
-  if (typeof navigator === "undefined") {
-    return { ok: true, browserOnline: true };
-  }
-  const online = navigator.onLine;
+  const online = isBrowserOnline();
   return { ok: online, browserOnline: online };
 }
 
@@ -145,11 +143,10 @@ export function BranchHeader() {
       setBranch(res.data);
     } catch {
       // Sin API: alinear con el banner (no deja “Disponible” stale).
-      setPresence((prev) => ({
+      setPresence({
         ok: false,
-        browserOnline:
-          typeof navigator === "undefined" ? prev.browserOnline : navigator.onLine,
-      }));
+        browserOnline: isBrowserOnline(),
+      });
       if (!opts?.silent) setBranch(null);
     } finally {
       setLoadingBranch(false);
