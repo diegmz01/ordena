@@ -537,8 +537,8 @@ export default function AdminMenuPage() {
           <div className="flex flex-wrap gap-2">{headerAction}</div>
         </div>
 
-        <div className="admin-panel-body space-y-4">
-          <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-3 dark:border-gray-700">
+        <div className="admin-panel-toolbar">
+          <div className="flex flex-wrap gap-1">
             <button
               type="button"
               className={cn(
@@ -579,25 +579,28 @@ export default function AdminMenuPage() {
 
           {error && <p className="admin-alert-error">{error}</p>}
           {success && <p className="pwa-alert-brand">{success}</p>}
+          {!loading && tab === "products" && categories.length === 0 && (
+            <p className="pwa-alert-brand">
+              Primero crea una categoría en el tab Categorías para poder agregar
+              productos.
+            </p>
+          )}
+        </div>
 
-          {loading ? (
+        {loading ? (
+          <div className="admin-panel-body">
             <p className="text-sm text-gray-500">Cargando menú…</p>
-          ) : tab === "products" ? (
-            <>
-              {categories.length === 0 && (
-                <p className="pwa-alert-brand">
-                  Primero crea una categoría en el tab Categorías para poder
-                  agregar productos.
-                </p>
-              )}
-
-              {sortedProducts.length === 0 ? (
-                <div className="admin-empty">
-                  Aún no hay productos. Usa “Nuevo producto” para agregar el
-                  primero.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
+          </div>
+        ) : tab === "products" ? (
+          sortedProducts.length === 0 ? (
+            <div className="admin-panel-body">
+              <div className="admin-empty">
+                Aún no hay productos. Usa “Nuevo producto” para agregar el
+                primero.
+              </div>
+            </div>
+          ) : (
+            <div className="admin-panel-table">
                   <table className="min-w-full text-left text-sm">
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-800/50">
@@ -715,16 +718,17 @@ export default function AdminMenuPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
-            </>
+              )
           ) : tab === "categories" ? (
             sortedCategories.length === 0 ? (
-              <div className="admin-empty">
-                Aún no hay categorías. Usa “Nueva categoría” para crear la
-                primera.
+              <div className="admin-panel-body">
+                <div className="admin-empty">
+                  Aún no hay categorías. Usa “Nueva categoría” para crear la
+                  primera.
+                </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="admin-panel-table">
                 <table className="min-w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-800/50">
@@ -807,12 +811,14 @@ export default function AdminMenuPage() {
               </div>
             )
           ) : sortedModifiers.length === 0 ? (
-            <div className="admin-empty">
-              Aún no hay modificadores. Crea extras (ej. Extra queso +$20) y
-              asígnalos a productos.
+            <div className="admin-panel-body">
+              <div className="admin-empty">
+                Aún no hay modificadores. Crea extras (ej. Extra queso +$20) y
+                asígnalos a productos.
+              </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="admin-panel-table">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-800/50">
@@ -914,7 +920,6 @@ export default function AdminMenuPage() {
               </table>
             </div>
           )}
-        </div>
       </div>
 
       <Modal
