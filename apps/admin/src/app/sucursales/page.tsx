@@ -1,6 +1,14 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ChevronRight,
+  KeyRound,
+  Pencil,
+  UtensilsCrossed,
+} from "lucide-react";
 import type { BranchDayHours, BranchHours } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
@@ -43,18 +51,6 @@ type Branch = {
   staff: StaffInfo | null;
   availabilityDetail?: AvailabilityDetail;
 };
-
-function formatLastSeen(iso: string | null | undefined) {
-  if (!iso) return "Nunca";
-  try {
-    return new Intl.DateTimeFormat("es-MX", {
-      dateStyle: "short",
-      timeStyle: "medium",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
 
 function availabilityBadgeClass(detail: AvailabilityDetail | undefined) {
   if (!detail) return "status-badge-inactive";
@@ -147,6 +143,7 @@ const emptyForm = (): FormState => ({
 });
 
 export default function AdminBranchesPage() {
+  const router = useRouter();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -420,13 +417,7 @@ export default function AdminBranchesPage() {
                       Sucursal
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Dirección
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Teléfono
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Staff
+                      Ubicación
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       Disponibilidad
@@ -434,7 +425,7 @@ export default function AdminBranchesPage() {
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       Estado
                     </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                       Acciones
                     </th>
                   </tr>
@@ -443,33 +434,29 @@ export default function AdminBranchesPage() {
                   {sorted.map((branch) => (
                     <tr
                       key={branch.id}
-                      className="cursor-pointer transition-colors hover:bg-orange-50/40 dark:hover:bg-orange-950/10"
-                      onClick={() => openEdit(branch)}
+                      className="group cursor-pointer transition-colors hover:bg-orange-50/40 dark:hover:bg-orange-950/10"
+                      onClick={() => router.push(`/sucursales/${branch.id}`)}
                     >
                       <td className="px-4 py-3.5">
                         <p className="font-medium text-gray-800 dark:text-white">
                           {branch.name}
                         </p>
-                        <p className="mt-0.5 text-xs font-medium tabular-nums text-gray-500">
-                          Código {branch.slug}
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          Código {branch.slug} ·{" "}
+                          {branch.staff?.email ?? "sin staff"}
                         </p>
                       </td>
                       <td className="px-4 py-3.5 text-gray-600 dark:text-gray-300">
-                        {branch.address}
-                      </td>
-                      <td className="px-4 py-3.5 text-gray-600 dark:text-gray-300">
-                        {branch.phone ?? "—"}
-                      </td>
-                      <td className="px-4 py-3.5 text-gray-600 dark:text-gray-300">
-                        {branch.staff?.email ?? (
-                          <span className="text-xs text-gray-400">
-                            Sin staff
-                          </span>
-                        )}
+                        <p className="max-w-[16rem] truncate">
+                          {branch.address}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {branch.phone ?? "Sin teléfono"}
+                        </p>
                       </td>
                       <td className="px-4 py-3.5">
                         {branch.availabilityDetail ? (
-                          <div className="min-w-[14rem] space-y-1">
+                          <div className="space-y-1">
                             <span
                               className={availabilityBadgeClass(
                                 branch.availabilityDetail,
@@ -477,31 +464,11 @@ export default function AdminBranchesPage() {
                             >
                               {branch.availabilityDetail.statusLabel}
                             </span>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Modo: {branch.availabilityDetail.modeLabel}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Origen: {branch.availabilityDetail.sourceLabel}
+                            <p className="text-xs text-gray-400">
+                              {branch.availabilityDetail.modeLabel}
                               {branch.availabilityDetail.todayHoursLabel
                                 ? ` · hoy ${branch.availabilityDetail.todayHoursLabel}`
                                 : ""}
-                            </p>
-                            {branch.availabilityDetail.offlineCauseLabel && (
-                              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                                {branch.availabilityDetail.offlineCauseLabel}
-                              </p>
-                            )}
-                            <p className="text-[11px] text-gray-400">
-                              Última presencia:{" "}
-                              {formatLastSeen(
-                                branch.availabilityDetail.staffLastSeenAt,
-                              )}
-                            </p>
-                            <p className="text-[11px] text-gray-400">
-                              Pedidos nuevos:{" "}
-                              {branch.availabilityDetail.acceptingOrders
-                                ? "Sí"
-                                : "No"}
                             </p>
                           </div>
                         ) : (
@@ -521,28 +488,42 @@ export default function AdminBranchesPage() {
                         className="px-4 py-3.5"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
-                            className="btn-secondary btn-compact"
+                            title="Editar"
+                            aria-label="Editar sucursal"
+                            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-white"
                             onClick={() => openEdit(branch)}
                           >
-                            Editar
+                            <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
-                            className="btn-secondary btn-compact"
+                            title="Credenciales"
+                            aria-label="Editar credenciales de staff"
+                            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-white"
                             onClick={() => openCredentials(branch)}
                           >
-                            Credenciales
+                            <KeyRound className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
-                            className="btn-secondary btn-compact"
+                            title="Menú"
+                            aria-label="Editar menú de sucursal"
+                            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-white"
                             onClick={() => setMenuBranch(branch)}
                           >
-                            Menú
+                            <UtensilsCrossed className="h-4 w-4" />
                           </button>
+                          <Link
+                            href={`/sucursales/${branch.id}`}
+                            title="Ver detalle"
+                            aria-label="Ver detalle de sucursal"
+                            className="rounded-lg p-2 text-gray-400 transition group-hover:text-orange-500 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-950/30"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Link>
                         </div>
                       </td>
                     </tr>

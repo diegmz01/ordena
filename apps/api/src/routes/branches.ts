@@ -31,6 +31,7 @@ import {
 } from "../utils/branch-menu-stock";
 import { recordAdminAction } from "../utils/audit-log";
 import { registerBranchClient } from "../utils/sse";
+import { getBusinessDate } from "../utils/branch-day-number";
 
 export const branchesRouter = Router();
 
@@ -687,6 +688,90 @@ branchesRouter.get(
             availabilityDetail: toAdminAvailabilitySnapshot(b),
           };
         }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+branchesRouter.get(
+  "/admin/:id",
+  authenticate,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const branch = await prisma.branch.findUnique({
+        where: { id: String(req.params.id) },
+        include: adminBranchInclude,
+      });
+      if (!branch) throw new AppError(404, "Sucursal no encontrada");
+
+      const today = getBusinessDate();
+      const weekStart = new Date(today);
+      weekStart.setUTCDate(weekStart.getUTCDate() - 6);
+      const monthStart = new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
+      );
+
+      const [totalOrders, recentOrders, periodOrders] = await Promise.all([
+        prisma.order.count({ where: { branchId: branch.id } }),
+        prisma.order.findMany({
+          where: { branchId: branch.id },
+          orderBy: { createdAt: "desc" },
+          take: 15,
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            total: true,
+            createdAt: true,
+            guestName: true,
+            user: { select: { name: true, email: true } },
+          },
+        }),
+        prisma.order.findMany({
+          where: {
+            branchId: branch.id,
+            businessDate: { gte: monthStart },
+          },
+          select: { status: true, total: true, businessDate: true },
+        }),
+      ]);
+
+      function bucket(from: Date) {
+        const rows = periodOrders.filter(
+          (o) => o.businessDate && o.businessDate.getTime() >= from.getTime(),
+        );
+        const captured = rows.filter((o) => o.status === "COMPLETED");
+        const cancelled = rows.filter((o) => o.status === "CANCELLED");
+        return {
+          ordersCount: rows.length,
+          capturedCents: captured.reduce((sum, o) => sum + o.total, 0),
+          capturedCount: captured.length,
+          cancelledCount: cancelled.length,
+        };
+      }
+
+      res.json({
+        data: {
+          ...toAdminBranchPayload(branch),
+          availabilityDetail: toAdminAvailabilitySnapshot(branch),
+          stats: {
+            totalOrders,
+            today: bucket(today),
+            week: bucket(weekStart),
+            month: bucket(monthStart),
+          },
+          recentOrders: recentOrders.map((o) => ({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            status: o.status,
+            total: o.total,
+            createdAt: o.createdAt,
+            customerLabel: o.user?.name?.trim() || o.user?.email || o.guestName?.trim() || "Invitado",
+          })),
+        },
       });
     } catch (error) {
       next(error);

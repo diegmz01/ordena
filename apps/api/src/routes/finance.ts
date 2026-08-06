@@ -11,6 +11,7 @@ import {
   fetchStripeBalance,
   listStripePayouts,
 } from "../utils/stripe";
+import { effectiveAvailability } from "../utils/branch-availability";
 
 export const financeRouter = Router();
 
@@ -291,6 +292,183 @@ financeRouter.get(
             }))
             .sort((a, b) => a.date.localeCompare(b.date)),
           recentCompleted,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+financeRouter.get(
+  "/dashboard",
+  authenticate,
+  requireAdmin,
+  async (_req: AuthenticatedRequest, res, next) => {
+    try {
+      const now = new Date();
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: BRANCH_TZ,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(now);
+      const map: Record<string, string> = {};
+      for (const p of parts) map[p.type] = p.value;
+      const y = Number(map.year);
+      const mo = Number(map.month);
+      const d = Number(map.day);
+
+      const startOfToday = zonedTimeToUtc(y, mo, d, 0, 0, 0, 0, BRANCH_TZ);
+      const startOfWeek = new Date(
+        startOfToday.getTime() - 6 * 24 * 60 * 60 * 1000,
+      );
+      const startOfMonth = zonedTimeToUtc(y, mo, 1, 0, 0, 0, 0, BRANCH_TZ);
+      const queryFrom =
+        startOfWeek.getTime() < startOfMonth.getTime()
+          ? startOfWeek
+          : startOfMonth;
+
+      const [orders, branches, activeOrdersCount, awaitingAcceptCount] =
+        await Promise.all([
+          prisma.order.findMany({
+            where: paidAtRangeFilter(queryFrom, now),
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              total: true,
+              paidAt: true,
+              createdAt: true,
+              branchId: true,
+              branch: { select: { id: true, name: true } },
+            },
+            orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+          }),
+          prisma.branch.findMany({
+            select: {
+              id: true,
+              name: true,
+              isActive: true,
+              availability: true,
+              pausedUntil: true,
+              hours: true,
+              staffLastSeenAt: true,
+              staffAwayReason: true,
+            },
+          }),
+          prisma.order.count({
+            where: {
+              status: { in: ["PAID", "ACCEPTED", "PREPARING", "READY"] },
+            },
+          }),
+          prisma.order.count({ where: { status: "PAID" } }),
+        ]);
+
+      function effectiveDate(o: { paidAt: Date | null; createdAt: Date }) {
+        return o.paidAt ?? o.createdAt;
+      }
+
+      function bucket(from: Date) {
+        const rows = orders.filter(
+          (o) => effectiveDate(o).getTime() >= from.getTime(),
+        );
+        const captured = rows.filter((o) => o.status === "COMPLETED");
+        const nonCancelled = rows.filter((o) => o.status !== "CANCELLED");
+        const capturedCents = captured.reduce((sum, o) => sum + o.total, 0);
+        return {
+          ordersCount: nonCancelled.length,
+          capturedCents,
+          capturedCount: captured.length,
+          averageTicketCents:
+            captured.length > 0
+              ? Math.round(capturedCents / captured.length)
+              : 0,
+        };
+      }
+
+      const last7Days: {
+        date: string;
+        capturedCents: number;
+        ordersCount: number;
+      }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const dayStart = new Date(
+          startOfToday.getTime() - i * 24 * 60 * 60 * 1000,
+        );
+        last7Days.push({
+          date: dateKeyLocal(dayStart),
+          capturedCents: 0,
+          ordersCount: 0,
+        });
+      }
+      const last7ByKey = new Map(last7Days.map((row) => [row.date, row]));
+      for (const o of orders) {
+        const eff = effectiveDate(o);
+        if (eff.getTime() < startOfWeek.getTime()) continue;
+        const row = last7ByKey.get(dateKeyLocal(eff));
+        if (!row) continue;
+        if (o.status !== "CANCELLED") row.ordersCount += 1;
+        if (o.status === "COMPLETED") row.capturedCents += o.total;
+      }
+
+      const byBranchMonth = new Map<
+        string,
+        {
+          branchId: string;
+          name: string;
+          capturedCents: number;
+          ordersCount: number;
+        }
+      >();
+      for (const o of orders) {
+        if (effectiveDate(o).getTime() < startOfMonth.getTime()) continue;
+        if (o.status === "CANCELLED") continue;
+        if (!byBranchMonth.has(o.branchId)) {
+          byBranchMonth.set(o.branchId, {
+            branchId: o.branchId,
+            name: o.branch.name,
+            capturedCents: 0,
+            ordersCount: 0,
+          });
+        }
+        const row = byBranchMonth.get(o.branchId)!;
+        row.ordersCount += 1;
+        if (o.status === "COMPLETED") row.capturedCents += o.total;
+      }
+      const topBranches = [...byBranchMonth.values()]
+        .sort((a, b) => b.capturedCents - a.capturedCents)
+        .slice(0, 5);
+
+      const branchesOpenNow = branches.filter(
+        (b) => effectiveAvailability(b).acceptingOrders,
+      ).length;
+
+      const recentOrders = orders.slice(0, 8).map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        total: o.total,
+        createdAt: o.createdAt,
+        branchName: o.branch.name,
+      }));
+
+      res.json({
+        data: {
+          generatedAt: now.toISOString(),
+          today: bucket(startOfToday),
+          week: bucket(startOfWeek),
+          month: bucket(startOfMonth),
+          trend: last7Days,
+          topBranches,
+          operational: {
+            activeOrders: activeOrdersCount,
+            awaitingAccept: awaitingAcceptCount,
+            branchesTotal: branches.length,
+            branchesActive: branches.filter((b) => b.isActive).length,
+            branchesOpenNow,
+          },
+          recentOrders,
         },
       });
     } catch (error) {

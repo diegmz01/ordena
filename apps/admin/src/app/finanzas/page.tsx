@@ -319,12 +319,6 @@ export default function FinanzasPage() {
         <div className="skeleton h-32 w-full rounded-xl" />
       ) : summary && t ? (
         <>
-          {summary.depositNote && (
-            <p className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-200">
-              {summary.depositNote}
-            </p>
-          )}
-
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
