@@ -398,18 +398,25 @@ export default function AdminBranchesPage() {
           </button>
         </div>
 
-        <div className="admin-panel-body space-y-4">
-          {error && <p className="admin-alert-error">{error}</p>}
-          {success && <p className="pwa-alert-brand">{success}</p>}
+        {(error || success) && (
+          <div className="admin-panel-toolbar">
+            {error && <p className="admin-alert-error">{error}</p>}
+            {success && <p className="pwa-alert-brand">{success}</p>}
+          </div>
+        )}
 
-          {loading ? (
+        {loading ? (
+          <div className="admin-panel-body">
             <p className="text-sm text-gray-500">Cargando sucursales…</p>
-          ) : sorted.length === 0 ? (
+          </div>
+        ) : sorted.length === 0 ? (
+          <div className="admin-panel-body">
             <div className="admin-empty">
               Aún no hay sucursales. Usa “Nueva sucursal” para crear la primera.
             </div>
-          ) : (
-            <div className="overflow-x-auto">
+          </div>
+        ) : (
+          <div className="admin-panel-table">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-800/50">
@@ -532,7 +539,6 @@ export default function AdminBranchesPage() {
               </table>
             </div>
           )}
-        </div>
       </div>
 
       <Modal

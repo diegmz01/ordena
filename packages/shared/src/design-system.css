@@ -214,6 +214,16 @@ button:disabled {
     @apply p-4 sm:p-6;
   }
 
+  /* Contenido con padding (tabs, alertas) encima de una tabla a ras del panel */
+  .admin-panel-toolbar {
+    @apply space-y-4 border-b border-gray-200 px-4 py-4 sm:px-6 sm:py-5 dark:border-gray-700;
+  }
+
+  /* Tabla a todo el ancho del admin-panel (sin padding del body) */
+  .admin-panel-table {
+    @apply overflow-x-auto;
+  }
+
   .page-title {
     @apply text-xl font-bold text-gray-800 sm:text-2xl dark:text-gray-100;
   }
