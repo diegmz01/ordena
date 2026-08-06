@@ -17,11 +17,15 @@ export function cookieNameForAudience(audience: AuthAudience): string {
 
 /**
  * Lee X-Ordena-Client, el header que cada app Next manda en toda request.
- * Es solo un hint de "desde qué app llama el browser" — hoy únicamente se usa
- * para decidir qué cookie limpiar en /auth/logout. NO debe usarse para decidir
- * qué cookie de sesión emitir en login/oauth-exchange: eso sale siempre del
- * rol real en DB (ver audienceForRole en routes/auth.ts), porque el header
- * lo controla el cliente y un usuario puede llamar la API con cualquier valor.
+ * Es solo un hint de "desde qué app llama el browser" — se usa para decidir
+ * qué cookie de sesión leer/limpiar (readBearerOrCookieToken, /auth/logout).
+ * NO debe usarse para decidir qué cookie de sesión EMITIR en login/oauth-
+ * exchange: eso sale siempre del rol real en DB (ver audienceForRole en
+ * routes/auth.ts), porque el header lo controla el cliente. Usarlo solo para
+ * decidir qué cookie *leer* es seguro: si alguien manda un valor falso, en el
+ * peor caso no encuentra su propia cookie válida y falla el auth — no puede
+ * usarse para hacerse pasar por otro rol, porque igual necesita el JWT firmado
+ * correspondiente.
  */
 export function resolveAudience(req: Request): AuthAudience {
   const raw = req.headers["x-ordena-client"];
@@ -69,10 +73,12 @@ export function readBearerOrCookieToken(req: Request): string | null {
   const cookies = req.cookies as Record<string, string | undefined> | undefined;
   if (!cookies) return null;
 
-  return (
-    cookies[AUTH_COOKIE_CUSTOMER] ||
-    cookies[AUTH_COOKIE_ADMIN] ||
-    cookies[AUTH_COOKIE_BRANCH] ||
-    null
-  );
+  // Antes leía las 3 cookies en orden fijo (customer > admin > branch) sin
+  // importar qué app llamó: si el browser traía más de una (p. ej. localhost
+  // comparte cookies entre puertos 3000/3001/3002 en dev, o cualquier futuro
+  // caso de dominios compartidos), la API autenticaba con la cuenta
+  // equivocada — ej. staff logueado en branch quedaba "logueado" como cliente
+  // en web. Cada request de las 3 apps manda X-Ordena-Client, así que solo
+  // debe mirarse la cookie de esa audiencia.
+  return cookies[cookieNameForAudience(resolveAudience(req))] ?? null;
 }
