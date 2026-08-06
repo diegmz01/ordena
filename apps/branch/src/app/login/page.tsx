@@ -22,17 +22,11 @@ function BranchLoginForm() {
     setError(null);
     const form = new FormData(event.currentTarget);
     try {
-      const result = await login(
+      await login(
         String(form.get("email")),
         String(form.get("password")),
+        "BRANCH_STAFF",
       );
-      if (
-        result.user.role !== "BRANCH_STAFF" &&
-        result.user.role !== "ADMIN"
-      ) {
-        setError("Esta cuenta no es de sucursal");
-        return;
-      }
       router.replace(next);
       router.refresh();
     } catch (err) {
