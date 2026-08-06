@@ -93,7 +93,7 @@ const STATUS_META: Record<
   PAID: {
     title: "Pago autorizado",
     description:
-      "Retuvimos el monto. Se cobrará al entregar. La sucursal está revisando tu pedido.",
+      "Retuvimos el monto. Se cobrará cuando esté listo para recoger. La sucursal está revisando tu pedido.",
     icon: CircleDot,
   },
   ACCEPTED: {
@@ -621,7 +621,9 @@ export default function OrderPageClient({
                 )}
                 <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                   <span>
-                    {order.status === "COMPLETED" ? "Cobrado" : "A cobrar"}
+                    {order.status === "READY" || order.status === "COMPLETED"
+                      ? "Cobrado"
+                      : "A cobrar"}
                   </span>
                   <span className="tabular-nums text-orange-600">
                     {formatMoney(
@@ -653,7 +655,7 @@ export default function OrderPageClient({
                       {formatPaymentMethodLabel(order)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Autorización al pagar; cobro al entregar
+                      Autorización al pagar; cobro al quedar listo
                     </p>
                   </div>
                 </div>

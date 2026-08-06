@@ -559,7 +559,7 @@ export default function CheckoutClient() {
               : `Continuar al pago · ${formatMoney(subtotal)}`}
         </button>
         <p className="text-center text-xs text-gray-500">
-          Autorización segura con Stripe · Se cobra al entregar
+          Autorización segura con Stripe · Se cobra al quedar listo
         </p>
       </form>
     </div>

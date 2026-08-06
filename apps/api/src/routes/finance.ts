@@ -26,6 +26,9 @@ const AUTHORIZED_STATUSES: OrderStatus[] = [
   "COMPLETED",
 ];
 
+/** El cobro Stripe ocurre al quedar READY (listo para recoger), no al COMPLETED (entrega). */
+const CAPTURED_STATUSES: OrderStatus[] = ["READY", "COMPLETED"];
+
 /** Offset (ms) que hay que sumarle a un instante UTC para leer la hora en `timeZone`. */
 function timeZoneOffsetMs(utcMs: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -227,7 +230,7 @@ financeRouter.get(
           branchRow.orderCount += 1;
           dayRow.orderCount += 1;
 
-          if (order.status === "COMPLETED") {
+          if (CAPTURED_STATUSES.includes(order.status)) {
             capturedCents += order.total;
             capturedCount += 1;
             branchRow.captured += order.total;
@@ -241,7 +244,7 @@ financeRouter.get(
       }
 
       const recentCompleted = orders
-        .filter((o) => o.status === "COMPLETED")
+        .filter((o) => CAPTURED_STATUSES.includes(o.status))
         .slice(0, 25)
         .map((o) => ({
           id: o.id,
@@ -263,7 +266,7 @@ financeRouter.get(
           branchId: branchId ?? null,
           dateBasis: "paidAt_or_createdAt" as const,
           depositNote:
-            "Sin comisión Ordena: el monto capturado (COMPLETED) es lo que liquida a la cuenta bancaria principal. El fee de procesamiento Stripe lo paga la plataforma.",
+            "Sin comisión Ordena: el monto capturado (pedidos READY o COMPLETED) es lo que liquida a la cuenta bancaria principal. El fee de procesamiento Stripe lo paga la plataforma.",
           totals: {
             authorizedCents,
             authorizedCount,
@@ -373,7 +376,7 @@ financeRouter.get(
         const rows = orders.filter(
           (o) => effectiveDate(o).getTime() >= from.getTime(),
         );
-        const captured = rows.filter((o) => o.status === "COMPLETED");
+        const captured = rows.filter((o) => CAPTURED_STATUSES.includes(o.status));
         const nonCancelled = rows.filter((o) => o.status !== "CANCELLED");
         const capturedCents = captured.reduce((sum, o) => sum + o.total, 0);
         return {
@@ -409,7 +412,7 @@ financeRouter.get(
         const row = last7ByKey.get(dateKeyLocal(eff));
         if (!row) continue;
         if (o.status !== "CANCELLED") row.ordersCount += 1;
-        if (o.status === "COMPLETED") row.capturedCents += o.total;
+        if (CAPTURED_STATUSES.includes(o.status)) row.capturedCents += o.total;
       }
 
       const byBranchMonth = new Map<
@@ -434,7 +437,7 @@ financeRouter.get(
         }
         const row = byBranchMonth.get(o.branchId)!;
         row.ordersCount += 1;
-        if (o.status === "COMPLETED") row.capturedCents += o.total;
+        if (CAPTURED_STATUSES.includes(o.status)) row.capturedCents += o.total;
       }
       const topBranches = [...byBranchMonth.values()]
         .sort((a, b) => b.capturedCents - a.capturedCents)
@@ -510,7 +513,7 @@ financeRouter.get(
           to: to.toISOString().slice(0, 10),
           note: "Balance y payouts de la cuenta bancaria principal vinculada a Stripe (todas las sucursales).",
           depositHint:
-            "Sin comisión Ordena: el capturado de pedidos COMPLETED liquida a la cuenta principal. Los payouts de abajo son lo ya enviado o programado al banco (calendario de Stripe).",
+            "Sin comisión Ordena: el capturado de pedidos READY o COMPLETED liquida a la cuenta principal. Los payouts de abajo son lo ya enviado o programado al banco (calendario de Stripe).",
           balance,
           payouts,
           payoutsTotalCents,

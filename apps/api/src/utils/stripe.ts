@@ -141,6 +141,9 @@ export async function listStripePayouts(opts: {
 
 /**
  * Autorización manual: al checkout solo se retienen fondos (`requires_capture`).
+ * `status` es la acción de liquidación a aplicar sobre el pago, no el estado
+ * del pedido: se invoca con "COMPLETED" cuando el pedido pasa a READY (el
+ * cobro ocurre al quedar listo para recoger) y con "CANCELLED" al cancelarlo.
  * - COMPLETED → captura el monto real (`amountToCapture`); si es 0, libera el hold
  * - CANCELLED → libera la retención o reembolsa si ya estaba capturado
  */

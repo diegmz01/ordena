@@ -359,11 +359,9 @@ ordersRouter.patch(
 
       assertStatusTransition(currentStatus, status);
 
-      if (status === "COMPLETED") {
-        if (!order.pickupCode || pickupCode !== order.pickupCode) {
-          throw new AppError(400, "Código de entrega incorrecto");
-        }
-
+      if (status === "READY") {
+        // El cobro (captura Stripe) ocurre al quedar listo para recoger,
+        // no al entregar: aquí se retiene el hold, en COMPLETED ya no se toca Stripe.
         const amount = order.total;
         if (amount <= 0) {
           await settleStripePayment(
@@ -400,6 +398,10 @@ ordersRouter.patch(
           "COMPLETED",
           amount,
         );
+      } else if (status === "COMPLETED") {
+        if (!order.pickupCode || pickupCode !== order.pickupCode) {
+          throw new AppError(400, "Código de entrega incorrecto");
+        }
       } else if (status === "CANCELLED") {
         await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
       }

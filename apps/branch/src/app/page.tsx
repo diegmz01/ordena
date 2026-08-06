@@ -189,13 +189,13 @@ function paymentInfo(order: Order) {
       hint: "La autorización fue liberada",
     };
   }
-  if (order.status === "COMPLETED") {
+  if (order.status === "READY" || order.status === "COMPLETED") {
     return {
       method,
       statusLabel: "Cobrado",
       statusClass:
         "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
-      hint: "Cobro capturado al entregar",
+      hint: "Cobro capturado al quedar listo para recoger",
     };
   }
   return {
@@ -203,7 +203,7 @@ function paymentInfo(order: Order) {
     statusLabel: "Autorizado",
     statusClass:
       "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300",
-    hint: "Fondos retenidos · se cobra al entregar",
+    hint: "Fondos retenidos · se cobra al quedar listo",
   };
 }
 
@@ -940,7 +940,7 @@ export default function BranchHomePage() {
                   onClick={() => void updateStatus(selected.id, "READY")}
                   className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
                 >
-                  Listo para recoger
+                  Listo para recoger · cobrar
                 </button>
               )}
               {selected.status === "READY" && (
@@ -950,7 +950,7 @@ export default function BranchHomePage() {
                   onClick={() => openPickupCode()}
                   className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
                 >
-                  Entregar · cobrar
+                  Entregar
                 </button>
               )}
             </div>
@@ -1423,8 +1423,8 @@ export default function BranchHomePage() {
           <div className="space-y-4">
             {error && <p className="admin-alert-error">{error}</p>}
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-              Pide al cliente el código de entrega antes de cobrar y marcar el
-              pedido como entregado.
+              Pide al cliente el código de entrega antes de marcar el pedido
+              como entregado.
             </p>
             <div className="space-y-2">
               <label htmlFor="pickup-code" className="field-label">

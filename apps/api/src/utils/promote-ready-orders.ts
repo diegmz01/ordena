@@ -2,6 +2,7 @@ import { prisma } from "@ordena/database";
 import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
 import { generatePickupCode } from "./pickup-code";
+import { settleStripePayment } from "./stripe";
 
 export const branchOrderInclude = {
   items: true,
@@ -28,27 +29,63 @@ export async function promoteDuePreparingOrders(branchId?: string) {
 
   const promoted = [];
   for (const order of due) {
-    const updated = await prisma.order.update({
-      where: { id: order.id },
-      data: { status: "READY", pickupCode: generatePickupCode() },
-      include: branchOrderInclude,
-    });
-
-    await notifyBranchOrderUpdated(order.branchId, {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      status: "READY",
-    });
-
     try {
-      await notifyCustomerOrderStatus(updated, {
-        body: `Listo para recoger · Código: ${updated.pickupCode}`,
-      });
-    } catch (pushError) {
-      console.error("[orders.auto-ready] web-push", pushError);
-    }
+      // Mismo criterio que el PATCH manual de estado: el cobro Stripe ocurre
+      // al quedar listo para recoger, no al entregar.
+      if (order.total <= 0) {
+        await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
+        const cancelled = await prisma.order.update({
+          where: { id: order.id },
+          data: { status: "CANCELLED", discount: order.subtotal, total: 0 },
+          include: branchOrderInclude,
+        });
 
-    promoted.push(updated);
+        await notifyBranchOrderUpdated(order.branchId, {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: "CANCELLED",
+        });
+
+        try {
+          await notifyCustomerOrderStatus(cancelled);
+        } catch (pushError) {
+          console.error("[orders.auto-ready] web-push", pushError);
+        }
+
+        promoted.push(cancelled);
+        continue;
+      }
+
+      await settleStripePayment(
+        order.stripePaymentIntentId,
+        "COMPLETED",
+        order.total,
+      );
+
+      const updated = await prisma.order.update({
+        where: { id: order.id },
+        data: { status: "READY", pickupCode: generatePickupCode() },
+        include: branchOrderInclude,
+      });
+
+      await notifyBranchOrderUpdated(order.branchId, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: "READY",
+      });
+
+      try {
+        await notifyCustomerOrderStatus(updated, {
+          body: `Listo para recoger · Código: ${updated.pickupCode}`,
+        });
+      } catch (pushError) {
+        console.error("[orders.auto-ready] web-push", pushError);
+      }
+
+      promoted.push(updated);
+    } catch (error) {
+      console.error("[orders.auto-ready] settle", order.id, error);
+    }
   }
 
   return promoted;

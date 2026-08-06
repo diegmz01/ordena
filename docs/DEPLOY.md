@@ -72,21 +72,21 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 ### Captura manual → cuenta principal
 
 - El checkout crea el pago con `capture_method: manual`: al pagar solo se autorizan (congelan) los fondos.
-- Al marcar el pedido **COMPLETED** se captura el monto real; el dinero liquida a la cuenta bancaria vinculada a la cuenta Stripe de la plataforma (misma cuenta para todas las sucursales).
-- Cancelar antes de `COMPLETED` libera el hold sin cobrar nada; cancelar después de capturado emite un reembolso normal (`settleStripePayment` en [`utils/stripe.ts`](../apps/api/src/utils/stripe.ts)).
+- Al pasar el pedido a **READY** (listo para recoger) se captura el monto real, ya sea porque el staff lo marca manualmente o porque el temporizador de preparación lo promueve automáticamente (`promoteDuePreparingOrders`); el dinero liquida a la cuenta bancaria vinculada a la cuenta Stripe de la plataforma (misma cuenta para todas las sucursales). `COMPLETED` (entrega) ya no toca Stripe, solo verifica el código de entrega.
+- Cancelar antes de `READY` libera el hold sin cobrar nada; cancelar después de capturado emite un reembolso normal (`settleStripePayment` en [`utils/stripe.ts`](../apps/api/src/utils/stripe.ts)).
 
 ### Finanzas (Admin)
 
 - Página `/finanzas`: cobrado vs **a depositar** por sucursal y fechas (Hoy / 7 días / etc.) — desglose interno desde Postgres, no cambia el destino del dinero en Stripe.
-- **A depositar** = capturado (`COMPLETED`); sin comisión Ordena, son el mismo monto.
+- **A depositar** = capturado (al quedar `READY`); sin comisión Ordena, son el mismo monto.
 - Ventas desde Postgres; balance y payouts desde Stripe (siempre la única cuenta de la plataforma).
 - Requiere `STRIPE_SECRET_KEY` válida; si no hay liquidaciones aún, la tabla de payouts estará vacía.
 
 ### Smoke test
 
-1. Pedido a cualquier sucursal → autorizar en Checkout → completar en staff → captura OK.
+1. Pedido a cualquier sucursal → autorizar en Checkout → marcar listo (o esperar al temporizador) en staff → captura OK.
 2. Dashboard Stripe (cuenta plataforma): el cargo aparece capturado, sin ningún transfer a otra cuenta.
-3. Cancelar pedido autorizado antes de completar: hold liberado.
+3. Cancelar pedido autorizado antes de marcarlo listo: hold liberado.
 
 ## VAPID
 

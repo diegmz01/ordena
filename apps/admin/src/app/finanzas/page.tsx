@@ -324,7 +324,7 @@ export default function FinanzasPage() {
               {
                 label: "Cobrado (capturado)",
                 value: formatMoney(t.capturedCents),
-                hint: `${t.capturedCount} pedidos COMPLETED`,
+                hint: `${t.capturedCount} pedidos READY o COMPLETED`,
               },
               {
                 label: "A depositar (sucursal)",
@@ -334,7 +334,7 @@ export default function FinanzasPage() {
               {
                 label: "Pendiente de captura",
                 value: formatMoney(t.pendingCaptureCents),
-                hint: `${t.pendingCaptureCount} autorizados sin completar`,
+                hint: `${t.pendingCaptureCount} autorizados, aún no listos`,
               },
               {
                 label: "Ticket promedio",
@@ -475,7 +475,7 @@ export default function FinanzasPage() {
                         colSpan={5}
                         className="px-4 py-8 text-center text-gray-500"
                       >
-                        No hay pedidos completados en el rango.
+                        No hay pedidos cobrados en el rango.
                       </td>
                     </tr>
                   ) : (

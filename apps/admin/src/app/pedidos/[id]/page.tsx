@@ -91,11 +91,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_HINT: Record<string, string> = {
   PENDING_PAYMENT: "El cliente aún no completó el pago en Stripe.",
-  PAID: "Fondos retenidos. Verifica disponibilidad antes de aceptar; el cobro es al entregar.",
+  PAID: "Fondos retenidos. Verifica disponibilidad antes de aceptar; el cobro es al quedar listo para recoger.",
   ACCEPTED: "La sucursal aceptó el pedido.",
   PREPARING: "El pedido se está preparando.",
-  READY: "Listo para que el cliente recoja.",
-  COMPLETED: "Pedido entregado. Cobro capturado por el monto de artículos disponibles.",
+  READY: "Listo para que el cliente recoja. Cobro capturado por el monto de artículos disponibles.",
+  COMPLETED: "Pedido entregado.",
   CANCELLED: "Este pedido fue cancelado.",
 };
 
@@ -623,7 +623,9 @@ export default function AdminOrderDetailPage() {
                   )}
                   <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                     <span>
-                      {order.status === "COMPLETED" ? "Cobrado" : "A cobrar"}
+                      {order.status === "READY" || order.status === "COMPLETED"
+                        ? "Cobrado"
+                        : "A cobrar"}
                     </span>
                     <span className="text-orange-600">
                       {formatMoney(
@@ -758,7 +760,7 @@ export default function AdminOrderDetailPage() {
                         {formatPaymentMethodLabel(order)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Autorización al pagar; cobro al entregar
+                        Autorización al pagar; cobro al quedar listo
                       </p>
                     </div>
                   </div>
@@ -927,7 +929,7 @@ export default function AdminOrderDetailPage() {
             onClose={closeCancelModal}
             title="Cancelar pedido"
             description={
-              order.status === "COMPLETED"
+              order.status === "READY" || order.status === "COMPLETED"
                 ? "Se reembolsará el cobro capturado en Stripe y el pedido quedará cancelado."
                 : "Se liberará o reembolsará el pago en Stripe y el pedido saldrá de la cola de sucursal."
             }

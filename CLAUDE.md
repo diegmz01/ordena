@@ -91,7 +91,7 @@ READY           → COMPLETED
 ```
 Post-accept cancellation (with Stripe refund) is a separate endpoint, `POST /orders/:id/admin-cancel`, gated by `canAdminCancelOrder()`.
 
-Payment uses Stripe Checkout with **manual capture**: `payment_intent_data.capture_method = "manual"`. Funds are authorized at checkout and only captured when the order is marked `COMPLETED` (delivery). There is a single platform Stripe account (`STRIPE_SECRET_KEY`) — every branch's orders capture into the same account/bank account; there is no per-branch Stripe Connect split.
+Payment uses Stripe Checkout with **manual capture**: `payment_intent_data.capture_method = "manual"`. Funds are authorized at checkout and captured when the order becomes `READY` (pickup-ready) — either staff mark it ready manually or the prep-time timer promotes it automatically (`promoteDuePreparingOrders`). Marking `COMPLETED` (pickup/delivery) no longer touches Stripe; it just verifies the pickup code. There is a single platform Stripe account (`STRIPE_SECRET_KEY`) — every branch's orders capture into the same account/bank account; there is no per-branch Stripe Connect split.
 
 ### Branch availability
 
