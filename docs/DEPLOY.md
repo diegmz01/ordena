@@ -1,28 +1,28 @@
 # Deploy Ordena (producción)
 
-Stack: **Vercel** (web / admin / branch) + **Railway** (API + Postgres).
+Stack: **VPS único (Hostinger)** corriendo las 4 apps (web / admin / branch / API) + Postgres, cada servicio en su propio subdominio detrás de HTTPS.
 
 ## Arquitectura
 
 ```
-Cliente → apps/web (Vercel)  ──/api-backend──┐
-Admin   → apps/admin (Vercel) ──/api-backend──┼→ API (Railway) → Postgres
-Staff   → apps/branch (Vercel)──/api-backend──┘
-Stripe webhook ───────────────────────────────→ https://<api>/stripe/webhook
-OAuth callbacks ──────────────────────────────→ https://<api>/auth/oauth/...
+Cliente → apps/web    (subdominio propio) ──/api-backend──┐
+Admin   → apps/admin  (subdominio propio) ──/api-backend──┼→ API (subdominio propio) → Postgres
+Staff   → apps/branch (subdominio propio) ──/api-backend──┘
+Stripe webhook ────────────────────────────────────────────→ https://<api>/stripe/webhook
+OAuth callbacks ───────────────────────────────────────────→ https://<api>/auth/oauth/...
 ```
 
-Las cookies de sesión se setean vía el **Route Handler** `app/api-backend/[...path]` (no rewrite), para que `Set-Cookie` quede ligado al dominio de cada app Next.
+Las cookies de sesión se setean vía el **Route Handler** `app/api-backend/[...path]` (no rewrite), para que `Set-Cookie` quede ligado al dominio de cada app Next — necesario porque cada app corre en su propio subdominio.
 
 ## Variables de entorno
 
-### API (Railway)
+### API
 
 | Variable | Requerida | Notas |
 | --- | --- | --- |
 | `NODE_ENV` | sí | `production` |
 | `JWT_SECRET` | sí | ≥32 chars; no usar el de `.env.example` |
-| `DATABASE_URL` | sí | Postgres Railway |
+| `DATABASE_URL` | sí | Postgres del VPS |
 | `API_PORT` | no | default `4000` |
 | `TZ` | sí | `America/Mexico_City` |
 | `CUSTOMER_URL` | sí | URL pública web |
@@ -38,11 +38,11 @@ Las cookies de sesión se setean vía el **Route Handler** `app/api-backend/[...
 
 En production la API **falla al arrancar** si faltan secretos críticos (`assertProductionEnv`).
 
-### Next (Vercel × 3)
+### Next (web / admin / branch)
 
 | Variable | web | admin | branch |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | URL pública Railway (https://…) | igual | igual |
+| `NEXT_PUBLIC_API_URL` | URL pública de la API (https://…) | igual | igual |
 | `NEXT_PUBLIC_CUSTOMER_URL` | sí | opcional | — |
 | `NEXT_PUBLIC_ADMIN_URL` | — | sí | — |
 | `NEXT_PUBLIC_BRANCH_URL` | — | — | sí |
@@ -51,30 +51,20 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 
 `NEXT_PUBLIC_API_URL` es la base que usa el proxy server-side; el browser llama a `/api-backend/...` same-origin.
 
-## Railway
+## VPS
 
-1. Crear proyecto + Postgres.
-2. Servicio API: Dockerfile `apps/api/Dockerfile` (ver [`railway.toml`](../railway.toml)).
-3. **Release command:** `pnpm db:migrate:deploy` (o `pnpm --filter @ordena/database exec prisma migrate deploy`).
-4. Start: `pnpm --filter @ordena/api start` (ya en Dockerfile `CMD`).
-5. Healthcheck: `GET /health` (incluye ping a DB).
+1. Cada app (`apps/web`, `apps/admin`, `apps/branch`, `apps/api`) corre como proceso persistente de Node (vía el gestor de procesos que se use en el servidor — PM2, systemd, Docker, etc.) detrás de un reverse proxy (Nginx u otro) que enruta cada subdominio HTTPS a su puerto interno correspondiente.
+2. API: build vía `apps/api/Dockerfile` o `pnpm --filter @ordena/api build`, arranque con `pnpm --filter @ordena/api start` (`CMD` del Dockerfile si se usa contenedor).
+3. **Migraciones en cada deploy:** `pnpm db:migrate:deploy` (o `pnpm --filter @ordena/database exec prisma migrate deploy`) antes de levantar la nueva versión del API.
+4. Healthcheck del API: `GET /health` (incluye ping a DB).
+5. Next apps: build estándar (`pnpm --filter <app> build`), arranque con `pnpm --filter <app> start` o el server que corresponda según cómo esté configurado el proceso.
 6. Local: `pnpm start:api` desde la raíz del monorepo.
 
 **Nunca** ejecutes `pnpm db:seed` en production (el seed aborta si `NODE_ENV=production`).
 
-## Vercel
-
-1. Tres proyectos, Root Directory:
-   - `apps/web`
-   - `apps/admin`
-   - `apps/branch`
-2. Build: default Next (`pnpm` detectado en monorepo; configurar “Include source files outside root” / turbo según plantilla Vercel monorepo).
-3. Env por proyecto (tabla arriba).
-4. Dominios custom + HTTPS.
-
 ## Stripe
 
-1. Webhooks → endpoint `https://<api-host>/stripe/webhook`.
+1. Webhooks → endpoint `https://<api-host>/stripe/webhook`, creado como destino tipo **Webhook endpoint** con carga útil **"Instantánea"** (snapshot) — el estilo "Breve" (thin payload) no es compatible con `checkout.session.completed`.
 2. Evento: `checkout.session.completed`. Ver [`stripe-webhook.ts`](../apps/api/src/routes/stripe-webhook.ts).
 3. Copiar signing secret → `STRIPE_WEBHOOK_SECRET`.
 4. Una sola `STRIPE_SECRET_KEY` de la cuenta de la plataforma; todos los pedidos de todas las sucursales cobran ahí — no hay cuentas separadas por sucursal.
@@ -115,36 +105,36 @@ Tras migrate, crea admin y staff reales (email/password) desde un script one-off
 
 ## Checklist por servicio (go-live)
 
-Orden: Railway → Vercel ×3 → Stripe → smoke.
+Orden: Backend (API + Postgres) → Frontend (web/admin/branch) → Stripe → smoke.
 
-### Railway (API + Postgres)
+### Backend (API + Postgres)
 
-- [ ] Proyecto + add-on Postgres
-- [ ] Dockerfile `apps/api/Dockerfile` (`railway.toml`)
+- [ ] Postgres provisionado y accesible desde el proceso de la API
+- [ ] Build/arranque del API configurado en el VPS (Docker o proceso Node vía PM2/systemd)
 - [ ] Env: `NODE_ENV=production`, `JWT_SECRET` nuevo (≥32, no el de `.env.example`), `DATABASE_URL`, `TZ=America/Mexico_City`
 - [ ] Env: `CUSTOMER_URL` / `ADMIN_URL` / `BRANCH_URL` = HTTPS finales
 - [ ] Env: `STRIPE_SECRET_KEY=sk_live_…`, `STRIPE_WEBHOOK_SECRET` del endpoint live
 - [ ] Env: VAPID (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
-- [ ] Release: `pnpm db:migrate:deploy` — **nunca** `db:seed`
+- [ ] Migraciones: `pnpm db:migrate:deploy` — **nunca** `db:seed`
 - [ ] Healthcheck `GET /health` OK
 - [ ] Crear admin/staff reales (no `admin@ordena.local`)
 
-### Vercel ×3
+### Frontend (web / admin / branch)
 
 | | web (`apps/web`) | admin (`apps/admin`) | branch (`apps/branch`) |
 | --- | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | URL Railway | igual | igual |
+| `NEXT_PUBLIC_API_URL` | URL de la API | igual | igual |
 | URL propia | `NEXT_PUBLIC_CUSTOMER_URL` | `NEXT_PUBLIC_ADMIN_URL` | `NEXT_PUBLIC_BRANCH_URL` |
 | Stripe | `pk_live_…` | — | — |
 | VAPID public | sí | — | sí |
 
-- [ ] Tres proyectos, Root Directory correcto, monorepo con packages fuera del root
-- [ ] Dominios custom + HTTPS
+- [ ] Cada app buildeada y corriendo como proceso propio, subdominio + HTTPS propio
+- [ ] Reverse proxy (Nginx u otro) enrutando cada subdominio a su puerto interno
 - [ ] `Set-Cookie` en `POST /api-backend/auth/login` (`HttpOnly`, `Secure`, dominio Next)
 
 ### Stripe
 
-- [ ] Webhook `https://<api>/stripe/webhook` → `checkout.session.completed`
+- [ ] Webhook `https://<api>/stripe/webhook` → `checkout.session.completed`, carga útil "Instantánea"
 - [ ] `STRIPE_SECRET_KEY=sk_live_…` de la cuenta plataforma (una sola, para todas las sucursales)
 - [ ] Smoke test (ver arriba)
 
@@ -161,7 +151,7 @@ Orden: Railway → Vercel ×3 → Stripe → smoke.
 
 ## Verificación de cookies
 
-Tras el primer deploy de preview:
+Tras el primer deploy:
 
 1. Abrir login de admin/web/branch.
 2. Network → `POST /api-backend/auth/login` → Response Headers debe incluir `Set-Cookie`.

@@ -72,7 +72,7 @@ npx web-push generate-vapid-keys
 
 ## Deploy
 
-Ver runbook completo: [`docs/DEPLOY.md`](docs/DEPLOY.md) (Vercel + Railway, env, Stripe, smoke test).
+Ver runbook completo: [`docs/DEPLOY.md`](docs/DEPLOY.md) (VPS, env, Stripe, smoke test).
 
 ```bash
 pnpm start:api   # API en producción local / contenedor

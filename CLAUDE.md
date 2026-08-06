@@ -55,7 +55,7 @@ Local setup requires `.env` (copy from `.env.example`) and Postgres (`docker com
 
 ### Same-origin API proxy (critical pattern)
 
-Each Next.js app does **not** call the API directly from the browser. Every app has an `app/api-backend/[...path]/route.ts` catch-all Route Handler that calls `proxyApiBackend()` (`packages/shared/src/api-backend-proxy.ts`), which forwards the request server-side to the real API (`NEXT_PUBLIC_API_URL`) and rewrites `Set-Cookie` to strip the `Domain` attribute. This exists so session cookies bind to each Next app's own domain instead of the API's domain (needed for Vercel + Railway deploys with separate domains).
+Each Next.js app does **not** call the API directly from the browser. Every app has an `app/api-backend/[...path]/route.ts` catch-all Route Handler that calls `proxyApiBackend()` (`packages/shared/src/api-backend-proxy.ts`), which forwards the request server-side to the real API (`NEXT_PUBLIC_API_URL`) and rewrites `Set-Cookie` to strip the `Domain` attribute. This exists so session cookies bind to each Next app's own domain instead of the API's domain (needed since each app is served on its own subdomain).
 
 - Client code always calls the browser through `apiFetch()` (`packages/shared/src/constants.ts`), which targets `API_URL` — `/api-backend` in the browser, direct `NEXT_PUBLIC_API_URL`/`DIRECT_API_URL` during SSR.
 - `apiFetch` sets `X-Ordena-Client: customer|admin|branch` and always sends `credentials: "include"`.
@@ -107,7 +107,7 @@ Cart validation happens both live (`POST /checkout/validate`, used for pre-check
 
 ### Real-time + push
 
-- **SSE (self-hosted)** drives live UI updates on the branch dashboard (e.g. new order appears without reload) — `GET /branches/me/stream` in `apps/api/src/routes/branches.ts`, backed by an in-memory per-process pub/sub (`branchId` → connected `Response`s) in `apps/api/src/utils/sse.ts`. No external service/Redis; client is a plain browser `EventSource`. Known limitation: this pub/sub does not fan out across multiple `apps/api` instances — fine today since the API runs as a single Railway instance, but would need revisiting if that ever changes.
+- **SSE (self-hosted)** drives live UI updates on the branch dashboard (e.g. new order appears without reload) — `GET /branches/me/stream` in `apps/api/src/routes/branches.ts`, backed by an in-memory per-process pub/sub (`branchId` → connected `Response`s) in `apps/api/src/utils/sse.ts`. No external service/Redis; client is a plain browser `EventSource`. Known limitation: this pub/sub does not fan out across multiple `apps/api` instances — fine today since the API runs as a single process on the VPS, but would need revisiting if that ever changes.
 - **Web Push** (VAPID, `web-push`) sends actual OS/browser notifications: to customers on order status change, to branch staff on new orders. Subscriptions live in `PushSubscription` (nullable `userId` for guests, `branchId` for staff subscriptions). Client opt-in components: `apps/web/src/components/pwa/push-opt-in.tsx`, `apps/branch/src/components/pwa/push-opt-in-staff.tsx`.
 - Branch staff presence itself (used by the availability gate above) is pushed via a heartbeat from `apps/branch/src/components/staff-presence.tsx`.
 
@@ -141,4 +141,4 @@ Ordena reuses the same visual language as the sibling "RRHH" project: orange bra
 
 ## Deploy
 
-Production target is **Vercel** (web/admin/branch) + **Railway** (API + Postgres); see [`docs/DEPLOY.md`](docs/DEPLOY.md) for the full env-var matrix and go-live checklist. Key point beyond what's above: because each Next app has its own domain in production, the `api-backend` proxy pattern (not a Next rewrite) is what makes session cookies work across domains — don't "simplify" it into a rewrite.
+Production target is a single **Hostinger VPS** running all four apps (web/admin/branch/API) plus Postgres, each service on its own subdomain; see [`docs/DEPLOY.md`](docs/DEPLOY.md) for the full env-var matrix and go-live checklist. Key point beyond what's above: because each Next app has its own domain in production, the `api-backend` proxy pattern (not a Next rewrite) is what makes session cookies work across domains — don't "simplify" it into a rewrite.

@@ -10,8 +10,8 @@ const INTERVAL_MS = 30_000;
  * para que la promoción no dependa de que haya un dashboard con la pestaña
  * abierta y con polling activo.
  *
- * Deploy actual = una sola instancia de la API (Railway, servicio persistente
- * de Node), así que un setInterval en proceso alcanza: no hay coordinación
+ * Deploy actual = una sola instancia de la API (proceso Node persistente en
+ * el VPS), así que un setInterval en proceso alcanza: no hay coordinación
  * entre réplicas. Si en el futuro se escala horizontalmente, dos instancias
  * podrían correr el sweep en paralelo y notificar el mismo pedido dos veces
  * (la actualización de status en sí es idempotente/inofensiva); si eso pasa,

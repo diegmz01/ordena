@@ -39,6 +39,19 @@ stripeWebhookRouter.post(
         where: { stripeSessionId: session.id },
       });
 
+      if (!order) {
+        console.error(
+          "[stripe.webhook] order not found for session",
+          session.id,
+        );
+      } else if (order.status !== "PENDING_PAYMENT") {
+        console.error(
+          "[stripe.webhook] order already past PENDING_PAYMENT, skipping",
+          order.id,
+          order.status,
+        );
+      }
+
       if (order && order.status === "PENDING_PAYMENT") {
         const paymentIntentId =
           typeof session.payment_intent === "string"
