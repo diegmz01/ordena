@@ -226,6 +226,7 @@ export default function BranchHomePage() {
   const [prepMinutes, setPrepMinutes] = useState(20);
   const [now, setNow] = useState(() => Date.now());
   const autoReadyRef = useRef<Set<string>>(new Set());
+  const refreshSeqRef = useRef(0);
 
   const selected = useMemo(
     () =>
@@ -238,6 +239,7 @@ export default function BranchHomePage() {
   const refreshOrders = useCallback(async () => {
     const token = getAuthToken();
     if (!token) return;
+    const seq = ++refreshSeqRef.current;
     const [res, me] = await Promise.all([
       apiFetch<{
         data: Order[];
@@ -248,6 +250,9 @@ export default function BranchHomePage() {
         () => null,
       ),
     ]);
+    // Ignora respuestas de fetches viejos que resuelven después de uno más
+    // reciente (ráfagas de eventos Pusher pueden dispararse fuera de orden).
+    if (seq !== refreshSeqRef.current) return;
     setOrders(res.data);
     setBranchId(res.branchId);
     setDefaultPrepMinutes(res.prepTimeMinutes);
@@ -537,6 +542,16 @@ export default function BranchHomePage() {
 
   // Auto READY cuando vence el timer
   useEffect(() => {
+    const preparingIds = new Set(
+      orders
+        .filter((o) => o.status === "PREPARING" && o.readyAt)
+        .map((o) => o.id),
+    );
+    for (const id of [...autoReadyRef.current]) {
+      // Pedido ya salió de PREPARING (READY/cancelado/etc.): deja de rastrearlo
+      // para que el Set no crezca sin límite durante una sesión larga.
+      if (!preparingIds.has(id)) autoReadyRef.current.delete(id);
+    }
     for (const order of orders) {
       if (order.status !== "PREPARING" || !order.readyAt) continue;
       const remaining = new Date(order.readyAt).getTime() - now;
