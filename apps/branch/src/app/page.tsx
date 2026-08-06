@@ -21,6 +21,7 @@ import {
   STATUS_LABEL,
 } from "@/components/order-card";
 import { Modal } from "@/components/ui/modal";
+import { NumericKeypad } from "@/components/ui/numeric-keypad";
 import { AlarmOptIn } from "@/components/pwa/alarm-opt-in";
 import { apiFetch, API_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
@@ -1236,7 +1237,9 @@ export default function BranchHomePage() {
                   min={1}
                   inputMode="numeric"
                   value={ticketInput}
-                  onChange={(e) => setTicketInput(e.target.value)}
+                  onChange={(e) =>
+                    setTicketInput(e.target.value.replace(/\D/g, ""))
+                  }
                   onKeyDown={(e) => {
                     if (e.key === "Enter") saveTicketNumber();
                   }}
@@ -1245,6 +1248,13 @@ export default function BranchHomePage() {
                   autoFocus
                 />
               </div>
+              <NumericKeypad
+                value={ticketInput}
+                onChange={setTicketInput}
+                onEnter={saveTicketNumber}
+                maxLength={6}
+                disabled={!!busyKey}
+              />
             </div>
           </Modal>
         )}
@@ -1386,6 +1396,13 @@ export default function BranchHomePage() {
                 autoFocus
               />
             </div>
+            <NumericKeypad
+              value={pickupCodeInput}
+              onChange={setPickupCodeInput}
+              onEnter={() => void confirmDelivery(selected)}
+              maxLength={5}
+              disabled={busyKey === `${selected.id}:status:COMPLETED`}
+            />
           </div>
         </Modal>
       )}
