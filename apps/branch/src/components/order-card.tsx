@@ -19,7 +19,7 @@ const STATUS_BADGE: Record<string, string> = {
   READY:
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
   COMPLETED:
-    "bg-slate-100 text-slate-700 dark:bg-surface dark:text-slate-300",
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
   CANCELLED: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
 };
 
@@ -90,10 +90,25 @@ export function OrderCard({
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold">
             {ptvTicket != null && (
-              <span className="text-orange-600">PTV #{ptvTicket}</span>
+              <span
+                className={
+                  status === "COMPLETED" ? "text-emerald-600" : "text-orange-600"
+                }
+              >
+                PTV #{ptvTicket}
+              </span>
             )}
             {amount && (
-              <span className="tabular-nums text-orange-600">{amount}</span>
+              <span
+                className={cn(
+                  "tabular-nums",
+                  status === "COMPLETED"
+                    ? "text-emerald-600"
+                    : "text-orange-600",
+                )}
+              >
+                {amount}
+              </span>
             )}
             {timeLabel && (
               <span className="font-medium text-slate-400">{timeLabel}</span>

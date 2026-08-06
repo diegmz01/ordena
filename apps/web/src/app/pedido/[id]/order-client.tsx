@@ -212,7 +212,7 @@ function paymentStatus(order: Order) {
   if (order.status === "COMPLETED") {
     return {
       label: "Cobrado",
-      tone: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
+      tone: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
     };
   }
   return {
@@ -265,7 +265,7 @@ function OrderTimeline({ status }: { status: string }) {
                 className={cn(
                   "text-sm font-semibold",
                   active
-                    ? "text-orange-600 dark:text-orange-400"
+                    ? "text-emerald-600 dark:text-emerald-400"
                     : done
                       ? "text-gray-900 dark:text-white"
                       : "text-gray-400",

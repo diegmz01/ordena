@@ -108,7 +108,7 @@ const STATUS_TONE: Record<string, string> = {
     "bg-indigo-100 text-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200",
   READY:
     "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
-  COMPLETED: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+  COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
   CANCELLED: "bg-red-100 text-red-900 dark:bg-red-950/40 dark:text-red-200",
 };
 
@@ -143,7 +143,7 @@ function paymentStatus(order: OrderDetail) {
     return { label: "Pendiente", tone: STATUS_TONE.PENDING_PAYMENT };
   }
   if (order.status === "COMPLETED") {
-    return { label: "Cobrado", tone: STATUS_TONE.PAID };
+    return { label: "Cobrado", tone: STATUS_TONE.COMPLETED };
   }
   return { label: "Autorizado", tone: STATUS_TONE.PAID };
 }
@@ -497,7 +497,7 @@ export default function AdminOrderDetailPage() {
                 )}
               </div>
             ) : (
-              <div className="border-t border-orange-100 px-5 py-4 dark:border-orange-900/30 sm:px-6">
+              <div className="border-t border-emerald-100 px-5 py-4 dark:border-emerald-900/30 sm:px-6">
                 <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                   {FLOW.map((step, index) => {
                     const done = flowIndex > index;
@@ -508,10 +508,10 @@ export default function AdminOrderDetailPage() {
                         className={cn(
                           "rounded-lg px-2 py-2 text-center",
                           current &&
-                            "bg-orange-500 text-white shadow-sm shadow-orange-500/25",
+                            "bg-emerald-500 text-white shadow-sm shadow-emerald-500/25",
                           done &&
                             !current &&
-                            "bg-orange-100 text-orange-800 dark:bg-orange-950/50 dark:text-orange-200",
+                            "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
                           !done &&
                             !current &&
                             "bg-gray-50 text-gray-400 dark:bg-gray-800/60 dark:text-gray-500",
