@@ -8,6 +8,7 @@ import {
   ChefHat,
   CircleDot,
   Clock3,
+  FileText,
   MapPin,
   PackageCheck,
   ShoppingBag,
@@ -19,6 +20,7 @@ import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { formatMoney, useCart } from "@/lib/cart";
+import { buildInvoiceUrl, canInvoiceOrder } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 
 type OrderItem = {
@@ -44,12 +46,15 @@ type Order = {
   prepMinutes: number | null;
   readyAt: string | null;
   paidAt: string | null;
+  createdAt: string;
+  ptvTicket: number | null;
   items: OrderItem[];
   branch: {
     id: string;
     name: string;
     address: string;
     phone: string | null;
+    slug: string;
   };
 };
 
@@ -485,6 +490,36 @@ export default function OrderPageClient({
                     <PushOptIn orderId={id} viewToken={viewToken} embedded />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {order.status === "COMPLETED" && (
+              <div className="customer-card p-4">
+                {canInvoiceOrder(order) ? (
+                  <a
+                    href={buildInvoiceUrl(order)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary w-full justify-center py-3"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Facturar
+                  </a>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled
+                      className="btn-secondary w-full cursor-not-allowed justify-center py-3 opacity-50"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Facturar
+                    </button>
+                    <p className="mt-2 text-center text-xs text-gray-500">
+                      Solo se puede facturar dentro del mes del pedido
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

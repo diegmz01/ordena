@@ -66,3 +66,6 @@ export function canAdminCancelOrder(
 ): boolean {
   return (ADMIN_ORDER_CANCEL_FROM as readonly string[]).includes(status);
 }
+
+/** Servicio externo de facturación (CFDI) de la empresa. */
+export const INVOICE_BASE_URL = "https://cfdi.elbajito.com/";

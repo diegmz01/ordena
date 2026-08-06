@@ -258,7 +258,13 @@ ordersRouter.get(
         include: {
           items: true,
           branch: {
-            select: { id: true, name: true, address: true, phone: true },
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              phone: true,
+              slug: true,
+            },
           },
           user: {
             select: { id: true, name: true, email: true, phone: true },
