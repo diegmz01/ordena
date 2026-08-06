@@ -58,10 +58,14 @@ stripeWebhookRouter.post(
         );
         const card = await fetchStripeCardSummary(paymentIntentId);
 
+        // Claim atómico por estado: si Stripe reentrega/duplica este evento,
+        // solo la primera entrega que sigue viendo PENDING_PAYMENT gana la
+        // carrera y notifica; las demás se detectan vía count === 0 y salen.
+        let claimed = false;
         for (let attempt = 0; attempt < 5; attempt++) {
           try {
-            await prisma.order.update({
-              where: { id: order.id },
+            const result = await prisma.order.updateMany({
+              where: { id: order.id, status: "PENDING_PAYMENT" },
               data: {
                 status: "PAID",
                 paidAt,
@@ -73,6 +77,7 @@ stripeWebhookRouter.post(
                 paymentLast4: card.paymentLast4,
               },
             });
+            claimed = result.count > 0;
             break;
           } catch (err) {
             const code =
@@ -84,23 +89,25 @@ stripeWebhookRouter.post(
           }
         }
 
-        try {
-          await notifyBranchNewOrder(order.branchId, {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-          });
-        } catch (sseError) {
-          console.error("[stripe.webhook] sse", sseError);
-        }
+        if (claimed) {
+          try {
+            await notifyBranchNewOrder(order.branchId, {
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+            });
+          } catch (sseError) {
+            console.error("[stripe.webhook] sse", sseError);
+          }
 
-        try {
-          await notifyStaffNewOrder({
-            branchId: order.branchId,
-            id: order.id,
-            orderNumber: order.orderNumber,
-          });
-        } catch (pushError) {
-          console.error("[stripe.webhook] web-push", pushError);
+          try {
+            await notifyStaffNewOrder({
+              branchId: order.branchId,
+              id: order.id,
+              orderNumber: order.orderNumber,
+            });
+          } catch (pushError) {
+            console.error("[stripe.webhook] web-push", pushError);
+          }
         }
       }
     }

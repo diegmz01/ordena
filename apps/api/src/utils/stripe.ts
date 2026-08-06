@@ -354,7 +354,15 @@ export async function settleStripePayment(
     if (paymentIntent.status === "requires_capture") {
       await stripeClient.paymentIntents.cancel(paymentIntent.id);
     } else if (paymentIntent.status === "succeeded") {
-      await stripeClient.refunds.create({ payment_intent: paymentIntent.id });
+      // reverse_transfer: sin esto, Stripe reembolsa desde el balance de la
+      // plataforma en vez de jalar el dinero de vuelta de la cuenta Connect de
+      // la sucursal (destination charge) — y la plataforma no retiene nada de
+      // ese cargo (sin application_fee), así que el reembolso fallaría o
+      // saldría de fondos ajenos.
+      await stripeClient.refunds.create({
+        payment_intent: paymentIntent.id,
+        reverse_transfer: true,
+      });
     }
   } catch (error) {
     if (error instanceof AppError) throw error;
