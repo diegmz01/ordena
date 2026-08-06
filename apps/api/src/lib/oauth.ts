@@ -5,11 +5,10 @@ import jwt from "jsonwebtoken";
 import { AppError } from "../middleware/error-handler";
 import { getJwtSecret } from "../utils/jwt";
 
-export type OAuthProviderSlug = "google" | "apple" | "facebook";
+export type OAuthProviderSlug = "google" | "facebook";
 
 const SLUG_TO_ENUM: Record<OAuthProviderSlug, OAuthProvider> = {
   google: "GOOGLE",
-  apple: "APPLE",
   facebook: "FACEBOOK",
 };
 
@@ -25,7 +24,7 @@ type OAuthStatePayload = {
 };
 
 export function isOAuthProviderSlug(value: string): value is OAuthProviderSlug {
-  return value === "google" || value === "apple" || value === "facebook";
+  return value === "google" || value === "facebook";
 }
 
 export function oauthRedirectBase() {
@@ -47,30 +46,10 @@ export function callbackUrl(provider: OAuthProviderSlug) {
   return `${oauthRedirectBase()}/auth/oauth/${provider}/callback`;
 }
 
-function applePrivateKeyBytes(): Uint8Array | null {
-  const raw = process.env.APPLE_PRIVATE_KEY;
-  if (!raw?.trim()) return null;
-  const pem = raw.replace(/\\n/g, "\n");
-  const body = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\s+/g, "");
-  if (!body) return null;
-  return new Uint8Array(Buffer.from(body, "base64"));
-}
-
 export function getConfiguredProviders(): OAuthProviderSlug[] {
   const list: OAuthProviderSlug[] = [];
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     list.push("google");
-  }
-  if (
-    process.env.APPLE_CLIENT_ID &&
-    process.env.APPLE_TEAM_ID &&
-    process.env.APPLE_KEY_ID &&
-    applePrivateKeyBytes()
-  ) {
-    list.push("apple");
   }
   if (process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET) {
     list.push("facebook");
@@ -83,15 +62,6 @@ function createGoogle() {
   const secret = process.env.GOOGLE_CLIENT_SECRET;
   if (!id || !secret) return null;
   return new arctic.Google(id, secret, callbackUrl("google"));
-}
-
-function createApple() {
-  const clientId = process.env.APPLE_CLIENT_ID;
-  const teamId = process.env.APPLE_TEAM_ID;
-  const keyId = process.env.APPLE_KEY_ID;
-  const key = applePrivateKeyBytes();
-  if (!clientId || !teamId || !keyId || !key) return null;
-  return new arctic.Apple(clientId, teamId, keyId, key, callbackUrl("apple"));
 }
 
 function createFacebook() {
@@ -157,19 +127,6 @@ export async function buildAuthorizationUrl(
     const cookieValue = createOAuthStateCookie({
       state,
       codeVerifier,
-      next: nextPath,
-      provider,
-    });
-    return { url, cookieValue };
-  }
-
-  if (provider === "apple") {
-    const apple = createApple();
-    if (!apple) throw new AppError(503, "Apple OAuth no está configurado");
-    const url = apple.createAuthorizationURL(state, ["name", "email"]);
-    url.searchParams.set("response_mode", "form_post");
-    const cookieValue = createOAuthStateCookie({
-      state,
       next: nextPath,
       provider,
     });
@@ -253,31 +210,6 @@ async function fetchGoogleProfile(
   };
 }
 
-async function fetchAppleProfile(
-  idToken: string,
-  formName?: string | null,
-): Promise<ProviderProfile> {
-  const claims = decodeJwtPayload(idToken);
-  const email = String(claims.email ?? "").toLowerCase();
-  const sub = String(claims.sub ?? "");
-  // Apple manda email_verified como boolean o como string "true"/"false"
-  // según el cliente; aceptamos ambas formas.
-  const emailVerified =
-    claims.email_verified === true || claims.email_verified === "true";
-  if (!email || !sub || !emailVerified) {
-    throw new AppError(
-      400,
-      "Apple no compartió un email verificado. Usa otro método de acceso.",
-    );
-  }
-  return {
-    providerAccountId: sub,
-    email,
-    name: formName?.trim() || null,
-    image: null,
-  };
-}
-
 async function fetchFacebookProfile(
   accessToken: string,
 ): Promise<ProviderProfile> {
@@ -313,7 +245,6 @@ export async function exchangeCodeForProfile(
   provider: OAuthProviderSlug,
   code: string,
   codeVerifier: string | undefined,
-  appleUserJson?: string | null,
 ): Promise<ProviderProfile> {
   if (provider === "google") {
     const google = createGoogle();
@@ -327,27 +258,6 @@ export async function exchangeCodeForProfile(
       idToken = undefined;
     }
     return fetchGoogleProfile(tokens.accessToken(), idToken);
-  }
-
-  if (provider === "apple") {
-    const apple = createApple();
-    if (!apple) throw new AppError(503, "Apple OAuth no está configurado");
-    const tokens = await apple.validateAuthorizationCode(code);
-    let formName: string | null = null;
-    if (appleUserJson) {
-      try {
-        const parsed = JSON.parse(appleUserJson) as {
-          name?: { firstName?: string; lastName?: string };
-        };
-        const parts = [parsed.name?.firstName, parsed.name?.lastName].filter(
-          Boolean,
-        );
-        formName = parts.length ? parts.join(" ") : null;
-      } catch {
-        formName = null;
-      }
-    }
-    return fetchAppleProfile(tokens.idToken(), formName);
   }
 
   const facebook = createFacebook();

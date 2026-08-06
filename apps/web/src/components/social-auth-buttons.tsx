@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 import { API_URL, DIRECT_API_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Provider = "google" | "apple" | "facebook";
+type Provider = "google" | "facebook";
 
-const ALL_PROVIDERS: Provider[] = ["google", "apple", "facebook"];
+const ALL_PROVIDERS: Provider[] = ["google", "facebook"];
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   google: "Google",
-  apple: "Apple",
   facebook: "Facebook",
 };
 
@@ -37,8 +36,7 @@ export function SocialAuthButtons({
         if (cancelled) return;
         setConfigured(
           (data.providers ?? []).filter(
-            (p): p is Provider =>
-              p === "google" || p === "apple" || p === "facebook",
+            (p): p is Provider => p === "google" || p === "facebook",
           ),
         );
       })
@@ -91,8 +89,6 @@ export function SocialAuthButtons({
               "flex w-full items-center justify-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-semibold transition",
               provider === "google" &&
                 "border-gray-200 bg-white text-gray-900 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800",
-              provider === "apple" &&
-                "border-gray-900 bg-gray-900 text-white hover:bg-black dark:border-white dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100",
               provider === "facebook" &&
                 "border-[#1877F2] bg-[#1877F2] text-white hover:bg-[#166FE5]",
             )}
@@ -127,20 +123,6 @@ function ProviderIcon({ provider }: { provider: Provider }) {
           fill="#FBBC05"
           d="M12 5.3c1.5 0 2.8.5 3.9 1.5l2.9-2.9C16.9 2.2 14.6 1 12 1 8.3 1 5.1 2.7 3.5 5.3l3.1 2.4C7 5.2 9.2 3.3 12 3.3z"
         />
-      </svg>
-    );
-  }
-
-  if (provider === "apple") {
-    return (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        aria-hidden
-        fill="currentColor"
-      >
-        <path d="M16.4 12.6c0-2.1 1.7-3.1 1.8-3.2-1-1.4-2.5-1.6-3-1.6-1.3-.1-2.5.8-3.1.8-.7 0-1.7-.7-2.8-.7-1.4 0-2.7.8-3.5 2.1-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.6 2.2 2.7 2.1 1.1-.1 1.5-.7 2.8-.7s1.7.7 2.8.7 1.9-1.1 2.6-2.1c.8-1.2 1.1-2.3 1.2-2.4-.1 0-2.2-.8-2.2-3.5zM14.3 6.4c.6-.7 1-1.7.9-2.7-.9.1-1.9.6-2.5 1.3-.6.6-1.1 1.7-.9 2.6 1 .1 1.9-.4 2.5-1.2z" />
       </svg>
     );
   }

@@ -72,7 +72,7 @@ The API issues JWTs for three roles (`CUSTOMER`, `ADMIN`, `BRANCH_STAFF` — `Ro
 
 All defined in `packages/shared/src/constants.ts`. `apps/admin/src/middleware.ts` and `apps/branch/src/middleware.ts` gate every route except `/login` behind presence of their cookie (redirecting to `/login?next=...`); `apps/web` has no such middleware (guest checkout is allowed).
 
-API-side: `apps/api/src/middleware/auth.ts` exposes `authenticate` (required), `optionalAuth` (used for guest checkout), and `requireRole(...)` → `requireAdmin` / `requireBranchStaff`. Social login (Google/Apple/Facebook) goes through `apps/api/src/lib/oauth.ts` + `routes/auth.ts` using `arctic`, landing back on `apps/web` via a one-time code (`OAuthOneTimeCode`) exchanged for the session.
+API-side: `apps/api/src/middleware/auth.ts` exposes `authenticate` (required), `optionalAuth` (used for guest checkout), and `requireRole(...)` → `requireAdmin` / `requireBranchStaff`. Social login (Google/Facebook) goes through `apps/api/src/lib/oauth.ts` + `routes/auth.ts` using `arctic`, landing back on `apps/web` via a one-time code (`OAuthOneTimeCode`) exchanged for the session.
 
 ### API structure (`apps/api/src`)
 

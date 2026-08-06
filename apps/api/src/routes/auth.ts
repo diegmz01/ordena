@@ -228,80 +228,59 @@ authRouter.get("/oauth/:provider/start", async (req, res, next) => {
   }
 });
 
-async function handleOAuthCallback(
-  req: import("express").Request,
-  res: import("express").Response,
-  _next: import("express").NextFunction,
-) {
-  let nextPath = "/";
-  try {
-    const providerParam = String(req.params.provider ?? "");
-    if (!isOAuthProviderSlug(providerParam)) {
-      throw new AppError(404, "Provider no soportado");
-    }
+authRouter.get(
+  "/oauth/:provider/callback",
+  async (req, res) => {
+    let nextPath = "/";
+    try {
+      const providerParam = String(req.params.provider ?? "");
+      if (!isOAuthProviderSlug(providerParam)) {
+        throw new AppError(404, "Provider no soportado");
+      }
 
-    const code =
-      typeof req.body?.code === "string"
-        ? req.body.code
-        : typeof req.query.code === "string"
-          ? req.query.code
-          : null;
-    const state =
-      typeof req.body?.state === "string"
-        ? req.body.state
-        : typeof req.query.state === "string"
-          ? req.query.state
-          : null;
-    const oauthError =
-      typeof req.body?.error === "string"
-        ? req.body.error
-        : typeof req.query.error === "string"
-          ? req.query.error
-          : null;
+      const code = typeof req.query.code === "string" ? req.query.code : null;
+      const state =
+        typeof req.query.state === "string" ? req.query.state : null;
+      const oauthError =
+        typeof req.query.error === "string" ? req.query.error : null;
 
-    const stored = readOAuthStateCookie(req.cookies?.[OAUTH_COOKIE]);
-    nextPath = stored.next;
+      const stored = readOAuthStateCookie(req.cookies?.[OAUTH_COOKIE]);
+      nextPath = stored.next;
 
-    if (oauthError) {
-      clearOAuthCookie(res);
-      return res.redirect(
-        oauthErrorRedirect("Autorización cancelada o denegada", nextPath),
+      if (oauthError) {
+        clearOAuthCookie(res);
+        return res.redirect(
+          oauthErrorRedirect("Autorización cancelada o denegada", nextPath),
+        );
+      }
+
+      if (!code || !state || state !== stored.state) {
+        throw new AppError(400, "Parámetros OAuth inválidos");
+      }
+      if (stored.provider !== providerParam) {
+        throw new AppError(400, "Provider OAuth no coincide");
+      }
+
+      const profile = await exchangeCodeForProfile(
+        providerParam,
+        code,
+        stored.codeVerifier,
       );
+      const user = await upsertOAuthUser(providerParam, profile);
+      const otp = await createOneTimeCode(user.id);
+
+      clearOAuthCookie(res);
+      return res.redirect(oauthSuccessRedirect(otp, nextPath));
+    } catch (error) {
+      clearOAuthCookie(res);
+      const message =
+        error instanceof AppError
+          ? error.message
+          : "No se pudo completar el inicio de sesión";
+      return res.redirect(oauthErrorRedirect(message, nextPath));
     }
-
-    if (!code || !state || state !== stored.state) {
-      throw new AppError(400, "Parámetros OAuth inválidos");
-    }
-    if (stored.provider !== providerParam) {
-      throw new AppError(400, "Provider OAuth no coincide");
-    }
-
-    const appleUser =
-      typeof req.body?.user === "string" ? req.body.user : null;
-
-    const profile = await exchangeCodeForProfile(
-      providerParam,
-      code,
-      stored.codeVerifier,
-      appleUser,
-    );
-    const user = await upsertOAuthUser(providerParam, profile);
-    const otp = await createOneTimeCode(user.id);
-
-    clearOAuthCookie(res);
-    return res.redirect(oauthSuccessRedirect(otp, nextPath));
-  } catch (error) {
-    clearOAuthCookie(res);
-    const message =
-      error instanceof AppError
-        ? error.message
-        : "No se pudo completar el inicio de sesión";
-    return res.redirect(oauthErrorRedirect(message, nextPath));
-  }
-}
-
-authRouter.get("/oauth/:provider/callback", handleOAuthCallback);
-authRouter.post("/oauth/:provider/callback", handleOAuthCallback);
+  },
+);
 
 authRouter.post("/oauth/exchange", authRateLimiter, async (req, res, next) => {
   try {

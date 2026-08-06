@@ -27,7 +27,6 @@ enum OrderStatus {
 
 enum OAuthProvider {
   GOOGLE
-  APPLE
   FACEBOOK
 }
 
