@@ -38,15 +38,6 @@ export const checkoutRateLimiter = rateLimit({
   message: { error: "Demasiados intentos de pago. Espera un momento." },
 });
 
-/** Pusher auth */
-export const pusherAuthRateLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Demasiadas solicitudes." },
-});
-
 /**
  * Red de contención por defecto para el resto de la API (menú/sucursales
  * públicos, CRUD admin, etc.) que no tiene un limiter específico. Umbral alto

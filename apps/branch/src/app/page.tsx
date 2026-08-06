@@ -12,7 +12,6 @@ import {
   StickyNote,
   User,
 } from "lucide-react";
-import Pusher from "pusher-js";
 import { groupItemsByPlateLabel } from "@ordena/shared";
 import { HistorySummary } from "@/components/history-summary";
 import {
@@ -251,7 +250,7 @@ export default function BranchHomePage() {
       ),
     ]);
     // Ignora respuestas de fetches viejos que resuelven después de uno más
-    // reciente (ráfagas de eventos Pusher pueden dispararse fuera de orden).
+    // reciente (ráfagas de eventos SSE pueden dispararse fuera de orden).
     if (seq !== refreshSeqRef.current) return;
     setOrders(res.data);
     setBranchId(res.branchId);
@@ -304,47 +303,21 @@ export default function BranchHomePage() {
   }, [tab, refreshHistory]);
 
   useEffect(() => {
-    if (!branchId || !process.env.NEXT_PUBLIC_PUSHER_KEY) return;
+    if (!branchId) return;
 
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER ?? "us2",
-      authorizer: (channel) => ({
-        authorize: (socketId, callback) => {
-          void fetch(`${API_URL}/pusher/auth`, {
-            method: "POST",
-            credentials: "include",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-              "X-Ordena-Client": "branch",
-            },
-            body: new URLSearchParams({
-              socket_id: socketId,
-              channel_name: channel.name,
-            }),
-          })
-            .then(async (response) => {
-              if (!response.ok) {
-                throw new Error(`Pusher auth ${response.status}`);
-              }
-              return response.json();
-            })
-            .then((data) => callback(null, data))
-            .catch((err) => callback(err as Error, null));
-        },
-      }),
-    });
-    const channel = pusher.subscribe(`private-branch-${branchId}`);
-    channel.bind("pusher:subscription_succeeded", () => setConnected(true));
+    const source = new EventSource(`${API_URL}/branches/me/stream`);
+
+    source.onopen = () => setConnected(true);
+    source.onerror = () => setConnected(false);
+
     const reload = () => {
       refreshOrders().catch(() => undefined);
     };
-    channel.bind("order:new", reload);
-    channel.bind("order:updated", reload);
+    source.addEventListener("order:new", reload);
+    source.addEventListener("order:updated", reload);
 
     return () => {
-      channel.unbind_all();
-      pusher.unsubscribe(`private-branch-${branchId}`);
-      pusher.disconnect();
+      source.close();
     };
   }, [branchId, refreshOrders]);
 
@@ -586,11 +559,9 @@ export default function BranchHomePage() {
           </h2>
           <p className="page-description">
             {tab === "live"
-              ? process.env.NEXT_PUBLIC_PUSHER_KEY
-                ? connected
-                  ? "Tiempo real activo"
-                  : "Conectando Pusher…"
-                : "Configura Pusher para tiempo real"
+              ? connected
+                ? "Tiempo real activo"
+                : "Conectando…"
               : historyDate
                 ? `Pedidos de hoy · ${historyDate}`
                 : "Entregados y cancelados de hoy"}

@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/node";
 
 /**
- * Opcional, igual que Stripe/Pusher/VAPID en este proyecto: sin SENTRY_DSN
+ * Opcional, igual que Stripe/VAPID en este proyecto: sin SENTRY_DSN
  * configurada, esto no hace nada (ni intenta conectar a nada). Definir
  * SENTRY_DSN activa la captura de errores no manejados — ver captureError().
  */

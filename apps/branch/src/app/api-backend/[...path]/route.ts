@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+export const dynamic = "force-dynamic";
+
 type Ctx = { params: Promise<{ path?: string[] }> };
 
 async function handle(request: NextRequest, context: Ctx) {

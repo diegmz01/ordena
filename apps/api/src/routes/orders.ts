@@ -18,7 +18,7 @@ import {
   requireBranchStaff,
   type AuthenticatedRequest,
 } from "../middleware/auth";
-import { notifyBranchOrderUpdated } from "../utils/pusher";
+import { notifyBranchOrderUpdated } from "../utils/sse";
 import {
   notifyCustomerOrderStatus,
   notifyCustomerOrderItemsChanged,

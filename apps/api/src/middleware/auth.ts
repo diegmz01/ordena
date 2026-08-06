@@ -3,7 +3,10 @@ import jwt from "jsonwebtoken";
 import { prisma, type Role, type User } from "@ordena/database";
 import { AppError } from "./error-handler";
 import { getJwtSecret } from "../utils/jwt";
-import { readBearerOrCookieToken } from "../utils/session-cookie";
+import {
+  readBearerOrCookieToken,
+  type AuthAudience,
+} from "../utils/session-cookie";
 
 export interface AuthPayload {
   sub: string;
@@ -17,13 +20,13 @@ export interface AuthenticatedRequest extends Request {
   token?: string;
 }
 
-export async function authenticate(
+async function runAuthenticate(
   req: AuthenticatedRequest,
-  _res: Response,
   next: NextFunction,
+  forcedAudience?: AuthAudience,
 ) {
   try {
-    const token = readBearerOrCookieToken(req);
+    const token = readBearerOrCookieToken(req, forcedAudience);
     if (!token) {
       throw new AppError(401, "Missing or invalid authorization");
     }
@@ -47,6 +50,25 @@ export async function authenticate(
     if (error instanceof AppError) return next(error);
     return next(new AppError(401, "Invalid or expired token"));
   }
+}
+
+export async function authenticate(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+) {
+  return runAuthenticate(req, next);
+}
+
+/**
+ * Variante de `authenticate` para rutas que no pueden mandar X-Ordena-Client
+ * (p. ej. un `EventSource` nativo, que no permite headers custom) pero cuya
+ * audiencia es inequívoca por diseño — fuerza qué cookie de sesión leer en
+ * vez de inferirla del header. Ver `GET /branches/me/stream`.
+ */
+export function authenticateForAudience(audience: AuthAudience) {
+  return (req: AuthenticatedRequest, _res: Response, next: NextFunction) =>
+    runAuthenticate(req, next, audience);
 }
 
 export function optionalAuth(

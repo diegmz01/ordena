@@ -63,7 +63,16 @@ export function clearSessionCookie(res: Response, audience: AuthAudience) {
   });
 }
 
-export function readBearerOrCookieToken(req: Request): string | null {
+/**
+ * `forcedAudience` es para rutas que no pueden mandar X-Ordena-Client (p. ej.
+ * un EventSource nativo del browser, que no permite headers custom) pero cuya
+ * audiencia es inequívoca por diseño de la ruta misma — evita caer al default
+ * "customer" de `resolveAudience` y leer la cookie equivocada.
+ */
+export function readBearerOrCookieToken(
+  req: Request,
+  forcedAudience?: AuthAudience,
+): string | null {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) {
     const bearer = header.slice(7).trim();
@@ -80,5 +89,5 @@ export function readBearerOrCookieToken(req: Request): string | null {
   // equivocada — ej. staff logueado en branch quedaba "logueado" como cliente
   // en web. Cada request de las 3 apps manda X-Ordena-Client, así que solo
   // debe mirarse la cookie de esa audiencia.
-  return cookies[cookieNameForAudience(resolveAudience(req))] ?? null;
+  return cookies[cookieNameForAudience(forcedAudience ?? resolveAudience(req))] ?? null;
 }

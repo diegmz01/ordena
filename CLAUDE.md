@@ -72,11 +72,11 @@ The API issues JWTs for three roles (`CUSTOMER`, `ADMIN`, `BRANCH_STAFF` — `Ro
 
 All defined in `packages/shared/src/constants.ts`. `apps/admin/src/middleware.ts` and `apps/branch/src/middleware.ts` gate every route except `/login` behind presence of their cookie (redirecting to `/login?next=...`); `apps/web` has no such middleware (guest checkout is allowed).
 
-API-side: `apps/api/src/middleware/auth.ts` exposes `authenticate` (required), `optionalAuth` (used for guest checkout), and `requireRole(...)` → `requireAdmin` / `requireBranchStaff`. Social login (Google/Facebook) goes through `apps/api/src/lib/oauth.ts` + `routes/auth.ts` using `arctic`, landing back on `apps/web` via a one-time code (`OAuthOneTimeCode`) exchanged for the session.
+API-side: `apps/api/src/middleware/auth.ts` exposes `authenticate` (required), `optionalAuth` (used for guest checkout), and `requireRole(...)` → `requireAdmin` / `requireBranchStaff`. Social login (Google/Apple/Facebook) goes through `apps/api/src/lib/oauth.ts` + `routes/auth.ts` using `arctic`, landing back on `apps/web` via a one-time code (`OAuthOneTimeCode`) exchanged for the session.
 
 ### API structure (`apps/api/src`)
 
-Express app assembled in `index.ts`: `helmet`, `cors` (origins from `utils/env.ts::corsOrigins()`), `morgan`, `cookie-parser`. The Stripe webhook router is mounted **before** `express.json()` because Stripe needs the raw body to verify signatures. Routers are one-per-domain under `routes/` (`auth`, `branches`, `menu`, `checkout`, `orders`, `customers`, `push`, `pusher`, `finance`, `stripe-webhook`, `health`), business logic/helpers under `utils/`. `assertProductionEnv()` makes the API refuse to boot in production if critical secrets are missing.
+Express app assembled in `index.ts`: `helmet`, `cors` (origins from `utils/env.ts::corsOrigins()`), `morgan`, `cookie-parser`. The Stripe webhook router is mounted **before** `express.json()` because Stripe needs the raw body to verify signatures. Routers are one-per-domain under `routes/` (`auth`, `branches`, `menu`, `checkout`, `orders`, `customers`, `push`, `finance`, `stripe-webhook`, `health`), business logic/helpers under `utils/`. `assertProductionEnv()` makes the API refuse to boot in production if critical secrets are missing.
 
 ### Orders: status machine + money flow
 
@@ -107,7 +107,7 @@ Cart validation happens both live (`POST /checkout/validate`, used for pre-check
 
 ### Real-time + push
 
-- **Pusher** (`pusher` / `pusher-js`) drives live UI updates (e.g. new order appears on the branch dashboard without reload) — see `apps/api/src/routes/pusher.ts` / `utils/pusher.ts`.
+- **SSE (self-hosted)** drives live UI updates on the branch dashboard (e.g. new order appears without reload) — `GET /branches/me/stream` in `apps/api/src/routes/branches.ts`, backed by an in-memory per-process pub/sub (`branchId` → connected `Response`s) in `apps/api/src/utils/sse.ts`. No external service/Redis; client is a plain browser `EventSource`. Known limitation: this pub/sub does not fan out across multiple `apps/api` instances — fine today since the API runs as a single Railway instance, but would need revisiting if that ever changes.
 - **Web Push** (VAPID, `web-push`) sends actual OS/browser notifications: to customers on order status change, to branch staff on new orders. Subscriptions live in `PushSubscription` (nullable `userId` for guests, `branchId` for staff subscriptions). Client opt-in components: `apps/web/src/components/pwa/push-opt-in.tsx`, `apps/branch/src/components/pwa/push-opt-in-staff.tsx`.
 - Branch staff presence itself (used by the availability gate above) is pushed via a heartbeat from `apps/branch/src/components/staff-presence.tsx`.
 

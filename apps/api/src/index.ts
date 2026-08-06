@@ -14,7 +14,6 @@ import { customersRouter } from "./routes/customers";
 import { pushRouter } from "./routes/push";
 import { stripeWebhookRouter } from "./routes/stripe-webhook";
 import { healthRouter } from "./routes/health";
-import { pusherRouter } from "./routes/pusher";
 import { financeRouter } from "./routes/finance";
 import { errorHandler } from "./middleware/error-handler";
 import { globalRateLimiter } from "./middleware/rate-limit";
@@ -50,7 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/health", healthRouter);
 
-// Red de contención por defecto para todo lo que sigue (auth/checkout/pusher
+// Red de contención por defecto para todo lo que sigue (auth/checkout
 // ya tienen sus propios limiters más estrictos; este es el piso general).
 app.use(globalRateLimiter);
 
@@ -61,7 +60,6 @@ app.use("/checkout", checkoutRouter);
 app.use("/orders", ordersRouter);
 app.use("/customers", customersRouter);
 app.use("/push", pushRouter);
-app.use("/pusher", pusherRouter);
 app.use("/finance", financeRouter);
 
 app.use(errorHandler);

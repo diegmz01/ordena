@@ -30,15 +30,11 @@ Las cookies de sesión se setean vía el **Route Handler** `app/api-backend/[...
 | `BRANCH_URL` | sí | URL pública staff |
 | `STRIPE_SECRET_KEY` | sí | `sk_live_…` |
 | `STRIPE_WEBHOOK_SECRET` | sí | del endpoint live |
-| `PUSHER_APP_ID` | recomendado | pedidos en vivo |
-| `PUSHER_SECRET` | recomendado | |
-| `NEXT_PUBLIC_PUSHER_KEY` | recomendado | misma key que en front |
-| `NEXT_PUBLIC_PUSHER_CLUSTER` | recomendado | ej. `us2` |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | sí (clientes + staff) | push web |
 | `VAPID_PRIVATE_KEY` | sí | misma pareja |
 | `VAPID_SUBJECT` | sí | `mailto:ops@tudominio.com` |
 | `OAUTH_REDIRECT_BASE` | si OAuth | URL pública de la **API** |
-| Google/Facebook secrets | si OAuth | |
+| Google/Apple/Facebook secrets | si OAuth | |
 
 En production la API **falla al arrancar** si faltan secretos críticos (`assertProductionEnv`).
 
@@ -51,7 +47,6 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 | `NEXT_PUBLIC_ADMIN_URL` | — | sí | — |
 | `NEXT_PUBLIC_BRANCH_URL` | — | — | sí |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_live_…` | — | — |
-| `NEXT_PUBLIC_PUSHER_KEY` / `CLUSTER` | sí | sí | sí |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | sí | — | sí (pedidos nuevos) |
 
 `NEXT_PUBLIC_API_URL` es la base que usa el proxy server-side; el browser llama a `/api-backend/...` same-origin.
@@ -110,7 +105,7 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 4. Sucursal sin Connect: checkout rechazado con mensaje claro.
 5. Cancelar pedido autorizado: hold liberado (sin transfer).
 
-## Pusher / VAPID
+## VAPID
 
 ```bash
 npx web-push generate-vapid-keys
@@ -119,7 +114,7 @@ npx web-push generate-vapid-keys
 Misma key pública en API, `apps/web` y `apps/branch` (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`).
 
 - **Cliente:** opt-in en la página del pedido → push al aceptar (preparación), listo y recogido.
-- **Staff:** Configuración → “Activar notificaciones” → push al pagar un pedido nuevo (además de Pusher en vivo).
+- **Staff:** Configuración → “Activar notificaciones” → push al pagar un pedido nuevo (además del SSE en vivo, que no requiere configuración — ver `GET /branches/me/stream`).
 
 ## Cuentas iniciales
 
@@ -136,7 +131,7 @@ Orden: Railway → Vercel ×3 → Stripe Connect → smoke.
 - [ ] Env: `NODE_ENV=production`, `JWT_SECRET` nuevo (≥32, no el de `.env.example`), `DATABASE_URL`, `TZ=America/Mexico_City`
 - [ ] Env: `CUSTOMER_URL` / `ADMIN_URL` / `BRANCH_URL` = HTTPS finales
 - [ ] Env: `STRIPE_SECRET_KEY=sk_live_…`, `STRIPE_WEBHOOK_SECRET` del endpoint live
-- [ ] Env: VAPID (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) + Pusher (recomendado)
+- [ ] Env: VAPID (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
 - [ ] Release: `pnpm db:migrate:deploy` — **nunca** `db:seed`
 - [ ] Healthcheck `GET /health` OK
 - [ ] Crear admin/staff reales (no `admin@ordena.local`)
@@ -148,7 +143,6 @@ Orden: Railway → Vercel ×3 → Stripe Connect → smoke.
 | `NEXT_PUBLIC_API_URL` | URL Railway | igual | igual |
 | URL propia | `NEXT_PUBLIC_CUSTOMER_URL` | `NEXT_PUBLIC_ADMIN_URL` | `NEXT_PUBLIC_BRANCH_URL` |
 | Stripe | `pk_live_…` | — | — |
-| Pusher | key + cluster | key + cluster | key + cluster |
 | VAPID public | sí | — | sí |
 
 - [ ] Tres proyectos, Root Directory correcto, monorepo con packages fuera del root
@@ -166,7 +160,7 @@ Orden: Railway → Vercel ×3 → Stripe Connect → smoke.
 
 1. Login admin, staff y cliente.
 2. En staff PWA: Configuración → activar notificaciones push; minimiza o deja la app en background.
-3. Pedido con Stripe → webhook → push nativo “Pedido nuevo” en staff + aparece en branch (Pusher).
+3. Pedido con Stripe → webhook → push nativo “Pedido nuevo” en staff + aparece en branch (SSE en vivo).
 4. Cliente con push activado: al aceptar → “Pedido aceptado · En preparación”; listo → “Listo para recoger”; completar → “Pedido recogido”.
 5. Agotar producto en staff → no aparece en menú cliente.
 6. Cambiar sucursal con carrito → alert y poda de ítems no disponibles.

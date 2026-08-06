@@ -1,5 +1,5 @@
 import { prisma } from "@ordena/database";
-import { notifyBranchOrderUpdated } from "./pusher";
+import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
 
 export const branchOrderInclude = {

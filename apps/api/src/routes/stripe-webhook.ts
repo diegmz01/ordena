@@ -6,7 +6,7 @@ import {
   getStripe,
   mapConnectAccountFlags,
 } from "../utils/stripe";
-import { notifyBranchNewOrder } from "../utils/pusher";
+import { notifyBranchNewOrder } from "../utils/sse";
 import { notifyStaffNewOrder } from "../utils/web-push";
 import { nextBranchDayNumber } from "../utils/branch-day-number";
 import { prisma } from "@ordena/database";
@@ -89,8 +89,8 @@ stripeWebhookRouter.post(
             orderId: order.id,
             orderNumber: order.orderNumber,
           });
-        } catch (pusherError) {
-          console.error("[stripe.webhook] pusher", pusherError);
+        } catch (sseError) {
+          console.error("[stripe.webhook] sse", sseError);
         }
 
         try {

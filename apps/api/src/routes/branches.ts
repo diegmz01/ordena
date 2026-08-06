@@ -14,6 +14,7 @@ import {
 import { AppError } from "../middleware/error-handler";
 import {
   authenticate,
+  authenticateForAudience,
   requireAdmin,
   requireBranchStaff,
   type AuthenticatedRequest,
@@ -36,6 +37,7 @@ import {
   syncBranchStripeStatus,
 } from "../utils/stripe";
 import { recordAdminAction } from "../utils/audit-log";
+import { registerBranchClient } from "../utils/sse";
 
 export const branchesRouter = Router();
 
@@ -273,6 +275,34 @@ branchesRouter.get(
       if (!branch) throw new AppError(404, "Sucursal no encontrada");
 
       res.json({ data: toStaffBranchPayload(branch) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/** Staff: stream SSE de eventos en vivo (nuevo pedido / actualización). */
+branchesRouter.get(
+  "/me/stream",
+  authenticateForAudience("branch"),
+  requireBranchStaff,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const branchId = await resolveStaffBranchId(req);
+
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+      res.flushHeaders();
+      req.socket.setTimeout(0);
+
+      res.write(": connected\n\n");
+
+      const unregister = registerBranchClient(branchId, res);
+      req.on("close", unregister);
     } catch (error) {
       next(error);
     }
