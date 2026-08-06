@@ -24,7 +24,7 @@
   "devDependencies": {
     "@ordena/shared": "workspace:*",
     "@types/bcryptjs": "^2.4.6",
-    "prisma": "^6.9.0",
+    "prisma": "^7.9.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   },
