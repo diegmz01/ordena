@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Share } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
+import { isIOS, isStandalonePwa } from "@/lib/device";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -25,7 +27,13 @@ type Props = {
 
 export function PushOptIn({ orderId, viewToken, guestEmail, embedded }: Props) {
   const [status, setStatus] = useState<
-    "idle" | "unsupported" | "denied" | "subscribed" | "error" | "loading"
+    | "idle"
+    | "unsupported"
+    | "ios-install"
+    | "denied"
+    | "subscribed"
+    | "error"
+    | "loading"
   >("idle");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -34,7 +42,7 @@ export function PushOptIn({ orderId, viewToken, guestEmail, embedded }: Props) {
   useEffect(() => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- feature-detect solo disponible en cliente
-      setStatus("unsupported");
+      setStatus(isIOS() && !isStandalonePwa() ? "ios-install" : "unsupported");
     }
   }, []);
 
@@ -109,6 +117,23 @@ export function PushOptIn({ orderId, viewToken, guestEmail, embedded }: Props) {
       <p className="text-sm text-slate-500">
         Este navegador no soporta notificaciones push.
       </p>
+    );
+  }
+
+  if (status === "ios-install") {
+    return (
+      <div className="text-sm text-slate-600 dark:text-slate-300">
+        <p>Para recibir avisos en iPhone o iPad, agrega esta app a tu pantalla de inicio:</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-4">
+          <li>
+            Toca{" "}
+            <Share className="mx-0.5 inline-block h-3.5 w-3.5 align-text-bottom" />{" "}
+            (Compartir) en la barra de Safari
+          </li>
+          <li>Elige &quot;Agregar a inicio&quot;</li>
+          <li>Abre la app desde ese ícono y activa las notificaciones ahí</li>
+        </ol>
+      </div>
     );
   }
 

@@ -23,6 +23,7 @@ import { Modal } from "@/components/ui/modal";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { formatMoney, useCart } from "@/lib/cart";
+import { isIOS, isStandalonePwa } from "@/lib/device";
 import { buildInvoiceUrl, canInvoiceOrder } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 
@@ -369,8 +370,12 @@ export default function OrderPageClient({
 
   useEffect(() => {
     if (!success || !live) return;
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission !== "default") return;
+    if (typeof window === "undefined") return;
+
+    const iosNeedsInstall = isIOS() && !isStandalonePwa();
+    const supportsPush = "Notification" in window && "serviceWorker" in navigator;
+    if (!iosNeedsInstall && !supportsPush) return;
+    if (supportsPush && Notification.permission !== "default") return;
 
     const key = `ordena_push_prompt_shown:${id}`;
     try {
