@@ -776,6 +776,22 @@ export default function AdminOrderDetailPage() {
                         {formatMoney(order.total, order.currency)}
                       </dd>
                     </div>
+                    {order.status === "CANCELLED" && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">Devolución</dt>
+                          <dd className="font-semibold text-red-600">
+                            −{formatMoney(order.total, order.currency)}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">A cobrar</dt>
+                          <dd className="font-semibold text-orange-600">
+                            {formatMoney(0, order.currency)}
+                          </dd>
+                        </div>
+                      </>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <dt className="text-gray-500">Autorizado en</dt>
                       <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
