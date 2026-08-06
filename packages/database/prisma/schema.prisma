@@ -124,13 +124,6 @@ model Branch {
   /** Si true, el staff puede gestionar stock (agotar productos) desde la PWA. */
   menuStockEnabled Boolean           @default(false)
   hours           Json?
-  /** Stripe Connect Express account (`acct_…`) para destination charges. */
-  stripeAccountId            String?  @unique
-  stripeChargesEnabled       Boolean  @default(false)
-  stripePayoutsEnabled       Boolean  @default(false)
-  stripeDetailsSubmitted     Boolean  @default(false)
-  /** True cuando charges + details permiten cobrar (sincronizado desde Stripe). */
-  stripeOnboardingComplete   Boolean  @default(false)
   staff        User[]
   products     BranchProduct[]
   modifiers    BranchModifier[]

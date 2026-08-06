@@ -133,13 +133,6 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
 
     const branch = await assertBranchAcceptingOrders(parsed.branchId);
 
-    if (!branch.stripeAccountId || !branch.stripeChargesEnabled) {
-      throw new AppError(
-        400,
-        "Esta sucursal aún no puede cobrar con tarjeta. Completa el onboarding de Stripe Connect en Admin → Sucursales.",
-      );
-    }
-
     const unavailable = await findUnavailableCartLines(branch.id, parsed.items);
     if (unavailable.length > 0) {
       const names = [...new Set(unavailable.map((u) => u.productName))];
@@ -279,13 +272,8 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       // Autoriza (congela) fondos; el cobro real ocurre al entregar (COMPLETED).
-      // Destination charge → al capturar, Stripe transfiere a la cuenta de la sucursal.
       payment_intent_data: {
         capture_method: "manual",
-        on_behalf_of: branch.stripeAccountId,
-        transfer_data: {
-          destination: branch.stripeAccountId,
-        },
         metadata: {
           orderId: order.id,
           orderNumber: order.orderNumber,
@@ -309,7 +297,6 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
         orderId: order.id,
         orderNumber: order.orderNumber,
         branchId: branch.id,
-        stripeAccountId: branch.stripeAccountId,
       },
       success_url: `${appUrl}/pedido/${order.id}?success=1&t=${encodeURIComponent(viewToken)}`,
       cancel_url: `${appUrl}/checkout?canceled=1&branch=${branch.id}`,

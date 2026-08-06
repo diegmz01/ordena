@@ -56,9 +56,6 @@ type FinanceSummary = {
 type StripeFinance = {
   from: string;
   to: string;
-  branchId: string | null;
-  branchName: string | null;
-  stripeAccountId: string | null;
   note: string;
   depositHint: string;
   payoutsTotalCents: number;
@@ -185,7 +182,6 @@ export default function FinanzasPage() {
     setStripeError(null);
     try {
       const qs = new URLSearchParams({ from, to });
-      if (branchId) qs.set("branchId", branchId);
       const res = await apiFetch<{ data: StripeFinance }>(
         `/finance/stripe?${qs}`,
         token,
@@ -199,7 +195,7 @@ export default function FinanzasPage() {
     } finally {
       setStripeLoading(false);
     }
-  }, [from, to, branchId]);
+  }, [from, to]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de sucursales al montar
@@ -244,8 +240,8 @@ export default function FinanzasPage() {
         </h1>
         <p className="page-description">
           Cobrado vs a depositar por sucursal y periodo. Sin comisión Ordena: el
-          capturado liquida a la cuenta Connect y luego al banco. El fee Stripe
-          lo paga la plataforma.
+          capturado liquida a la cuenta bancaria principal. El fee Stripe lo
+          paga la plataforma.
         </p>
       </div>
 
@@ -536,7 +532,7 @@ export default function FinanzasPage() {
             <p className="mt-1 text-xs text-gray-500">
               {stripe?.depositHint ??
                 stripe?.note ??
-                "Con filtro de sucursal se consulta la cuenta Connect; sin filtro, la cuenta plataforma."}{" "}
+                "Balance y payouts de la cuenta bancaria principal (todas las sucursales)."}{" "}
               Rango por fecha de creación del payout.
             </p>
           </div>
@@ -552,7 +548,7 @@ export default function FinanzasPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                   <p className="text-xs font-semibold uppercase text-gray-500">
-                    Disponible (Connect)
+                    Disponible
                   </p>
                   <ul className="mt-2 space-y-1">
                     {stripe.balance.available.length === 0 ? (
@@ -571,7 +567,7 @@ export default function FinanzasPage() {
                 </div>
                 <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                   <p className="text-xs font-semibold uppercase text-gray-500">
-                    Pendiente (Connect)
+                    Pendiente
                   </p>
                   <ul className="mt-2 space-y-1">
                     {stripe.balance.pending.length === 0 ? (
@@ -597,7 +593,6 @@ export default function FinanzasPage() {
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
                     Suma paid / pending / in_transit
-                    {stripe.branchName ? ` · ${stripe.branchName}` : ""}
                   </p>
                 </div>
               </div>
@@ -621,8 +616,7 @@ export default function FinanzasPage() {
                           className="px-3 py-8 text-center text-gray-500"
                         >
                           No hay payouts en este rango (o la cuenta aún no ha
-                          liquidado). Filtra por sucursal Connect para ver su
-                          banco.
+                          liquidado).
                         </td>
                       </tr>
                     ) : (

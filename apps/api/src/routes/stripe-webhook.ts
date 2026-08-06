@@ -1,11 +1,6 @@
 import { Router } from "express";
 import express from "express";
-import {
-  applyConnectFlagsToBranch,
-  fetchStripeCardSummary,
-  getStripe,
-  mapConnectAccountFlags,
-} from "../utils/stripe";
+import { fetchStripeCardSummary, getStripe } from "../utils/stripe";
 import { notifyBranchNewOrder } from "../utils/sse";
 import { notifyStaffNewOrder } from "../utils/web-push";
 import { nextBranchDayNumber } from "../utils/branch-day-number";
@@ -109,24 +104,6 @@ stripeWebhookRouter.post(
             console.error("[stripe.webhook] web-push", pushError);
           }
         }
-      }
-    }
-
-    if (event.type === "account.updated") {
-      const account = event.data.object;
-      try {
-        const branch = await prisma.branch.findUnique({
-          where: { stripeAccountId: account.id },
-          select: { id: true },
-        });
-        if (branch) {
-          await applyConnectFlagsToBranch(
-            branch.id,
-            mapConnectAccountFlags(account),
-          );
-        }
-      } catch (syncError) {
-        console.error("[stripe.webhook] account.updated", syncError);
       }
     }
 

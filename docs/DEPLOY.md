@@ -74,36 +74,29 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 
 ## Stripe
 
-1. Dashboard live → activar **Connect** (Express).
-2. Webhooks → endpoint `https://<api-host>/stripe/webhook`.
-3. Eventos: `checkout.session.completed` y `account.updated` (sincroniza flags Connect por sucursal). Ver [`stripe-webhook.ts`](../apps/api/src/routes/stripe-webhook.ts).
-4. Copiar signing secret → `STRIPE_WEBHOOK_SECRET`.
-5. Misma `STRIPE_SECRET_KEY` de plataforma para todo; **no** hay una key por sucursal.
+1. Webhooks → endpoint `https://<api-host>/stripe/webhook`.
+2. Evento: `checkout.session.completed`. Ver [`stripe-webhook.ts`](../apps/api/src/routes/stripe-webhook.ts).
+3. Copiar signing secret → `STRIPE_WEBHOOK_SECRET`.
+4. Una sola `STRIPE_SECRET_KEY` de la cuenta de la plataforma; todos los pedidos de todas las sucursales cobran ahí — no hay cuentas separadas por sucursal.
 
-### Connect por sucursal (destination charges)
+### Captura manual → cuenta principal
 
-- En Admin → **Sucursales** → **Conectar Stripe**: crea una cuenta Express y abre el Account Link de onboarding.
-- Cuando `charges_enabled` esté activo, el checkout usa `on_behalf_of` + `transfer_data.destination` hacia esa cuenta.
-- Al marcar el pedido **COMPLETED**, la captura dispara el transfer a la connected account; Stripe hace el payout a su banco.
-- Si la sucursal no tiene Connect listo, el checkout se rechaza (no hay fallback a la cuenta plataforma).
-- **Ordena no cobra comisión** (`application_fee`): el monto capturado liquida íntegro a la cuenta Connect de la sucursal. El fee de procesamiento Stripe (p.ej. 3.6% + $3 MXN) lo absorbe la **cuenta plataforma**.
+- El checkout crea el pago con `capture_method: manual`: al pagar solo se autorizan (congelan) los fondos.
+- Al marcar el pedido **COMPLETED** se captura el monto real; el dinero liquida a la cuenta bancaria vinculada a la cuenta Stripe de la plataforma (misma cuenta para todas las sucursales).
+- Cancelar antes de `COMPLETED` libera el hold sin cobrar nada; cancelar después de capturado emite un reembolso normal (`settleStripePayment` en [`utils/stripe.ts`](../apps/api/src/utils/stripe.ts)).
 
 ### Finanzas (Admin)
 
-- Página `/finanzas`: cobrado vs **a depositar** por sucursal y fechas (Hoy / 7 días / etc.).
+- Página `/finanzas`: cobrado vs **a depositar** por sucursal y fechas (Hoy / 7 días / etc.) — desglose interno desde Postgres, no cambia el destino del dinero en Stripe.
 - **A depositar** = capturado (`COMPLETED`); sin comisión Ordena, son el mismo monto.
-- Ventas desde Postgres; balance y payouts desde Stripe.
-- **Sin** filtro de sucursal → balance/payouts de la cuenta plataforma.
-- **Con** filtro → cuenta Connect de esa sucursal (requiere onboarding): disponible/pendiente + payouts ya enviados o en camino al banco.
+- Ventas desde Postgres; balance y payouts desde Stripe (siempre la única cuenta de la plataforma).
 - Requiere `STRIPE_SECRET_KEY` válida; si no hay liquidaciones aún, la tabla de payouts estará vacía.
 
-### Smoke test Connect
+### Smoke test
 
-1. Admin → sucursal → Conectar Stripe → completar onboarding (test).
-2. Pedido a esa sucursal → autorizar → completar en staff → captura OK.
-3. Dashboard Connect / Express: transfer hacia `acct_…`.
-4. Sucursal sin Connect: checkout rechazado con mensaje claro.
-5. Cancelar pedido autorizado: hold liberado (sin transfer).
+1. Pedido a cualquier sucursal → autorizar en Checkout → completar en staff → captura OK.
+2. Dashboard Stripe (cuenta plataforma): el cargo aparece capturado, sin ningún transfer a otra cuenta.
+3. Cancelar pedido autorizado antes de completar: hold liberado.
 
 ## VAPID
 
@@ -122,7 +115,7 @@ Tras migrate, crea admin y staff reales (email/password) desde un script one-off
 
 ## Checklist por servicio (go-live)
 
-Orden: Railway → Vercel ×3 → Stripe Connect → smoke.
+Orden: Railway → Vercel ×3 → Stripe → smoke.
 
 ### Railway (API + Postgres)
 
@@ -151,10 +144,9 @@ Orden: Railway → Vercel ×3 → Stripe Connect → smoke.
 
 ### Stripe
 
-- [ ] Connect Express activo (live)
-- [ ] Webhook `https://<api>/stripe/webhook` → `checkout.session.completed` + `account.updated`
-- [ ] Cada sucursal: Admin → Conectar Stripe → `charges_enabled`
-- [ ] Smoke Connect (ver abajo)
+- [ ] Webhook `https://<api>/stripe/webhook` → `checkout.session.completed`
+- [ ] `STRIPE_SECRET_KEY=sk_live_…` de la cuenta plataforma (una sola, para todas las sucursales)
+- [ ] Smoke test (ver arriba)
 
 ### Smoke test pre-go-live
 

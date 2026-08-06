@@ -252,7 +252,7 @@ financeRouter.get(
           branchName: o.branch.name,
         }));
 
-      // Destination charges sin application_fee: lo capturado liquida a la cuenta Connect.
+      // Sin application_fee: lo capturado liquida íntegro a la cuenta principal.
       const toDepositCents = capturedCents;
 
       res.json({
@@ -262,7 +262,7 @@ financeRouter.get(
           branchId: branchId ?? null,
           dateBasis: "paidAt_or_createdAt" as const,
           depositNote:
-            "Sin comisión Ordena: el monto capturado (COMPLETED) es lo que liquida a la cuenta Connect de la sucursal y luego al banco. El fee de procesamiento Stripe lo paga la plataforma.",
+            "Sin comisión Ordena: el monto capturado (COMPLETED) es lo que liquida a la cuenta bancaria principal. El fee de procesamiento Stripe lo paga la plataforma.",
           totals: {
             authorizedCents,
             authorizedCount,
@@ -313,40 +313,9 @@ financeRouter.get(
         throw new AppError(400, "`from` no puede ser posterior a `to`");
       }
 
-      const branchId =
-        typeof req.query.branchId === "string" && req.query.branchId.trim()
-          ? req.query.branchId.trim()
-          : undefined;
-
-      let stripeAccount: string | null = null;
-      let branchName: string | null = null;
-      let note =
-        "Sin filtro de sucursal: balance y payouts de la cuenta plataforma. Los fondos de destination charges liquidan en cada cuenta Connect.";
-
-      if (branchId) {
-        const branch = await prisma.branch.findUnique({
-          where: { id: branchId },
-          select: {
-            id: true,
-            name: true,
-            stripeAccountId: true,
-          },
-        });
-        if (!branch) throw new AppError(404, "Sucursal no encontrada");
-        branchName = branch.name;
-        if (!branch.stripeAccountId) {
-          throw new AppError(
-            400,
-            "Esta sucursal no tiene cuenta Stripe Connect. Conéctala en Sucursales.",
-          );
-        }
-        stripeAccount = branch.stripeAccountId;
-        note = `Balance y payouts de la cuenta Connect de ${branch.name} (dinero en camino o ya enviado al banco).`;
-      }
-
       const [balance, payouts] = await Promise.all([
-        fetchStripeBalance(stripeAccount),
-        listStripePayouts({ from, to, limit: 50, stripeAccount }),
+        fetchStripeBalance(),
+        listStripePayouts({ from, to, limit: 50 }),
       ]);
 
       const payoutsTowardBank = payouts.filter((p) =>
@@ -361,12 +330,9 @@ financeRouter.get(
         data: {
           from: from.toISOString().slice(0, 10),
           to: to.toISOString().slice(0, 10),
-          branchId: branchId ?? null,
-          branchName,
-          stripeAccountId: stripeAccount,
-          note,
+          note: "Balance y payouts de la cuenta bancaria principal vinculada a Stripe (todas las sucursales).",
           depositHint:
-            "Sin comisión Ordena: el capturado de pedidos COMPLETED liquida a la cuenta Connect. Los payouts de abajo son lo ya enviado o programado al banco (calendario de Stripe).",
+            "Sin comisión Ordena: el capturado de pedidos COMPLETED liquida a la cuenta principal. Los payouts de abajo son lo ya enviado o programado al banco (calendario de Stripe).",
           balance,
           payouts,
           payoutsTotalCents,

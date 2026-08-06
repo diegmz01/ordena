@@ -91,7 +91,7 @@ READY           → COMPLETED
 ```
 Post-accept cancellation (with Stripe refund) is a separate endpoint, `POST /orders/:id/admin-cancel`, gated by `canAdminCancelOrder()`.
 
-Payment uses Stripe Checkout with **manual capture** + **Connect destination charges**: `payment_intent_data.capture_method = "manual"`, `on_behalf_of` / `transfer_data.destination` = the branch's `stripeAccountId`. Funds are authorized at checkout and only captured when the order is marked `COMPLETED` (delivery), transferring to the branch's connected Stripe account. Each `Branch` carries its own Connect onboarding state (`stripeChargesEnabled`, `stripePayoutsEnabled`, `stripeOnboardingComplete`); checkout is blocked until onboarding is complete (`apps/api/src/routes/checkout.ts`).
+Payment uses Stripe Checkout with **manual capture**: `payment_intent_data.capture_method = "manual"`. Funds are authorized at checkout and only captured when the order is marked `COMPLETED` (delivery). There is a single platform Stripe account (`STRIPE_SECRET_KEY`) — every branch's orders capture into the same account/bank account; there is no per-branch Stripe Connect split.
 
 ### Branch availability
 

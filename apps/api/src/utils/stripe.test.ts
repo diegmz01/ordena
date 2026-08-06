@@ -129,10 +129,7 @@ describe("settleStripePayment", () => {
 
     await settleStripePayment("pi_1", "CANCELLED");
 
-    expect(refundsCreate).toHaveBeenCalledWith({
-      payment_intent: "pi_1",
-      reverse_transfer: true,
-    });
+    expect(refundsCreate).toHaveBeenCalledWith({ payment_intent: "pi_1" });
     expect(paymentIntentsCancel).not.toHaveBeenCalled();
   });
 });

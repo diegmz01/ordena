@@ -1,5 +1,4 @@
 import Stripe from "stripe";
-import { prisma } from "@ordena/database";
 import { AppError } from "../middleware/error-handler";
 
 let stripe: Stripe | null = null;
@@ -21,150 +20,6 @@ export function assertStripeConfigured() {
       "Stripe no está configurado. Agrega STRIPE_SECRET_KEY en el entorno.",
     );
   }
-}
-
-function stripeAccountRequestOptions(stripeAccount?: string | null):
-  | { stripeAccount: string }
-  | undefined {
-  return stripeAccount ? { stripeAccount } : undefined;
-}
-
-export type ConnectAccountFlags = {
-  chargesEnabled: boolean;
-  payoutsEnabled: boolean;
-  detailsSubmitted: boolean;
-  onboardingComplete: boolean;
-};
-
-export function mapConnectAccountFlags(
-  account: Stripe.Account,
-): ConnectAccountFlags {
-  const chargesEnabled = Boolean(account.charges_enabled);
-  const payoutsEnabled = Boolean(account.payouts_enabled);
-  const detailsSubmitted = Boolean(account.details_submitted);
-  return {
-    chargesEnabled,
-    payoutsEnabled,
-    detailsSubmitted,
-    onboardingComplete: chargesEnabled && detailsSubmitted,
-  };
-}
-
-export async function createExpressAccount(opts: {
-  branchId: string;
-  businessName: string;
-  email?: string | null;
-}): Promise<Stripe.Account> {
-  assertStripeConfigured();
-  try {
-    return await getStripe().accounts.create({
-      type: "express",
-      country: "MX",
-      email: opts.email ?? undefined,
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      business_profile: {
-        name: opts.businessName,
-      },
-      metadata: {
-        branchId: opts.branchId,
-      },
-    });
-  } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
-      throw new AppError(502, `Error de Stripe (Connect): ${error.message}`);
-    }
-    throw error;
-  }
-}
-
-export async function createAccountOnboardingLink(
-  accountId: string,
-  refreshUrl: string,
-  returnUrl: string,
-): Promise<string> {
-  assertStripeConfigured();
-  try {
-    const link = await getStripe().accountLinks.create({
-      account: accountId,
-      refresh_url: refreshUrl,
-      return_url: returnUrl,
-      type: "account_onboarding",
-    });
-    return link.url;
-  } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
-      throw new AppError(
-        502,
-        `Error de Stripe (Account Link): ${error.message}`,
-      );
-    }
-    throw error;
-  }
-}
-
-export async function createAccountLoginLink(accountId: string): Promise<string> {
-  assertStripeConfigured();
-  try {
-    const link = await getStripe().accounts.createLoginLink(accountId);
-    return link.url;
-  } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
-      throw new AppError(
-        502,
-        `Error de Stripe (Express Dashboard): ${error.message}`,
-      );
-    }
-    throw error;
-  }
-}
-
-export async function retrieveConnectAccount(
-  accountId: string,
-): Promise<Stripe.Account> {
-  assertStripeConfigured();
-  try {
-    return await getStripe().accounts.retrieve(accountId);
-  } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
-      throw new AppError(
-        502,
-        `Error de Stripe (cuenta conectada): ${error.message}`,
-      );
-    }
-    throw error;
-  }
-}
-
-/** Persiste flags de Connect en Branch a partir de un Account de Stripe. */
-export async function applyConnectFlagsToBranch(
-  branchId: string,
-  flags: ConnectAccountFlags,
-) {
-  return prisma.branch.update({
-    where: { id: branchId },
-    data: {
-      stripeChargesEnabled: flags.chargesEnabled,
-      stripePayoutsEnabled: flags.payoutsEnabled,
-      stripeDetailsSubmitted: flags.detailsSubmitted,
-      stripeOnboardingComplete: flags.onboardingComplete,
-    },
-  });
-}
-
-export async function syncBranchStripeStatus(branchId: string) {
-  const branch = await prisma.branch.findUnique({ where: { id: branchId } });
-  if (!branch) throw new AppError(404, "Sucursal no encontrada");
-  if (!branch.stripeAccountId) {
-    throw new AppError(400, "La sucursal no tiene cuenta Stripe Connect");
-  }
-
-  const account = await retrieveConnectAccount(branch.stripeAccountId);
-  const flags = mapConnectAccountFlags(account);
-  const updated = await applyConnectFlagsToBranch(branchId, flags);
-  return { branch: updated, flags, account };
 }
 
 export type StripeCardSummary = {
@@ -219,14 +74,9 @@ export async function fetchStripeCardSummary(
   }
 }
 
-export async function fetchStripeBalance(
-  stripeAccount?: string | null,
-): Promise<StripeBalanceSnapshot> {
+export async function fetchStripeBalance(): Promise<StripeBalanceSnapshot> {
   try {
-    const balance = await getStripe().balance.retrieve(
-      undefined,
-      stripeAccountRequestOptions(stripeAccount),
-    );
+    const balance = await getStripe().balance.retrieve();
     return {
       available: balance.available.map((b) => ({
         amount: b.amount,
@@ -249,20 +99,16 @@ export async function listStripePayouts(opts: {
   from: Date;
   to: Date;
   limit?: number;
-  stripeAccount?: string | null;
 }): Promise<StripePayoutRow[]> {
   try {
-    const list = await getStripe().payouts.list(
-      {
-        limit: opts.limit ?? 50,
-        created: {
-          gte: Math.floor(opts.from.getTime() / 1000),
-          lte: Math.floor(opts.to.getTime() / 1000),
-        },
-        expand: ["data.destination"],
+    const list = await getStripe().payouts.list({
+      limit: opts.limit ?? 50,
+      created: {
+        gte: Math.floor(opts.from.getTime() / 1000),
+        lte: Math.floor(opts.to.getTime() / 1000),
       },
-      stripeAccountRequestOptions(opts.stripeAccount),
-    );
+      expand: ["data.destination"],
+    });
 
     return list.data.map((p) => {
       let destinationLast4: string | null = null;
@@ -354,15 +200,7 @@ export async function settleStripePayment(
     if (paymentIntent.status === "requires_capture") {
       await stripeClient.paymentIntents.cancel(paymentIntent.id);
     } else if (paymentIntent.status === "succeeded") {
-      // reverse_transfer: sin esto, Stripe reembolsa desde el balance de la
-      // plataforma en vez de jalar el dinero de vuelta de la cuenta Connect de
-      // la sucursal (destination charge) — y la plataforma no retiene nada de
-      // ese cargo (sin application_fee), así que el reembolso fallaría o
-      // saldría de fondos ajenos.
-      await stripeClient.refunds.create({
-        payment_intent: paymentIntent.id,
-        reverse_transfer: true,
-      });
+      await stripeClient.refunds.create({ payment_intent: paymentIntent.id });
     }
   } catch (error) {
     if (error instanceof AppError) throw error;

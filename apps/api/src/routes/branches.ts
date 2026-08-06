@@ -29,25 +29,10 @@ import {
   resolveUnavailableUntil,
   unavailableModifierIdsForBranch,
 } from "../utils/branch-menu-stock";
-import {
-  assertStripeConfigured,
-  createAccountLoginLink,
-  createAccountOnboardingLink,
-  createExpressAccount,
-  syncBranchStripeStatus,
-} from "../utils/stripe";
 import { recordAdminAction } from "../utils/audit-log";
 import { registerBranchClient } from "../utils/sse";
 
 export const branchesRouter = Router();
-
-function adminUrl(path: string) {
-  const base = (process.env.ADMIN_URL ?? "http://localhost:3001").replace(
-    /\/$/,
-    "",
-  );
-  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
-}
 
 function toAdminBranchPayload(
   branch: {
@@ -1047,116 +1032,3 @@ branchesRouter.put(
   },
 );
 
-/** Crea (si falta) cuenta Express y devuelve URL de onboarding Account Link. */
-branchesRouter.post(
-  "/admin/:id/stripe/onboard",
-  authenticate,
-  requireAdmin,
-  async (req, res, next) => {
-    try {
-      assertStripeConfigured();
-      const branchId = String(req.params.id);
-      const branch = await prisma.branch.findUnique({
-        where: { id: branchId },
-        include: {
-          staff: {
-            where: { role: "BRANCH_STAFF" },
-            select: { email: true },
-            orderBy: { createdAt: "asc" },
-            take: 1,
-          },
-        },
-      });
-      if (!branch) throw new AppError(404, "Sucursal no encontrada");
-
-      let stripeAccountId = branch.stripeAccountId;
-      if (!stripeAccountId) {
-        const account = await createExpressAccount({
-          branchId: branch.id,
-          businessName: branch.name,
-          email: branch.staff[0]?.email ?? null,
-        });
-        stripeAccountId = account.id;
-        await prisma.branch.update({
-          where: { id: branch.id },
-          data: { stripeAccountId },
-        });
-      }
-
-      const url = await createAccountOnboardingLink(
-        stripeAccountId,
-        adminUrl(
-          `/sucursales?stripe=refresh&branch=${encodeURIComponent(branch.id)}`,
-        ),
-        adminUrl(
-          `/sucursales?stripe=return&branch=${encodeURIComponent(branch.id)}`,
-        ),
-      );
-
-      const synced = await syncBranchStripeStatus(branch.id);
-
-      res.json({
-        data: {
-          url,
-          stripeAccountId,
-          stripeChargesEnabled: synced.branch.stripeChargesEnabled,
-          stripePayoutsEnabled: synced.branch.stripePayoutsEnabled,
-          stripeDetailsSubmitted: synced.branch.stripeDetailsSubmitted,
-          stripeOnboardingComplete: synced.branch.stripeOnboardingComplete,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-branchesRouter.post(
-  "/admin/:id/stripe/refresh",
-  authenticate,
-  requireAdmin,
-  async (req, res, next) => {
-    try {
-      assertStripeConfigured();
-      const synced = await syncBranchStripeStatus(String(req.params.id));
-      res.json({
-        data: {
-          stripeAccountId: synced.branch.stripeAccountId,
-          stripeChargesEnabled: synced.branch.stripeChargesEnabled,
-          stripePayoutsEnabled: synced.branch.stripePayoutsEnabled,
-          stripeDetailsSubmitted: synced.branch.stripeDetailsSubmitted,
-          stripeOnboardingComplete: synced.branch.stripeOnboardingComplete,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-branchesRouter.post(
-  "/admin/:id/stripe/dashboard",
-  authenticate,
-  requireAdmin,
-  async (req, res, next) => {
-    try {
-      assertStripeConfigured();
-      const branch = await prisma.branch.findUnique({
-        where: { id: String(req.params.id) },
-        select: { id: true, stripeAccountId: true },
-      });
-      if (!branch) throw new AppError(404, "Sucursal no encontrada");
-      if (!branch.stripeAccountId) {
-        throw new AppError(
-          400,
-          "La sucursal no tiene cuenta Stripe Connect. Inicia el onboarding primero.",
-        );
-      }
-
-      const url = await createAccountLoginLink(branch.stripeAccountId);
-      res.json({ data: { url } });
-    } catch (error) {
-      next(error);
-    }
-  },
-);

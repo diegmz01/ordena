@@ -42,29 +42,7 @@ type Branch = {
   isActive: boolean;
   staff: StaffInfo | null;
   availabilityDetail?: AvailabilityDetail;
-  stripeAccountId: string | null;
-  stripeChargesEnabled: boolean;
-  stripePayoutsEnabled: boolean;
-  stripeDetailsSubmitted: boolean;
-  stripeOnboardingComplete: boolean;
 };
-
-function stripeConnectLabel(branch: Branch) {
-  if (!branch.stripeAccountId) return "No conectada";
-  if (branch.stripeChargesEnabled) {
-    return branch.stripePayoutsEnabled
-      ? "Lista · payouts activos"
-      : "Lista para cobrar";
-  }
-  if (branch.stripeDetailsSubmitted) return "En revisión";
-  return "Pendiente onboarding";
-}
-
-function stripeConnectBadgeClass(branch: Branch) {
-  if (!branch.stripeAccountId) return "status-badge-inactive";
-  if (branch.stripeChargesEnabled) return "status-badge-active";
-  return "inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
-}
 
 function formatLastSeen(iso: string | null | undefined) {
   if (!iso) return "Nunca";
@@ -190,7 +168,6 @@ export default function AdminBranchesPage() {
   const [credError, setCredError] = useState<string | null>(null);
 
   const [menuBranch, setMenuBranch] = useState<Branch | null>(null);
-  const [stripeBusyId, setStripeBusyId] = useState<string | null>(null);
 
   const tokenOrThrow = useCallback(() => {
     const token = getAuthToken();
@@ -214,122 +191,10 @@ export default function AdminBranchesPage() {
     }
   }, [tokenOrThrow]);
 
-  const refreshStripeStatus = useCallback(
-    async (branchId: string, opts?: { silent?: boolean }) => {
-      const token = tokenOrThrow();
-      setStripeBusyId(branchId);
-      try {
-        const res = await apiFetch<{
-          data: {
-            stripeAccountId: string | null;
-            stripeChargesEnabled: boolean;
-            stripePayoutsEnabled: boolean;
-            stripeDetailsSubmitted: boolean;
-            stripeOnboardingComplete: boolean;
-          };
-        }>(`/branches/admin/${branchId}/stripe/refresh`, token, {
-          method: "POST",
-        });
-        setBranches((prev) =>
-          prev.map((b) =>
-            b.id === branchId
-              ? {
-                  ...b,
-                  stripeAccountId: res.data.stripeAccountId,
-                  stripeChargesEnabled: res.data.stripeChargesEnabled,
-                  stripePayoutsEnabled: res.data.stripePayoutsEnabled,
-                  stripeDetailsSubmitted: res.data.stripeDetailsSubmitted,
-                  stripeOnboardingComplete: res.data.stripeOnboardingComplete,
-                }
-              : b,
-          ),
-        );
-        if (!opts?.silent) {
-          setSuccess("Estado de Stripe actualizado");
-        }
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "No se pudo actualizar el estado de Stripe",
-        );
-      } finally {
-        setStripeBusyId(null);
-      }
-    },
-    [tokenOrThrow],
-  );
-
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de sucursales al montar
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const stripe = params.get("stripe");
-    const branch = params.get("branch");
-    if (!stripe || !branch) return;
-    if (stripe !== "return" && stripe !== "refresh") return;
-
-    void (async () => {
-      await refreshStripeStatus(branch, { silent: true });
-      setSuccess(
-        stripe === "return"
-          ? "Onboarding de Stripe finalizado. Revisa el estado de la sucursal."
-          : "Enlace de onboarding renovado. Continúa la conexión de Stripe.",
-      );
-      const url = new URL(window.location.href);
-      url.searchParams.delete("stripe");
-      url.searchParams.delete("branch");
-      window.history.replaceState({}, "", url.pathname);
-    })();
-  }, [refreshStripeStatus]);
-
-  async function startStripeOnboard(branch: Branch) {
-    setError(null);
-    setSuccess(null);
-    setStripeBusyId(branch.id);
-    try {
-      const token = tokenOrThrow();
-      const res = await apiFetch<{ data: { url: string } }>(
-        `/branches/admin/${branch.id}/stripe/onboard`,
-        token,
-        { method: "POST" },
-      );
-      window.location.assign(res.data.url);
-    } catch (err) {
-      setStripeBusyId(null);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo iniciar el onboarding de Stripe",
-      );
-    }
-  }
-
-  async function openStripeDashboard(branch: Branch) {
-    setError(null);
-    setStripeBusyId(branch.id);
-    try {
-      const token = tokenOrThrow();
-      const res = await apiFetch<{ data: { url: string } }>(
-        `/branches/admin/${branch.id}/stripe/dashboard`,
-        token,
-        { method: "POST" },
-      );
-      window.open(res.data.url, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo abrir el dashboard de Stripe",
-      );
-    } finally {
-      setStripeBusyId(null);
-    }
-  }
 
   const sorted = useMemo(
     () => [...branches].sort((a, b) => a.name.localeCompare(b.name)),
@@ -570,9 +435,6 @@ export default function AdminBranchesPage() {
                       Estado
                     </th>
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Stripe
-                    </th>
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500">
                       Acciones
                     </th>
                   </tr>
@@ -654,59 +516,6 @@ export default function AdminBranchesPage() {
                             Inactiva
                           </span>
                         )}
-                      </td>
-                      <td
-                        className="px-4 py-3.5"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="min-w-[11rem] space-y-2">
-                          <span className={stripeConnectBadgeClass(branch)}>
-                            {stripeConnectLabel(branch)}
-                          </span>
-                          {branch.stripeAccountId && (
-                            <p className="truncate text-[11px] text-gray-400">
-                              {branch.stripeAccountId}
-                            </p>
-                          )}
-                          <div className="flex flex-wrap gap-1.5">
-                            {!branch.stripeChargesEnabled ? (
-                              <button
-                                type="button"
-                                className="btn-primary btn-compact"
-                                disabled={stripeBusyId === branch.id}
-                                onClick={() => void startStripeOnboard(branch)}
-                              >
-                                {branch.stripeAccountId
-                                  ? "Continuar onboarding"
-                                  : "Conectar Stripe"}
-                              </button>
-                            ) : null}
-                            {branch.stripeAccountId ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="btn-secondary btn-compact"
-                                  disabled={stripeBusyId === branch.id}
-                                  onClick={() =>
-                                    void refreshStripeStatus(branch.id)
-                                  }
-                                >
-                                  Actualizar
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-secondary btn-compact"
-                                  disabled={stripeBusyId === branch.id}
-                                  onClick={() =>
-                                    void openStripeDashboard(branch)
-                                  }
-                                >
-                                  Dashboard
-                                </button>
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
                       </td>
                       <td
                         className="px-4 py-3.5"
