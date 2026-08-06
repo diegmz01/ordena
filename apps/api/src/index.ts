@@ -20,6 +20,7 @@ import { errorHandler } from "./middleware/error-handler";
 import { globalRateLimiter } from "./middleware/rate-limit";
 import { assertProductionEnv, corsOrigins } from "./utils/env";
 import { startPromoteReadyOrdersJob } from "./jobs/promote-ready-orders-job";
+import { startEscalateUnacceptedOrdersJob } from "./jobs/escalate-unaccepted-orders-job";
 import { initSentry } from "./utils/sentry";
 
 dotenv.config({ path: path.resolve(__dirname, "../../../.env"), override: true });
@@ -71,3 +72,4 @@ app.listen(port, () => {
 });
 
 startPromoteReadyOrdersJob();
+startEscalateUnacceptedOrdersJob();

@@ -77,6 +77,7 @@ stripeWebhookRouter.post(
               data: {
                 status: "PAID",
                 paidAt,
+                lastStaffAlertAt: paidAt,
                 stripePaymentIntentId: paymentIntentId ?? null,
                 dayNumber: dayMeta.dayNumber,
                 businessDate: dayMeta.businessDate,

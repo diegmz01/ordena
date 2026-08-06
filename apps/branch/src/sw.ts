@@ -41,6 +41,8 @@ self.addEventListener("push", (event) => {
         title?: string;
         body?: string;
         url?: string;
+        orderId?: string;
+        urgent?: boolean;
       };
     } catch {
       return {
@@ -50,12 +52,22 @@ self.addEventListener("push", (event) => {
     }
   })();
 
+  // tag por pedido + renotify: los reenvíos de escalamiento (urgent)
+  // colapsan en la misma notificación del sistema en vez de amontonarse.
+  const tag = payload.orderId ? `order-${payload.orderId}` : undefined;
+
   event.waitUntil(
     self.registration.showNotification(payload.title ?? "Ordena Sucursal", {
       body: payload.body ?? "Tienes un pedido nuevo",
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       data: { url: payload.url ?? "/" },
+      tag,
+      renotify: Boolean(tag),
+      // Persistente: no se autodescarta, solo se quita si el staff la toca
+      // o la cierra manualmente (notificationclick abajo la cierra).
+      requireInteraction: true,
+      vibrate: payload.urgent ? [300, 150, 300, 150, 300] : [200],
     }),
   );
 });

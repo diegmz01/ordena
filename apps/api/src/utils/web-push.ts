@@ -106,11 +106,14 @@ export async function notifyCustomerOrderStatus(
   return { sent };
 }
 
-export async function notifyStaffNewOrder(order: {
-  branchId: string;
-  id: string;
-  orderNumber: string;
-}) {
+export async function notifyStaffNewOrder(
+  order: {
+    branchId: string;
+    id: string;
+    orderNumber: string;
+  },
+  options?: { urgent?: boolean },
+) {
   if (!configureWebPush()) {
     return { sent: 0, skipped: "VAPID keys not configured" as const };
   }
@@ -124,10 +127,15 @@ export async function notifyStaffNewOrder(order: {
   }
 
   const branchUrl = process.env.BRANCH_URL ?? "http://localhost:3002";
+  const urgent = options?.urgent === true;
   const payload = JSON.stringify({
-    title: "Pedido nuevo",
-    body: `${order.orderNumber} — toca para abrirlo`,
+    title: urgent ? "Pedido sin aceptar" : "Pedido nuevo",
+    body: urgent
+      ? `${order.orderNumber} sigue sin aceptar — toca para abrirlo`
+      : `${order.orderNumber} — toca para abrirlo`,
     url: `${branchUrl}/`,
+    orderId: order.id,
+    urgent,
   });
 
   const sent = await sendToSubscriptions(subscriptions, payload);

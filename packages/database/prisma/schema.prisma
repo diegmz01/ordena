@@ -276,6 +276,10 @@ model Order {
   cancellationReason    String?
   items                 OrderItem[]
   paidAt                DateTime?
+  /// Última vez que se envió un push de "pedido nuevo/urgente" a staff
+  /// (creación + reenvíos de escalamiento). Se usa para calcular cuándo
+  /// toca el próximo reenvío (ver escalate-unaccepted-orders.ts).
+  lastStaffAlertAt      DateTime?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
@@ -283,6 +287,7 @@ model Order {
   @@index([branchId, status])
   @@index([createdAt])
   @@index([readyAt])
+  @@index([paidAt])
 }
 
 model OAuthOneTimeCode {

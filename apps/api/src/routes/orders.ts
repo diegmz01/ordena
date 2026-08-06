@@ -32,6 +32,7 @@ import {
   branchOrderInclude,
   promoteDuePreparingOrders,
 } from "../utils/promote-ready-orders";
+import { escalateUnacceptedOrders } from "../utils/escalate-unaccepted-orders";
 
 export const ordersRouter = Router();
 
@@ -157,6 +158,7 @@ ordersRouter.get(
       }
 
       await promoteDuePreparingOrders(branchId);
+      await escalateUnacceptedOrders(branchId);
 
       const [orders, branch] = await Promise.all([
         prisma.order.findMany({

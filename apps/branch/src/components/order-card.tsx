@@ -43,6 +43,8 @@ type OrderCardProps = {
   amount?: string | null;
   timeLabel?: string | null;
   onClick: () => void;
+  onAcknowledge?: () => void;
+  acknowledged?: boolean;
 };
 
 export function OrderCard({
@@ -54,17 +56,26 @@ export function OrderCard({
   amount,
   timeLabel,
   onClick,
+  onAcknowledge,
+  acknowledged,
 }: OrderCardProps) {
   const badgeClass = STATUS_BADGE[status] ?? STATUS_BADGE.ACCEPTED;
   const accentClass = STATUS_ACCENT[status] ?? STATUS_ACCENT.ACCEPTED;
   const isNew = status === "PAID";
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "staff-order-card",
+        "staff-order-card cursor-pointer",
         accentClass,
         isNew && "staff-order-card-pulse",
       )}
@@ -88,6 +99,21 @@ export function OrderCard({
               <span className="font-medium text-slate-400">{timeLabel}</span>
             )}
           </div>
+          {isNew && onAcknowledge && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAcknowledge();
+              }}
+              className={cn(
+                "staff-chip mt-2",
+                acknowledged && "staff-chip-active",
+              )}
+            >
+              {acknowledged ? "Visto" : "Ya lo vi"}
+            </button>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <span
@@ -104,7 +130,7 @@ export function OrderCard({
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

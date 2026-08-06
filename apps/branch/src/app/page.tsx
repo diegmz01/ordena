@@ -21,10 +21,19 @@ import {
   STATUS_LABEL,
 } from "@/components/order-card";
 import { Modal } from "@/components/ui/modal";
+import { AlarmOptIn } from "@/components/pwa/alarm-opt-in";
 import { apiFetch, API_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { printOrder } from "@/lib/print";
+import { startAlarm, stopAlarm } from "@/lib/alarm";
 import { cn } from "@/lib/utils";
+
+/**
+ * Espejo de STAFF_ALERT_REPEAT_MS en apps/api/src/utils/escalate-unaccepted-orders.ts
+ * (60s) — cuánto dura el silencio de "Ya lo vi" antes de que la sirena
+ * vuelva a sonar para ese pedido si sigue sin aceptarse.
+ */
+const ALARM_REARM_MS = 60_000;
 
 type OrderItem = {
   id: string;
@@ -227,6 +236,10 @@ export default function BranchHomePage() {
   const [ticketInput, setTicketInput] = useState("");
   const [prepMinutes, setPrepMinutes] = useState(20);
   const [now, setNow] = useState(() => Date.now());
+  const [acknowledgedAt, setAcknowledgedAt] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [nowForAck, setNowForAck] = useState(() => Date.now());
   const autoReadyRef = useRef<Set<string>>(new Set());
   const refreshSeqRef = useRef(0);
 
@@ -323,6 +336,51 @@ export default function BranchHomePage() {
       source.close();
     };
   }, [branchId, refreshOrders]);
+
+  const unacceptedOrders = useMemo(
+    () => orders.filter((o) => o.status === "PAID"),
+    [orders],
+  );
+
+  // Limpia acks de pedidos que ya no están PAID (aceptados/cancelados) o que
+  // ya no existen, para que el Map no crezca sin límite durante el turno.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deriva acks vigentes de la lista de pedidos, no de un evento externo
+    setAcknowledgedAt((prev) => {
+      const stillPaidIds = new Set(unacceptedOrders.map((o) => o.id));
+      const next = new Map(
+        [...prev].filter(([id]) => stillPaidIds.has(id)),
+      );
+      return next.size === prev.size ? prev : next;
+    });
+  }, [unacceptedOrders]);
+
+  // Reevalúa cada segundo si algún ack ya venció (ALARM_REARM_MS) para
+  // re-armar la sirena de ese pedido si sigue sin aceptarse.
+  useEffect(() => {
+    const id = window.setInterval(() => setNowForAck(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const hasUnacknowledged = unacceptedOrders.some((o) => {
+    const ackAt = acknowledgedAt.get(o.id);
+    return ackAt == null || nowForAck - ackAt >= ALARM_REARM_MS;
+  });
+
+  useEffect(() => {
+    if (hasUnacknowledged) {
+      startAlarm();
+    } else {
+      stopAlarm();
+    }
+  }, [hasUnacknowledged]);
+
+  // Se detiene también al desmontar (navegar fuera del dashboard).
+  useEffect(() => stopAlarm, []);
+
+  function acknowledgeOrder(orderId: string) {
+    setAcknowledgedAt((prev) => new Map(prev).set(orderId, Date.now()));
+  }
 
   useEffect(() => {
     const hasPreparing = orders.some(
@@ -694,6 +752,8 @@ export default function BranchHomePage() {
         />
       )}
 
+      {tab === "live" && <AlarmOptIn />}
+
       {tab === "live" ? (
         <ul className="space-y-3">
           {liveLoading &&
@@ -708,6 +768,9 @@ export default function BranchHomePage() {
                 order.status === "PREPARING" && order.readyAt
                   ? new Date(order.readyAt).getTime() - now
                   : null;
+              const ackAt = acknowledgedAt.get(order.id);
+              const isAcknowledged =
+                ackAt != null && nowForAck - ackAt < ALARM_REARM_MS;
               return (
                 <li key={order.id}>
                   <OrderCard
@@ -719,6 +782,12 @@ export default function BranchHomePage() {
                       remaining != null ? formatCountdown(remaining) : null
                     }
                     onClick={() => openOrder(order)}
+                    onAcknowledge={
+                      order.status === "PAID"
+                        ? () => acknowledgeOrder(order.id)
+                        : undefined
+                    }
+                    acknowledged={isAcknowledged}
                   />
                 </li>
               );
