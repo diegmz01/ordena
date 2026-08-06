@@ -988,7 +988,7 @@ export default function BranchHomePage() {
                                 {item.productName}
                               </p>
                               {item.variantName && (
-                                <p className="mt-0.5 text-xs text-slate-500">
+                                <p className="mt-0.5 text-base font-normal leading-snug text-slate-700 dark:text-slate-200">
                                   {item.variantName}
                                 </p>
                               )}
