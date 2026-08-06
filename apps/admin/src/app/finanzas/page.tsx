@@ -78,17 +78,23 @@ type StripeFinance = {
   }[];
 };
 
+// Se usa la fecha/hora local del navegador (no UTC): el backend interpreta
+// estos YYYY-MM-DD como límites de día en la zona horaria del negocio, así
+// que "Hoy" debe reflejar el día calendario local, no el día UTC.
 function toISODate(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${day}`;
 }
 
 function startOfMonth(d = new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function daysAgo(n: number) {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
+  d.setDate(d.getDate() - n);
   return d;
 }
 
@@ -150,6 +156,12 @@ export default function FinanzasPage() {
     if (!token) return;
     setLoading(true);
     setError(null);
+    if (from > to) {
+      setSummary(null);
+      setError("La fecha 'Desde' no puede ser posterior a 'Hasta'");
+      setLoading(false);
+      return;
+    }
     try {
       const qs = new URLSearchParams({ from, to });
       if (branchId) qs.set("branchId", branchId);

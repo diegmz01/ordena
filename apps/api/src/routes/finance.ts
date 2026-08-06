@@ -14,6 +14,9 @@ import {
 
 export const financeRouter = Router();
 
+/** Misma zona horaria del negocio usada en branch-availability.ts. */
+const BRANCH_TZ = process.env.TZ?.trim() || "America/Mexico_City";
+
 const AUTHORIZED_STATUSES: OrderStatus[] = [
   "PAID",
   "ACCEPTED",
@@ -21,6 +24,47 @@ const AUTHORIZED_STATUSES: OrderStatus[] = [
   "READY",
   "COMPLETED",
 ];
+
+/** Offset (ms) que hay que sumarle a un instante UTC para leer la hora en `timeZone`. */
+function timeZoneOffsetMs(utcMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(utcMs));
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  const asUTC = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+  return asUTC - utcMs;
+}
+
+/** Convierte una hora de pared (y, mo, d, hh:mm:ss.ms) en `timeZone` al instante UTC real. */
+function zonedTimeToUtc(
+  y: number,
+  mo: number,
+  d: number,
+  hh: number,
+  mm: number,
+  ss: number,
+  ms: number,
+  timeZone: string,
+): Date {
+  const guess = Date.UTC(y, mo - 1, d, hh, mm, ss, ms);
+  const offset = timeZoneOffsetMs(guess, timeZone);
+  return new Date(guess - offset);
+}
 
 function parseDateParam(
   raw: unknown,
@@ -37,14 +81,26 @@ function parseDateParam(
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
+  // Los límites de día se calculan en la zona horaria del negocio, no en UTC,
+  // para que "Hoy" cubra el día calendario real de la sucursal (ver bug: antes
+  // de esto, pasadas ~18:00 hora de México el rango ya apuntaba al día UTC
+  // siguiente).
   if (endOfDay) {
-    return new Date(Date.UTC(y, mo - 1, d, 23, 59, 59, 999));
+    return zonedTimeToUtc(y, mo, d, 23, 59, 59, 999, BRANCH_TZ);
   }
-  return new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
+  return zonedTimeToUtc(y, mo, d, 0, 0, 0, 0, BRANCH_TZ);
 }
 
-function dateKeyUTC(date: Date): string {
-  return date.toISOString().slice(0, 10);
+function dateKeyLocal(date: Date, timeZone: string = BRANCH_TZ): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 /** Rango por paidAt (o createdAt si aún no hay paidAt). */
@@ -135,7 +191,7 @@ financeRouter.get(
       >();
 
       for (const order of orders) {
-        const day = dateKeyUTC(order.paidAt ?? order.createdAt);
+        const day = dateKeyLocal(order.paidAt ?? order.createdAt);
         if (!byDay.has(day)) {
           byDay.set(day, { date: day, captured: 0, orderCount: 0 });
         }
