@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Printer } from "lucide-react";
+import { BackToLiveOrders } from "@/components/back-to-live";
 import { PushOptInStaff } from "@/components/pwa/push-opt-in-staff";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken, logout } from "@/lib/auth";
@@ -143,6 +144,7 @@ export default function ConfiguracionPage() {
     return (
       <div className="space-y-4">
         <div>
+          <BackToLiveOrders />
           <h2 className="page-title">Configuración</h2>
           <p className="page-description">Cargando…</p>
         </div>
@@ -154,6 +156,7 @@ export default function ConfiguracionPage() {
   return (
     <div className="space-y-6">
       <div>
+        <BackToLiveOrders />
         <h2 className="page-title">Configuración</h2>
         <p className="page-description">
           {branch?.name ?? "Ajustes de la sucursal"}
