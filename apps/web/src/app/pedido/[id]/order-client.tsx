@@ -109,7 +109,8 @@ const STATUS_META: Record<
   },
   CANCELLED: {
     title: "Cancelado",
-    description: "Este pedido fue cancelado. Si hubo cobro, se devolvió.",
+    description:
+      "Lamentablemente la sucursal no pudo elaborar tu pedido, por lo cual fue cancelado. Si hubo cobro no te preocupes, se devolvió.",
     icon: X,
   },
 };
