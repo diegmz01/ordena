@@ -218,9 +218,8 @@ export default function BranchHomePage() {
   const [connected, setConnected] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [acceptTicketOpen, setAcceptTicketOpen] = useState(false);
-  const [printFailOpen, setPrintFailOpen] = useState(false);
-  const [printFailMessage, setPrintFailMessage] = useState<string | null>(null);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [prepTimeOpen, setPrepTimeOpen] = useState(false);
   const [pickupCodeOpen, setPickupCodeOpen] = useState(false);
   const [pickupCodeInput, setPickupCodeInput] = useState("");
   const [ticketInput, setTicketInput] = useState("");
@@ -392,7 +391,7 @@ export default function BranchHomePage() {
     }
   }
 
-  async function acceptWithTicket(order: Order) {
+  async function confirmPrepStart(order: Order) {
     const token = getAuthToken();
     if (!token) return;
     const parsed = Number.parseInt(ticketInput.trim(), 10);
@@ -436,7 +435,7 @@ export default function BranchHomePage() {
         );
         applyOrderUpdate(order.id, prepRes.data);
       }
-      setAcceptTicketOpen(false);
+      setPrepTimeOpen(false);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Error al aceptar el pedido",
@@ -446,13 +445,27 @@ export default function BranchHomePage() {
     }
   }
 
-  function openAcceptTicket(order: Order) {
+  /** PAID/ACCEPTED: pide el ticket TPV (si aún no lo tiene) y luego el tiempo de preparación. */
+  function beginAccept(order: Order) {
     setError(null);
-    setPrintFailOpen(false);
-    setPrintFailMessage(null);
-    setTicketInput(order.ptvTicket != null ? String(order.ptvTicket) : "");
     setPrepMinutes(order.prepMinutes ?? defaultPrepMinutes);
-    setAcceptTicketOpen(true);
+    if (order.ptvTicket != null) {
+      setPrepTimeOpen(true);
+      return;
+    }
+    setTicketInput("");
+    setTicketOpen(true);
+  }
+
+  function saveTicketNumber() {
+    const parsed = Number.parseInt(ticketInput.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setError("Ingresa un número de ticket PTV válido");
+      return;
+    }
+    setError(null);
+    setTicketOpen(false);
+    setPrepTimeOpen(true);
   }
 
   function openPickupCode() {
@@ -513,30 +526,6 @@ export default function BranchHomePage() {
     );
   }
 
-  /** PAID: imprime ticket de cocina y luego pide PTV. */
-  async function startAcceptFlow(order: Order) {
-    if (order.status !== "PAID") {
-      openAcceptTicket(order);
-      return;
-    }
-    const key = `${order.id}:print-accept`;
-    setBusyKey(key);
-    setError(null);
-    setPrintFailOpen(false);
-    setPrintFailMessage(null);
-    try {
-      await runPrint(order);
-      openAcceptTicket(order);
-    } catch (err) {
-      setPrintFailMessage(
-        err instanceof Error ? err.message : "No se pudo imprimir el ticket",
-      );
-      setPrintFailOpen(true);
-    } finally {
-      setBusyKey(null);
-    }
-  }
-
   async function reprintOrder(order: Order) {
     const key = `${order.id}:print`;
     setBusyKey(key);
@@ -582,7 +571,8 @@ export default function BranchHomePage() {
 
   function openOrder(order: Order) {
     setError(null);
-    setAcceptTicketOpen(false);
+    setTicketOpen(false);
+    setPrepTimeOpen(false);
     setPickupCodeOpen(false);
     setPickupCodeInput("");
     setSelectedId(order.id);
@@ -743,13 +733,13 @@ export default function BranchHomePage() {
         <Modal
           open={!!selected}
           onClose={() => {
-            if (printFailOpen) {
-              setPrintFailOpen(false);
-              setPrintFailMessage(null);
+            if (ticketOpen) {
+              setTicketOpen(false);
+              setError(null);
               return;
             }
-            if (acceptTicketOpen) {
-              setAcceptTicketOpen(false);
+            if (prepTimeOpen) {
+              setPrepTimeOpen(false);
               setError(null);
               return;
             }
@@ -796,7 +786,7 @@ export default function BranchHomePage() {
                   <button
                     type="button"
                     disabled={!!busyKey}
-                    onClick={() => void startAcceptFlow(selected)}
+                    onClick={() => beginAccept(selected)}
                     className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
                   >
                     Aceptar pedido
@@ -807,7 +797,7 @@ export default function BranchHomePage() {
                 <button
                   type="button"
                   disabled={!!busyKey}
-                  onClick={() => openAcceptTicket(selected)}
+                  onClick={() => beginAccept(selected)}
                   className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
                 >
                   {selected.ptvTicket == null
@@ -1075,64 +1065,13 @@ export default function BranchHomePage() {
       )}
 
       {selected &&
-        printFailOpen &&
-        selected.status === "PAID" && (
-          <Modal
-            open={printFailOpen}
-            nested
-            onClose={() => {
-              setPrintFailOpen(false);
-              setPrintFailMessage(null);
-            }}
-            title="No se pudo imprimir"
-            description={
-              printFailMessage ??
-              "Revisa la impresora o continúa e imprime después."
-            }
-            footer={
-              <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  disabled={!!busyKey}
-                  onClick={() => {
-                    setPrintFailOpen(false);
-                    setPrintFailMessage(null);
-                    void startAcceptFlow(selected);
-                  }}
-                  className="btn-secondary w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
-                >
-                  Reintentar
-                </button>
-                <button
-                  type="button"
-                  disabled={!!busyKey}
-                  onClick={() => {
-                    setPrintFailOpen(false);
-                    setPrintFailMessage(null);
-                    openAcceptTicket(selected);
-                  }}
-                  className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
-                >
-                  Continuar sin imprimir
-                </button>
-              </div>
-            }
-          >
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Puedes asignar el ticket PTV ahora y reimprimir desde el detalle
-              del pedido.
-            </p>
-          </Modal>
-        )}
-
-      {selected &&
-        acceptTicketOpen &&
+        ticketOpen &&
         (selected.status === "PAID" || selected.status === "ACCEPTED") && (
           <Modal
-            open={acceptTicketOpen}
+            open={ticketOpen}
             nested
             onClose={() => {
-              setAcceptTicketOpen(false);
+              setTicketOpen(false);
               setError(null);
             }}
             title="Ticket TPV"
@@ -1143,20 +1082,20 @@ export default function BranchHomePage() {
                   type="button"
                   disabled={!!busyKey}
                   onClick={() => {
-                    setAcceptTicketOpen(false);
+                    setTicketOpen(false);
                     setError(null);
                   }}
                   className="btn-secondary w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
                 >
-                  Volver
+                  Cancelar
                 </button>
                 <button
                   type="button"
-                  disabled={busyKey === `${selected.id}:accept`}
-                  onClick={() => void acceptWithTicket(selected)}
+                  disabled={!!busyKey}
+                  onClick={() => saveTicketNumber()}
                   className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
                 >
-                  Confirmar e iniciar
+                  Guardar
                 </button>
               </div>
             }
@@ -1164,8 +1103,7 @@ export default function BranchHomePage() {
             <div className="space-y-4">
               {error && <p className="admin-alert-error">{error}</p>}
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-                Debes asignar el ticket TPV para aceptar. El pedido pasa a En
-                preparación de inmediato.
+                Asigna el número de ticket TPV para continuar.
               </p>
               <div className="space-y-2">
                 <label htmlFor="accept-ptv-ticket" className="field-label">
@@ -1178,11 +1116,60 @@ export default function BranchHomePage() {
                   inputMode="numeric"
                   value={ticketInput}
                   onChange={(e) => setTicketInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveTicketNumber();
+                  }}
                   className="pwa-input"
                   placeholder="Ej. 42"
                   autoFocus
                 />
               </div>
+            </div>
+          </Modal>
+        )}
+
+      {selected &&
+        prepTimeOpen &&
+        (selected.status === "PAID" || selected.status === "ACCEPTED") && (
+          <Modal
+            open={prepTimeOpen}
+            nested
+            onClose={() => {
+              setPrepTimeOpen(false);
+              setError(null);
+            }}
+            title="Tiempo de preparación"
+            description={`Pedido ${displayOrderLabel(selected)} · ${customerName(selected)}`}
+            footer={
+              <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={!!busyKey}
+                  onClick={() => {
+                    setPrepTimeOpen(false);
+                    setError(null);
+                    setTicketOpen(true);
+                  }}
+                  className="btn-secondary w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  disabled={busyKey === `${selected.id}:accept`}
+                  onClick={() => void confirmPrepStart(selected)}
+                  className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
+                >
+                  Confirmar e iniciar
+                </button>
+              </div>
+            }
+          >
+            <div className="space-y-4">
+              {error && <p className="admin-alert-error">{error}</p>}
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                El pedido pasa a En preparación de inmediato.
+              </p>
               <div className="space-y-3">
                 <p className="field-label">Tiempo estimado de preparación</p>
                 <div className="flex items-center justify-center gap-4">
