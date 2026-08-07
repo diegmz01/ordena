@@ -1076,7 +1076,7 @@ export default function BranchHomePage() {
                                 className={cn(
                                   "text-sm font-bold tabular-nums",
                                   item.unavailable
-                                    ? "text-rose-600 underline decoration-rose-600 decoration-2 underline-offset-2"
+                                    ? "text-rose-600 line-through"
                                     : "text-orange-600",
                                 )}
                               >
