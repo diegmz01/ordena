@@ -720,6 +720,7 @@ export default function OrderPageClient({
                   {(() => {
                     const amounts = orderPaymentAmounts({
                       status: order.status,
+                      subtotal: order.subtotal,
                       total: order.total,
                       refundedTotal: order.refundedTotal ?? 0,
                     });
