@@ -10,12 +10,17 @@ import { BrandLogo } from "@/components/brand-logo";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { formatMoney, useCart } from "@/lib/cart";
+import { useBranchStatus } from "@/lib/use-branch-status";
 import { cn } from "@/lib/utils";
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { branchId, branchName, itemCount, subtotal } = useCart();
   const [customer, setCustomer] = useState<AuthUser | null>(null);
+  const branchStatus = useBranchStatus(branchId);
+  // Solo se oculta cuando ya confirmamos que la sucursal elegida no acepta
+  // pedidos; mientras carga o no hay sucursal, se muestra por defecto.
+  const menuNavAvailable = !branchId || branchStatus?.acceptingOrders !== false;
 
   const menuHref = branchId ? `/menu?branch=${branchId}` : "/sucursales";
   const hideStickyCart =
@@ -95,7 +100,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           <nav className="hidden items-center gap-1 sm:flex">
             {[
               { href: "/sucursales", label: "Sucursales", match: "/sucursales" },
-              { href: menuHref, label: "Menú", match: "/menu" },
+              ...(menuNavAvailable
+                ? [{ href: menuHref, label: "Menú", match: "/menu" }]
+                : []),
               { href: "/carrito", label: "Pedido", match: "/carrito" },
             ].map((item) => {
               const active = pathname.startsWith(item.match);
@@ -205,12 +212,16 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               icon: MapPin,
               active: pathname.startsWith("/sucursales"),
             },
-            {
-              href: menuHref,
-              label: "Menú",
-              icon: UtensilsCrossed,
-              active: pathname.startsWith("/menu"),
-            },
+            ...(menuNavAvailable
+              ? [
+                  {
+                    href: menuHref,
+                    label: "Menú",
+                    icon: UtensilsCrossed,
+                    active: pathname.startsWith("/menu"),
+                  },
+                ]
+              : []),
             {
               href: "/carrito",
               label: "Pedido",
