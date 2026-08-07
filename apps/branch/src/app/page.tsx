@@ -1072,10 +1072,17 @@ export default function BranchHomePage() {
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                              <p className="text-sm font-bold tabular-nums text-orange-600">
+                              <p
+                                className={cn(
+                                  "text-sm font-bold tabular-nums",
+                                  item.unavailable
+                                    ? "text-rose-600 underline decoration-rose-600 decoration-2 underline-offset-2"
+                                    : "text-orange-600",
+                                )}
+                              >
                                 {formatMoney(item.lineTotal, selected.currency)}
                               </p>
-                              {selected.status === "PAID" ? (
+                              {selected.status === "PAID" && (
                                 <button
                                   type="button"
                                   disabled={
@@ -1108,16 +1115,6 @@ export default function BranchHomePage() {
                                     <Ban className="size-4" strokeWidth={2.25} />
                                   )}
                                 </button>
-                              ) : (
-                                item.unavailable && (
-                                  <span
-                                    title="Agotado"
-                                    aria-label="Agotado"
-                                    className="inline-flex size-8 items-center justify-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
-                                  >
-                                    <Ban className="size-4" strokeWidth={2.25} />
-                                  </span>
-                                )
                               )}
                             </div>
                           </li>
