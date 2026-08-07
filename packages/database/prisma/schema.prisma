@@ -130,8 +130,32 @@ model Branch {
   modifiers    BranchModifier[]
   orders       Order[]
   pushSubscriptions PushSubscription[]
+  statusEvents      BranchStatusEvent[]
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+}
+
+/// Bitácora de cambios de estado efectivo de una sucursal (abierta/pausada/
+/// cerrada, y por qué: horario, manual, o presencia de staff perdida). Se
+/// inserta una fila solo cuando el estado cambia (ver
+/// apps/api/src/jobs/branch-status-snapshot-job.ts), para reconstruir un
+/// resumen mensual de "tiempo abierto" y "problemas de conexión" en admin.
+/// Best-effort: si el job no corrió (proceso caído), ese lapso queda como un
+/// hueco sin registrar.
+model BranchStatusEvent {
+  id             String   @id @default(cuid())
+  branchId       String
+  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  /// "OPEN" | "PAUSED" | "CLOSED" (EffectiveAvailability.status)
+  status         String
+  /// "schedule" | "manual" | "pause" | "offline" (EffectiveAvailability.source)
+  source         String
+  /// "app_closed" | "connection_lost", solo cuando source = "offline"
+  offlineCause   String?
+  withinSchedule Boolean
+  createdAt      DateTime @default(now())
+
+  @@index([branchId, createdAt])
 }
 
 model Category {

@@ -32,6 +32,7 @@ import {
 import { recordAdminAction } from "../utils/audit-log";
 import { registerBranchClient } from "../utils/sse";
 import { getBusinessDate } from "../utils/branch-day-number";
+import { getMonthlyConnectivitySummary } from "../utils/branch-connectivity-summary";
 
 export const branchesRouter = Router();
 
@@ -726,7 +727,7 @@ branchesRouter.get(
         Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1),
       );
 
-      const [totalOrders, recentOrders, periodOrders] = await Promise.all([
+      const [totalOrders, recentOrders, periodOrders, connectivity] = await Promise.all([
         prisma.order.count({ where: { branchId: branch.id } }),
         prisma.order.findMany({
           where: { branchId: branch.id },
@@ -749,6 +750,7 @@ branchesRouter.get(
           },
           select: { status: true, total: true, businessDate: true },
         }),
+        getMonthlyConnectivitySummary(branch.id, monthStart),
       ]);
 
       function bucket(from: Date) {
@@ -769,6 +771,7 @@ branchesRouter.get(
         data: {
           ...toAdminBranchPayload(branch),
           availabilityDetail: toAdminAvailabilitySnapshot(branch),
+          connectivity,
           stats: {
             totalOrders,
             today: bucket(today),

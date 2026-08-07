@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   ChevronRight,
   Clock3,
@@ -13,6 +14,8 @@ import {
   ShoppingBag,
   UserRound,
   Wallet,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
@@ -39,6 +42,24 @@ type PeriodStats = {
   cancelledCount: number;
 };
 
+type ConnectivitySummary = {
+  hasData: boolean;
+  monthStart: string;
+  generatedAt: string;
+  scheduledMs: number;
+  openMs: number;
+  complianceRate: number | null;
+  connectivityLossMs: number;
+  appClosedMs: number;
+  manualClosedMs: number;
+  incidents: {
+    connectivityLoss: number;
+    appClosed: number;
+    manualClosed: number;
+  };
+  lastEventAt: string | null;
+};
+
 type BranchDetail = {
   id: string;
   name: string;
@@ -48,6 +69,7 @@ type BranchDetail = {
   isActive: boolean;
   staff: { id: string; email: string; name: string | null } | null;
   availabilityDetail: AvailabilityDetail;
+  connectivity: ConnectivitySummary;
   stats: {
     totalOrders: number;
     today: PeriodStats;
@@ -117,6 +139,23 @@ function formatDate(iso: string | null) {
   } catch {
     return iso;
   }
+}
+
+function formatDuration(ms: number) {
+  if (ms <= 0) return "0h";
+  const totalMinutes = Math.round(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  if (minutes === 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+function complianceTone(rate: number | null) {
+  if (rate == null) return "text-gray-500";
+  if (rate >= 0.95) return "text-emerald-600 dark:text-emerald-400";
+  if (rate >= 0.85) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 export default function AdminBranchDetailPage() {
@@ -399,6 +438,132 @@ export default function AdminBranchDetailPage() {
                       </dd>
                     </div>
                   </dl>
+                </div>
+              </section>
+
+              <section className="admin-panel">
+                <div className="admin-panel-header">
+                  <h2 className="text-base font-semibold text-gray-800 dark:text-white">
+                    Conectividad
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Resumen del mes en curso
+                  </p>
+                </div>
+                <div className="admin-panel-body">
+                  {!branch.connectivity.hasData ? (
+                    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-700">
+                      <Wifi className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+                      <p className="text-sm text-gray-500">
+                        Aún no hay datos de monitoreo para este mes.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-800/50">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-gray-500">
+                            Horario respetado
+                          </p>
+                          <p
+                            className={cn(
+                              "text-lg font-bold tabular-nums",
+                              complianceTone(
+                                branch.connectivity.complianceRate,
+                              ),
+                            )}
+                          >
+                            {branch.connectivity.complianceRate != null
+                              ? `${Math.round(branch.connectivity.complianceRate * 100)}%`
+                              : "—"}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Abierta {formatDuration(branch.connectivity.openMs)}{" "}
+                          de{" "}
+                          {formatDuration(branch.connectivity.scheduledMs)}{" "}
+                          programadas
+                        </p>
+                      </div>
+
+                      <dl className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                          <dt className="inline-flex items-center gap-1.5 text-gray-500">
+                            <WifiOff className="h-3.5 w-3.5" />
+                            Sin conexión
+                          </dt>
+                          <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
+                            {formatDuration(
+                              branch.connectivity.connectivityLossMs,
+                            )}
+                            {branch.connectivity.incidents.connectivityLoss >
+                              0 && (
+                              <span className="ml-1 text-xs text-gray-400">
+                                ·{" "}
+                                {branch.connectivity.incidents
+                                  .connectivityLoss}{" "}
+                                {branch.connectivity.incidents
+                                  .connectivityLoss === 1
+                                  ? "vez"
+                                  : "veces"}
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                          <dt className="text-gray-500">
+                            App cerrada en horario
+                          </dt>
+                          <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
+                            {formatDuration(branch.connectivity.appClosedMs)}
+                            {branch.connectivity.incidents.appClosed > 0 && (
+                              <span className="ml-1 text-xs text-gray-400">
+                                · {branch.connectivity.incidents.appClosed}{" "}
+                                {branch.connectivity.incidents.appClosed === 1
+                                  ? "vez"
+                                  : "veces"}
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700">
+                          <dt className="text-gray-500">
+                            Cierre manual en horario
+                          </dt>
+                          <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
+                            {formatDuration(
+                              branch.connectivity.manualClosedMs,
+                            )}
+                            {branch.connectivity.incidents.manualClosed >
+                              0 && (
+                              <span className="ml-1 text-xs text-gray-400">
+                                ·{" "}
+                                {branch.connectivity.incidents.manualClosed}{" "}
+                                {branch.connectivity.incidents
+                                  .manualClosed === 1
+                                  ? "vez"
+                                  : "veces"}
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      {(branch.connectivity.incidents.connectivityLoss > 0 ||
+                        branch.connectivity.incidents.appClosed > 0) && (
+                        <p className="inline-flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          Revisa la conexión a internet o el dispositivo de la
+                          sucursal si estos incidentes se repiten seguido.
+                        </p>
+                      )}
+
+                      <p className="text-right text-[11px] text-gray-400">
+                        Último cambio de estado:{" "}
+                        {formatDate(branch.connectivity.lastEventAt)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </section>
 
