@@ -271,6 +271,8 @@ ordersRouter.get(
               address: true,
               phone: true,
               slug: true,
+              latitude: true,
+              longitude: true,
             },
           },
           user: {

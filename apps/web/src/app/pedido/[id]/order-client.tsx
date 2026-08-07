@@ -69,8 +69,42 @@ type Order = {
     address: string;
     phone: string | null;
     slug: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
 };
+
+/** URL de Google Maps con el nombre de la sucursal siempre en el query. */
+function branchMapsUrl(branch: {
+  name: string;
+  address: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}): string {
+  const name = branch.name.trim();
+  const address = branch.address.trim();
+  // Nombre primero y explícito; sin él Maps solo geocodifica la calle.
+  const query = name
+    ? address
+      ? `${name}, ${address}`
+      : name
+    : address;
+
+  const lat = branch.latitude;
+  const lng = branch.longitude;
+  const hasCoords =
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng);
+
+  if (hasCoords) {
+    // Path con el texto de búsqueda (incluye nombre) + pin por coordenadas.
+    return `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${lat},${lng},17z`;
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
 
 const FLOW = [
   "PAID",
@@ -542,9 +576,7 @@ export default function OrderPageClient({
                       </a>
                     )}
                     <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        `${order.branch.name}, ${order.branch.address}`,
-                      )}`}
+                      href={branchMapsUrl(order.branch)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-secondary btn-compact"
