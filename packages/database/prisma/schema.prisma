@@ -177,6 +177,7 @@ model Product {
   imageUrl    String?
   basePrice   Int
   isActive    Boolean          @default(true)
+  sortOrder   Int              @default(0)
   /// Si es true, el cliente puede combinarlo con otro producto de la misma
   /// categoría (dos productos por línea, precio = el más caro + modificador).
   allowCombo  Boolean          @default(false)

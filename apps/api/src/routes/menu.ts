@@ -6,6 +6,7 @@ import {
   modifierCreateSchema,
   modifierUpdateSchema,
   productCreateSchema,
+  productReorderSchema,
   productUpdateSchema,
 } from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
@@ -102,7 +103,11 @@ menuRouter.get("/", async (req, res, next) => {
           orderBy: { modifier: { sortOrder: "asc" } },
         },
       },
-      orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
+      orderBy: [
+        { category: { sortOrder: "asc" } },
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
     });
 
     if (!branchId) {
@@ -151,7 +156,11 @@ menuRouter.get(
     try {
       const products = await prisma.product.findMany({
         include: productAdminInclude,
-        orderBy: [{ category: { sortOrder: "asc" } }, { name: "asc" }],
+        orderBy: [
+          { category: { sortOrder: "asc" } },
+          { sortOrder: "asc" },
+          { name: "asc" },
+        ],
       });
       res.json({ data: products });
     } catch (error) {
@@ -238,6 +247,52 @@ menuRouter.patch(
       });
 
       res.json({ data: category });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+menuRouter.patch(
+  "/admin/categories/:id/products/reorder",
+  authenticate,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const body = productReorderSchema.parse(req.body);
+      const categoryId = String(req.params.id);
+
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+      if (!category) throw new AppError(404, "Categoría no encontrada");
+
+      const categoryProducts = await prisma.product.findMany({
+        where: { categoryId },
+        select: { id: true },
+      });
+      const categoryProductIds = new Set(categoryProducts.map((p) => p.id));
+
+      if (
+        body.productIds.length !== categoryProductIds.size ||
+        !body.productIds.every((id) => categoryProductIds.has(id))
+      ) {
+        throw new AppError(
+          400,
+          "La lista de productos no coincide con los productos de la categoría",
+        );
+      }
+
+      await prisma.$transaction(
+        body.productIds.map((id, index) =>
+          prisma.product.update({
+            where: { id },
+            data: { sortOrder: index },
+          }),
+        ),
+      );
+
+      res.json({ ok: true });
     } catch (error) {
       next(error);
     }

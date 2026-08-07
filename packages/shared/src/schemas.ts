@@ -252,6 +252,10 @@ export const productUpdateSchema = z.object({
   allowCombo: z.boolean().optional(),
 });
 
+export const productReorderSchema = z.object({
+  productIds: z.array(z.string().min(1)).min(1),
+});
+
 export const modifierCreateSchema = z.object({
   name: z.string().min(2, "Nombre demasiado corto"),
   /** Incremento en pesos MXN (se convierte a centavos en la API). */
