@@ -4,7 +4,14 @@ export type ReceiptAlign = "left" | "center" | "right";
 
 export type ReceiptLine =
   | { type: "logo" }
-  | { type: "text"; text: string; align?: ReceiptAlign; bold?: boolean }
+  | {
+      type: "text";
+      text: string;
+      align?: ReceiptAlign;
+      bold?: boolean;
+      /** Texto destacado (más grande), ej. nombre del cliente + folio del día. */
+      large?: boolean;
+    }
   | { type: "separator" }
   | { type: "blank" }
   | { type: "cut" };
@@ -80,10 +87,6 @@ function customerLabel(order: ReceiptTicketOrder) {
   );
 }
 
-function customerPhone(order: ReceiptTicketOrder) {
-  return order.user?.phone?.trim() || order.guestPhone?.trim() || null;
-}
-
 /** "taco"/"tacos", "salsa"/"salsas"… para no exigir coincidencia exacta de plural. */
 function normalizeWord(word: string) {
   return word.toLowerCase().replace(/s$/, "");
@@ -149,7 +152,13 @@ export function buildReceiptTicket(
 
   const dayLabel =
     order.dayNumber != null ? `#${order.dayNumber}` : order.orderNumber;
-  lines.push({ type: "text", text: dayLabel, align: "center", bold: true });
+  lines.push({
+    type: "text",
+    text: `${customerLabel(order)} - ${dayLabel}`,
+    align: "center",
+    bold: true,
+    large: true,
+  });
   lines.push({
     type: "text",
     text: order.orderNumber,
@@ -160,13 +169,6 @@ export function buildReceiptTicket(
     text: formatDateTime(order.paidAt ?? order.createdAt, now),
     align: "center",
   });
-  lines.push({ type: "separator" });
-
-  lines.push({ type: "text", text: customerLabel(order), bold: true });
-  const phone = customerPhone(order);
-  if (phone) {
-    lines.push({ type: "text", text: phone });
-  }
   lines.push({ type: "separator" });
 
   const visibleItems =
@@ -227,6 +229,71 @@ export function buildReceiptTicket(
     text: "Gracias",
     align: "center",
   });
+  lines.push({ type: "blank" });
+  lines.push({ type: "cut" });
+
+  return lines;
+}
+
+export type DailyReportTotals = {
+  businessDate: string;
+  receivedCount: number;
+  cancelledCount: number;
+};
+
+/** Ticket con los totales del día (sin detalle por pedido). */
+export function buildDailyReportTicket(
+  input: {
+    branchName: string;
+    totals: DailyReportTotals;
+  } & { now?: Date },
+): ReceiptLine[] {
+  const { branchName, totals, now = new Date() } = input;
+  const lines: ReceiptLine[] = [];
+
+  lines.push({ type: "logo" });
+  lines.push({
+    type: "text",
+    text: branchName.trim() || "Ordena",
+    align: "center",
+    bold: true,
+  });
+  lines.push({
+    type: "text",
+    text: "REPORTE DEL DÍA",
+    align: "center",
+    bold: true,
+  });
+  lines.push({ type: "separator" });
+
+  lines.push({ type: "text", text: totals.businessDate, align: "center" });
+  lines.push({
+    type: "text",
+    text: new Intl.DateTimeFormat("es-MX", { timeStyle: "short" }).format(
+      now,
+    ),
+    align: "center",
+  });
+  lines.push({ type: "separator" });
+
+  lines.push({ type: "text", text: "Pedidos recibidos", bold: true });
+  lines.push({
+    type: "text",
+    text: String(totals.receivedCount),
+    align: "right",
+    bold: true,
+    large: true,
+  });
+  lines.push({ type: "blank" });
+  lines.push({ type: "text", text: "Pedidos cancelados", bold: true });
+  lines.push({
+    type: "text",
+    text: String(totals.cancelledCount),
+    align: "right",
+    bold: true,
+    large: true,
+  });
+
   lines.push({ type: "blank" });
   lines.push({ type: "cut" });
 

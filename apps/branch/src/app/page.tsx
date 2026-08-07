@@ -27,7 +27,7 @@ import { NumericKeypad } from "@/components/ui/numeric-keypad";
 import { AlarmOptIn } from "@/components/pwa/alarm-opt-in";
 import { apiFetch, API_URL } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
-import { printOrder } from "@/lib/print";
+import { printOrder, printDailyReport } from "@/lib/print";
 import { startAlarm, stopAlarm } from "@/lib/alarm";
 import { cn } from "@/lib/utils";
 
@@ -213,6 +213,7 @@ export default function BranchHomePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [historySummary, setHistorySummary] = useState<{
+    receivedCount: number;
     salesCount: number;
     salesTotal: number;
     cancelledCount: number;
@@ -224,6 +225,7 @@ export default function BranchHomePage() {
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [liveLoading, setLiveLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [reportPrinting, setReportPrinting] = useState(false);
   const [branchId, setBranchId] = useState<string | null>(null);
   const [branchName, setBranchName] = useState("Ordena");
   const [defaultPrepMinutes, setDefaultPrepMinutes] = useState(20);
@@ -288,6 +290,7 @@ export default function BranchHomePage() {
         data: Order[];
         businessDate: string;
         summary: {
+          receivedCount: number;
           salesCount: number;
           salesTotal: number;
           cancelledCount: number;
@@ -654,6 +657,30 @@ export default function BranchHomePage() {
     }
   }
 
+  async function handlePrintDailyReport() {
+    if (!historySummary || !historyDate) return;
+    setReportPrinting(true);
+    setError(null);
+    try {
+      await printDailyReport(
+        {
+          businessDate: historyDate,
+          receivedCount: historySummary.receivedCount,
+          cancelledCount: historySummary.cancelledCount,
+        },
+        branchName,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo imprimir el reporte del día",
+      );
+    } finally {
+      setReportPrinting(false);
+    }
+  }
+
   // Auto READY cuando vence el timer
   useEffect(() => {
     const preparingIds = new Set(
@@ -746,23 +773,38 @@ export default function BranchHomePage() {
       {error && !selected && <p className="admin-alert-error">{error}</p>}
 
       {tab === "history" && historySummary && (
-        <HistorySummary
-          salesTotal={formatMoney(
-            historySummary.salesTotal,
-            historySummary.currency,
-          )}
-          salesCount={historySummary.salesCount}
-          cancelledCount={historySummary.cancelledCount}
-          cancelledTotal={formatMoney(
-            historySummary.cancelledTotal,
-            historySummary.currency,
-          )}
-          refundTotal={formatMoney(
-            historySummary.refundTotal,
-            historySummary.currency,
-          )}
-          refundCount={historySummary.refundCount}
-        />
+        <>
+          <HistorySummary
+            salesTotal={formatMoney(
+              historySummary.salesTotal,
+              historySummary.currency,
+            )}
+            salesCount={historySummary.salesCount}
+            cancelledCount={historySummary.cancelledCount}
+            cancelledTotal={formatMoney(
+              historySummary.cancelledTotal,
+              historySummary.currency,
+            )}
+            refundTotal={formatMoney(
+              historySummary.refundTotal,
+              historySummary.currency,
+            )}
+            refundCount={historySummary.refundCount}
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={reportPrinting}
+              onClick={() => void handlePrintDailyReport()}
+              className="btn-secondary inline-flex items-center gap-2 py-2.5 text-sm"
+            >
+              <Printer className="size-4 shrink-0" />
+              {reportPrinting
+                ? "Imprimiendo…"
+                : "Imprimir reporte del día"}
+            </button>
+          </div>
+        </>
       )}
 
       {tab === "live" && <AlarmOptIn />}

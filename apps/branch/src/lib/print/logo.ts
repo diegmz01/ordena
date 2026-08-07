@@ -17,10 +17,23 @@ export type LogoRaster = {
 let cachedRaster: LogoRaster | null = null;
 let cacheKey: string | null = null;
 
+let cachedDataUrl: string | null = null;
+let dataUrlCacheKey: string | null = null;
+
 function maxLogoWidth(paperWidth: PaperWidth): number {
   // Wordmark ancho (~2.7:1); ocupa casi el ancho útil del ticket.
   return paperWidth === 58 ? 240 : 384;
 }
+
+/** Ancho de despliegue del logo en el ticket impreso por navegador (mm). */
+export function logoDisplayMm(paperWidth: PaperWidth): number {
+  return paperWidth === 58 ? 46 : 62;
+}
+
+// Resolución del raster PNG embebido: más alta que el ancho de despliegue
+// en mm para que no se vea borroso al imprimir (impresoras térmicas suelen
+// imprimir a ~200dpi, ~8px/mm).
+const LOGO_PNG_PX_PER_MM = 12;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -94,4 +107,43 @@ export async function getLogoRaster(
 export function receiptLogoUrl(): string {
   if (typeof window === "undefined") return RECEIPT_LOGO_PATH;
   return `${window.location.origin}${RECEIPT_LOGO_PATH}`;
+}
+
+/**
+ * Logo rasterizado como PNG embebido (data URL) para el ticket impreso por
+ * navegador. Se rasteriza sobre fondo blanco a resolución fija en vez de
+ * dejar que el motor de impresión escale el SVG: así el resultado es
+ * consistente entre impresoras/drivers y no depende de una carga de red en
+ * el iframe de impresión. Cachea por ancho de papel.
+ */
+export async function getLogoDataUrl(
+  paperWidth: PaperWidth,
+): Promise<string | null> {
+  const targetW = Math.round(logoDisplayMm(paperWidth) * LOGO_PNG_PX_PER_MM);
+  const key = `${RECEIPT_LOGO_PATH}:${targetW}`;
+  if (cachedDataUrl && dataUrlCacheKey === key) return cachedDataUrl;
+
+  try {
+    const img = await loadImage(RECEIPT_LOGO_PATH);
+    const scale = targetW / img.naturalWidth;
+    const width = Math.max(1, Math.round(img.naturalWidth * scale));
+    const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    cachedDataUrl = dataUrl;
+    dataUrlCacheKey = key;
+    return dataUrl;
+  } catch {
+    return null;
+  }
 }

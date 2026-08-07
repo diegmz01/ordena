@@ -1,6 +1,8 @@
 import {
+  buildDailyReportTicket,
   buildReceiptTicket,
   buildTestReceiptTicket,
+  type DailyReportTotals,
   type ReceiptLine,
   type ReceiptTicketOrder,
 } from "@ordena/shared";
@@ -60,6 +62,15 @@ export async function printTestTicket(
   options?: PrintLinesOptions,
 ): Promise<PrintOrderResult> {
   const lines = buildTestReceiptTicket(branchName);
+  return sendLines(lines, options);
+}
+
+export async function printDailyReport(
+  totals: DailyReportTotals,
+  branchName: string,
+  options?: PrintLinesOptions,
+): Promise<PrintOrderResult> {
+  const lines = buildDailyReportTicket({ branchName, totals });
   return sendLines(lines, options);
 }
 
