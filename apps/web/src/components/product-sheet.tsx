@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Minus, Plus, Search, UserRoundPlus, X } from "lucide-react";
+import { comboProductName } from "@ordena/shared";
 import { formatMoney, useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 
@@ -370,7 +371,7 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
                 <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-orange-50 px-3 py-2.5 text-sm dark:bg-orange-950/30">
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800 dark:text-white">
-                      {product.name} + {comboProduct.name}
+                      {comboProductName(product.name, comboProduct.name)}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
                       Se cobra el precio del producto más caro. Los extras

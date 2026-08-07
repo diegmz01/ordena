@@ -14,7 +14,7 @@ import {
   Phone,
   ShoppingBag,
 } from "lucide-react";
-import type { AuthUser } from "@ordena/shared";
+import { comboProductName, type AuthUser } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken, logout } from "@/lib/auth";
 import { formatMoney } from "@/lib/cart";
@@ -216,9 +216,7 @@ export default function PedidosPage() {
       .slice(0, 2)
       .map(
         (i) =>
-          `${i.quantity}× ${i.productName}${
-            i.secondaryProductName ? ` + ${i.secondaryProductName}` : ""
-          }`,
+          `${i.quantity}× ${comboProductName(i.productName, i.secondaryProductName)}`,
       )
       .join(", ");
     const extra =

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { AuthUser } from "@ordena/shared";
+import { comboProductName, type AuthUser } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken, register } from "@/lib/auth";
 import {
@@ -357,8 +357,8 @@ export default function CheckoutClient() {
               >
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {item.quantity}× {item.name}
-                    {item.secondaryName ? ` + ${item.secondaryName}` : ""}
+                    {item.quantity}×{" "}
+                    {comboProductName(item.name, item.secondaryName)}
                   </p>
                   {item.modifierLabels.length > 0 && (
                     <p className="text-xs text-gray-500">

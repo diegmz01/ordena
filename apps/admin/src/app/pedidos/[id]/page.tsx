@@ -17,7 +17,12 @@ import {
   Ban,
   Undo2,
 } from "lucide-react";
-import { canAdminCancelOrder, groupItemsByPlateLabel, type OrderStatus } from "@ordena/shared";
+import {
+  canAdminCancelOrder,
+  comboProductName,
+  groupItemsByPlateLabel,
+  type OrderStatus,
+} from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -693,10 +698,10 @@ export default function AdminOrderDetailPage() {
                                     : "text-gray-900 dark:text-white",
                                 )}
                               >
-                                {item.productName}
-                                {item.secondaryProductName
-                                  ? ` + ${item.secondaryProductName}`
-                                  : ""}
+                                {comboProductName(
+                                  item.productName,
+                                  item.secondaryProductName,
+                                )}
                               </p>
                               {item.variantName && (
                                 <p className="mt-0.5 text-xs text-gray-500">
@@ -1028,11 +1033,11 @@ export default function AdminOrderDetailPage() {
                                   const product = order.items.find(
                                     (i) => i.id === line.orderItemId,
                                   );
-                                  const name = product?.productName ?? "Producto";
-                                  const combo = product?.secondaryProductName
-                                    ? ` + ${product.secondaryProductName}`
-                                    : "";
-                                  return `${line.quantity}× ${name}${combo}`;
+                                  const name = comboProductName(
+                                    product?.productName ?? "Producto",
+                                    product?.secondaryProductName,
+                                  );
+                                  return `${line.quantity}× ${name}`;
                                 })
                                 .join(", ")}
                             </p>
@@ -1207,10 +1212,10 @@ export default function AdminOrderDetailPage() {
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                          {item.productName}
-                          {item.secondaryProductName
-                            ? ` + ${item.secondaryProductName}`
-                            : ""}
+                          {comboProductName(
+                            item.productName,
+                            item.secondaryProductName,
+                          )}
                         </p>
                         {item.variantName && (
                           <p className="text-xs text-gray-500">

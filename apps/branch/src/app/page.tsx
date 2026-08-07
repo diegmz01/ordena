@@ -14,7 +14,7 @@ import {
   StickyNote,
   User,
 } from "lucide-react";
-import { groupItemsByPlateLabel } from "@ordena/shared";
+import { comboProductName, groupItemsByPlateLabel } from "@ordena/shared";
 import { HistorySummary } from "@/components/history-summary";
 import {
   OrderCard,
@@ -1005,10 +1005,10 @@ export default function BranchHomePage() {
                                       : "text-slate-900 dark:text-white",
                                   )}
                                 >
-                                  {item.productName}
-                                  {item.secondaryProductName
-                                    ? ` + ${item.secondaryProductName}`
-                                    : ""}
+                                  {comboProductName(
+                                    item.productName,
+                                    item.secondaryProductName,
+                                  )}
                                 </p>
                                 {item.variantName && (
                                   <p

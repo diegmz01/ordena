@@ -19,7 +19,7 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
-import { groupItemsByPlateLabel } from "@ordena/shared";
+import { comboProductName, groupItemsByPlateLabel } from "@ordena/shared";
 import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { Modal } from "@/components/ui/modal";
 import { apiFetch } from "@/lib/api";
@@ -584,10 +584,11 @@ export default function OrderPageClient({
                                   : "text-gray-900 dark:text-white",
                               )}
                             >
-                              {item.quantity}× {item.productName}
-                              {item.secondaryProductName
-                                ? ` + ${item.secondaryProductName}`
-                                : ""}
+                              {item.quantity}×{" "}
+                              {comboProductName(
+                                item.productName,
+                                item.secondaryProductName,
+                              )}
                             </p>
                             {item.variantName && (
                               <p className="text-xs text-gray-500">

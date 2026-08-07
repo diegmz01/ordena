@@ -12,6 +12,7 @@ import {
   Pencil,
   AlertTriangle,
 } from "lucide-react";
+import { comboProductName } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import {
   clearUnavailableAlert,
@@ -169,8 +170,7 @@ export default function CarritoPage() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-white">
-              {item.name}
-              {item.secondaryName ? ` + ${item.secondaryName}` : ""}
+              {comboProductName(item.name, item.secondaryName)}
             </p>
             {item.modifierLabels.length > 0 && (
               <p className="mt-0.5 text-xs text-gray-500">

@@ -84,14 +84,38 @@ function customerPhone(order: ReceiptTicketOrder) {
   return order.user?.phone?.trim() || order.guestPhone?.trim() || null;
 }
 
+/** "taco"/"tacos", "salsa"/"salsas"… para no exigir coincidencia exacta de plural. */
+function normalizeWord(word: string) {
+  return word.toLowerCase().replace(/s$/, "");
+}
+
+/**
+ * Si el producto secundario comparte el/los primeros palabras con el
+ * principal (ej. "Taco de Bistec" / "Taco de Arrachera"), las quita del
+ * nombre secundario para no repetirlas en la combinación.
+ */
+function shortenSecondaryName(primaryName: string, secondaryName: string) {
+  const primaryWords = primaryName.trim().split(/\s+/);
+  const secondaryWords = secondaryName.trim().split(/\s+/);
+  let i = 0;
+  while (
+    i < primaryWords.length &&
+    // Deja al menos una palabra del nombre secundario.
+    i < secondaryWords.length - 1 &&
+    normalizeWord(primaryWords[i]!) === normalizeWord(secondaryWords[i]!)
+  ) {
+    i++;
+  }
+  return i > 0 ? secondaryWords.slice(i).join(" ") : secondaryName;
+}
+
 /** Nombre a mostrar de una línea de pedido, combinando el producto secundario si existe. */
 export function comboProductName(
   productName: string,
   secondaryProductName?: string | null,
 ) {
-  return secondaryProductName?.trim()
-    ? `${productName} + ${secondaryProductName}`
-    : productName;
+  if (!secondaryProductName?.trim()) return productName;
+  return `${productName} + ${shortenSecondaryName(productName, secondaryProductName)}`;
 }
 
 function itemLabel(item: ReceiptTicketItem) {
