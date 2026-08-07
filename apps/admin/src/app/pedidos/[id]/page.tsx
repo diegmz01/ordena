@@ -957,12 +957,16 @@ export default function AdminOrderDetailPage() {
                       return (
                         <>
                           <div className="flex items-center justify-between gap-2">
-                            <dt className="text-gray-500">Monto autorizado</dt>
+                            <dt className="text-gray-500">
+                              {amounts.combined
+                                ? "Monto autorizado y cobrado"
+                                : "Monto autorizado"}
+                            </dt>
                             <dd className="font-semibold text-orange-600">
                               {formatMoney(amounts.authorized, order.currency)}
                             </dd>
                           </div>
-                          {amounts.showCharged && (
+                          {amounts.showCharged && !amounts.combined && (
                             <div className="flex items-center justify-between gap-2">
                               <dt className="text-gray-500">Monto cobrado</dt>
                               <dd className="font-semibold text-orange-600">

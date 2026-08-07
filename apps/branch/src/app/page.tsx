@@ -1248,12 +1248,16 @@ export default function BranchHomePage() {
                           </dd>
                         </div>
                         <div className="flex justify-between gap-2">
-                          <dt className="text-slate-500">Monto autorizado</dt>
+                          <dt className="text-slate-500">
+                            {amounts.combined
+                              ? "Monto autorizado y cobrado"
+                              : "Monto autorizado"}
+                          </dt>
                           <dd className="font-semibold tabular-nums text-orange-600">
                             {formatMoney(amounts.authorized, selected.currency)}
                           </dd>
                         </div>
-                        {amounts.showCharged && (
+                        {amounts.showCharged && !amounts.combined && (
                           <div className="flex justify-between gap-2">
                             <dt className="text-slate-500">Monto cobrado</dt>
                             <dd className="font-semibold tabular-nums text-orange-600">
