@@ -22,6 +22,7 @@ import {
   comboProductName,
   getPaidOrderWaitStatus,
   groupItemsByPlateLabel,
+  orderPaymentAmounts,
   type OrderStatus,
 } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
@@ -934,9 +935,6 @@ export default function AdminOrderDetailPage() {
                       <p className="font-semibold text-gray-900 dark:text-white">
                         {formatPaymentMethodLabel(order)}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        Autorización al pagar; cobro al quedar listo
-                      </p>
                     </div>
                   </div>
 
@@ -954,47 +952,27 @@ export default function AdminOrderDetailPage() {
                         </span>
                       </dd>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-gray-500">Total</dt>
-                      <dd className="font-semibold text-orange-600">
-                        {formatMoney(order.total, order.currency)}
-                      </dd>
-                    </div>
-                    {order.status === "CANCELLED" && (
-                      <>
-                        <div className="flex items-center justify-between gap-2">
-                          <dt className="text-gray-500">Devolución</dt>
-                          <dd className="font-semibold text-red-600">
-                            −{formatMoney(order.total, order.currency)}
-                          </dd>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <dt className="text-gray-500">A cobrar</dt>
-                          <dd className="font-semibold text-orange-600">
-                            {formatMoney(0, order.currency)}
-                          </dd>
-                        </div>
-                      </>
-                    )}
-                    {order.status !== "CANCELLED" && order.refundedTotal > 0 && (
-                      <>
-                        <div className="flex items-center justify-between gap-2">
-                          <dt className="text-gray-500">Reembolsado</dt>
-                          <dd className="font-semibold text-red-600">
-                            −{formatMoney(order.refundedTotal, order.currency)}
-                          </dd>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <dt className="text-gray-500">Neto cobrado</dt>
-                          <dd className="font-semibold text-orange-600">
-                            {formatMoney(
-                              order.total - order.refundedTotal,
-                              order.currency,
-                            )}
-                          </dd>
-                        </div>
-                      </>
-                    )}
+                    {(() => {
+                      const amounts = orderPaymentAmounts(order);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <dt className="text-gray-500">Monto autorizado</dt>
+                            <dd className="font-semibold text-orange-600">
+                              {formatMoney(amounts.authorized, order.currency)}
+                            </dd>
+                          </div>
+                          {amounts.showCharged && (
+                            <div className="flex items-center justify-between gap-2">
+                              <dt className="text-gray-500">Monto cobrado</dt>
+                              <dd className="font-semibold text-orange-600">
+                                {formatMoney(amounts.charged, order.currency)}
+                              </dd>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     <div className="flex items-center justify-between gap-2">
                       <dt className="text-gray-500">Autorizado en</dt>
                       <dd className="text-right font-medium text-gray-800 dark:text-gray-100">

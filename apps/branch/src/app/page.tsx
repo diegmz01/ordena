@@ -14,7 +14,7 @@ import {
   StickyNote,
   User,
 } from "lucide-react";
-import { comboProductName, groupItemsByPlateLabel } from "@ordena/shared";
+import { comboProductName, groupItemsByPlateLabel, orderPaymentAmounts } from "@ordena/shared";
 import { HistorySummary } from "@/components/history-summary";
 import {
   OrderCard,
@@ -59,6 +59,7 @@ type Order = {
   discount: number;
   total: number;
   currency: string;
+  refundedTotal?: number;
   ptvTicket: number | null;
   prepMinutes: number | null;
   readyAt: string | null;
@@ -187,7 +188,6 @@ function paymentInfo(order: Order) {
       statusLabel: "Cancelado / liberado",
       statusClass:
         "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300",
-      hint: "La autorización fue liberada",
     };
   }
   if (order.status === "READY" || order.status === "COMPLETED") {
@@ -196,7 +196,6 @@ function paymentInfo(order: Order) {
       statusLabel: "Cobrado",
       statusClass:
         "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300",
-      hint: "Cobro capturado al quedar listo para recoger",
     };
   }
   return {
@@ -204,7 +203,6 @@ function paymentInfo(order: Order) {
     statusLabel: "Autorizado",
     statusClass:
       "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300",
-    hint: "Fondos retenidos · se cobra al quedar listo",
   };
 }
 
@@ -1219,6 +1217,7 @@ export default function BranchHomePage() {
 
                 {(() => {
                   const pay = paymentInfo(selected);
+                  const amounts = orderPaymentAmounts(selected);
                   return (
                     <section className="rounded-xl border border-gray-200 p-3.5 dark:border-border dark:bg-surface-muted/80">
                       <div className="flex items-start gap-3">
@@ -1239,9 +1238,6 @@ export default function BranchHomePage() {
                               {pay.statusLabel}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            {pay.hint}
-                          </p>
                         </div>
                       </div>
                       <dl className="mt-3 space-y-2 rounded-lg bg-gray-50 px-3 py-2.5 text-sm dark:bg-surface">
@@ -1252,23 +1248,23 @@ export default function BranchHomePage() {
                           </dd>
                         </div>
                         <div className="flex justify-between gap-2">
-                          <dt className="text-slate-500">Monto</dt>
+                          <dt className="text-slate-500">Monto autorizado</dt>
                           <dd className="font-semibold tabular-nums text-orange-600">
-                            {formatMoney(selected.total, selected.currency)}
+                            {formatMoney(amounts.authorized, selected.currency)}
                           </dd>
                         </div>
+                        {amounts.showCharged && (
+                          <div className="flex justify-between gap-2">
+                            <dt className="text-slate-500">Monto cobrado</dt>
+                            <dd className="font-semibold tabular-nums text-orange-600">
+                              {formatMoney(amounts.charged, selected.currency)}
+                            </dd>
+                          </div>
+                        )}
                         <div className="flex justify-between gap-2">
-                          <dt className="text-slate-500">Autorizado</dt>
+                          <dt className="text-slate-500">Autorizado en</dt>
                           <dd className="text-right text-xs font-medium text-slate-700 dark:text-slate-200">
                             {formatDateTime(selected.paidAt)}
-                          </dd>
-                        </div>
-                        <div className="flex justify-between gap-2">
-                          <dt className="text-slate-500">Cobro</dt>
-                          <dd className="text-right text-xs font-medium text-slate-700 dark:text-slate-200">
-                            {selected.status === "COMPLETED"
-                              ? "Capturado al entregar"
-                              : "Al marcar Entregar"}
                           </dd>
                         </div>
                       </dl>

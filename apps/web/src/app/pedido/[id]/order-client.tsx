@@ -19,7 +19,7 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
-import { comboProductName, groupItemsByPlateLabel } from "@ordena/shared";
+import { comboProductName, groupItemsByPlateLabel, orderPaymentAmounts } from "@ordena/shared";
 import { PushOptIn } from "@/components/pwa/push-opt-in";
 import { Modal } from "@/components/ui/modal";
 import { apiFetch } from "@/lib/api";
@@ -50,6 +50,7 @@ type Order = {
   discount: number;
   total: number;
   currency?: string;
+  refundedTotal?: number;
   notes: string | null;
   prepMinutes: number | null;
   readyAt: string | null;
@@ -699,9 +700,6 @@ export default function OrderPageClient({
                     <p className="font-semibold text-gray-900 dark:text-white">
                       {formatPaymentMethodLabel(order)}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      Autorización al pagar; cobro al quedar listo
-                    </p>
                   </div>
                 </div>
 
@@ -719,28 +717,31 @@ export default function OrderPageClient({
                       </span>
                     </dd>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <dt className="text-gray-500">Total</dt>
-                    <dd className="font-semibold tabular-nums text-orange-600">
-                      {formatMoney(order.total)}
-                    </dd>
-                  </div>
-                  {order.status === "CANCELLED" && (
-                    <>
-                      <div className="flex items-center justify-between gap-2">
-                        <dt className="text-gray-500">Devolución</dt>
-                        <dd className="font-semibold tabular-nums text-red-600">
-                          −{formatMoney(order.total)}
-                        </dd>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <dt className="text-gray-500">A cobrar</dt>
-                        <dd className="font-semibold tabular-nums text-orange-600">
-                          {formatMoney(0)}
-                        </dd>
-                      </div>
-                    </>
-                  )}
+                  {(() => {
+                    const amounts = orderPaymentAmounts({
+                      status: order.status,
+                      total: order.total,
+                      refundedTotal: order.refundedTotal ?? 0,
+                    });
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">Monto autorizado</dt>
+                          <dd className="font-semibold tabular-nums text-orange-600">
+                            {formatMoney(amounts.authorized)}
+                          </dd>
+                        </div>
+                        {amounts.showCharged && (
+                          <div className="flex items-center justify-between gap-2">
+                            <dt className="text-gray-500">Monto cobrado</dt>
+                            <dd className="font-semibold tabular-nums text-orange-600">
+                              {formatMoney(amounts.charged)}
+                            </dd>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                   <div className="flex items-center justify-between gap-2">
                     <dt className="text-gray-500">Autorizado en</dt>
                     <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
