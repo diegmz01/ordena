@@ -14,6 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { logout } from "@/lib/auth";
+import { BrandLogo } from "@/components/brand-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -54,9 +55,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link
             href="/"
-            className="shrink-0 text-lg font-semibold tracking-tight text-gray-900 dark:text-white sm:text-xl"
+            className="shrink-0 rounded-md outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-orange-500/40"
+            aria-label="Ordena Admin · inicio"
           >
-            Ordena Admin
+            <BrandLogo height={36} priority />
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">

@@ -167,7 +167,7 @@ export default function AdminHomePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="page-title">Backoffice</h1>
+        <h1 className="page-title">Dashboard</h1>
         <p className="page-description">
           Resumen operativo de Ordena: pedidos, ventas y sucursales.
         </p>
