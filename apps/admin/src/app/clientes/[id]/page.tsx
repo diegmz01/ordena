@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import {
   Facebook,
   KeyRound,
   Mail,
+  Pencil,
   Phone,
   ReceiptText,
   ShoppingBag,
@@ -146,6 +147,11 @@ export default function AdminCustomerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     const token = getAuthToken();
@@ -166,6 +172,34 @@ export default function AdminCustomerDetailPage() {
     if (!customer) return "?";
     return (customer.name?.trim() || customer.email).charAt(0).toUpperCase();
   }, [customer]);
+
+  function startEditPhone() {
+    setPhoneInput(customer?.phone ?? "");
+    setPhoneError(null);
+    setEditingPhone(true);
+  }
+
+  async function submitPhone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = getAuthToken();
+    if (!token || !customer) return;
+
+    setPhoneSaving(true);
+    setPhoneError(null);
+    try {
+      const res = await apiFetch<{ data: { phone: string | null } }>(
+        `/customers/admin/${customer.id}/phone`,
+        token,
+        { method: "PATCH", body: JSON.stringify({ phone: phoneInput }) },
+      );
+      setCustomer({ ...customer, phone: res.data.phone });
+      setEditingPhone(false);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -316,20 +350,67 @@ export default function AdminCustomerDetailPage() {
                       {customer.email}
                     </span>
                   </a>
-                  {customer.phone ? (
-                    <a
-                      href={`tel:${customer.phone}`}
-                      className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm transition hover:border-orange-300 hover:bg-orange-50/50 dark:border-gray-700 dark:hover:border-orange-800 dark:hover:bg-orange-950/20"
-                    >
-                      <Phone className="h-4 w-4 shrink-0 text-gray-400" />
-                      <span className="font-medium text-gray-800 dark:text-gray-100">
-                        {customer.phone}
-                      </span>
-                    </a>
+                  {editingPhone ? (
+                    <form onSubmit={submitPhone} className="space-y-2">
+                      <input
+                        type="tel"
+                        required
+                        minLength={8}
+                        maxLength={20}
+                        inputMode="tel"
+                        autoComplete="tel"
+                        autoFocus
+                        value={phoneInput}
+                        onChange={(e) => setPhoneInput(e.target.value)}
+                        placeholder="Ej. 55 1234 5678"
+                        className="input-field"
+                      />
+                      {phoneError && (
+                        <p className="text-xs text-red-600">{phoneError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={phoneSaving}
+                          className="btn-primary px-3 py-1.5 text-xs"
+                        >
+                          {phoneSaving ? "Guardando…" : "Guardar"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPhone(false)}
+                          disabled={phoneSaving}
+                          className="btn-secondary px-3 py-1.5 text-xs"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </form>
                   ) : (
-                    <p className="rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-sm text-gray-400 dark:border-gray-700">
-                      Sin teléfono
-                    </p>
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-sm dark:border-gray-700">
+                      {customer.phone ? (
+                        <a
+                          href={`tel:${customer.phone}`}
+                          className="flex min-w-0 items-center gap-2 font-medium text-gray-800 hover:text-orange-600 dark:text-gray-100"
+                        >
+                          <Phone className="h-4 w-4 shrink-0 text-gray-400" />
+                          {customer.phone}
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-2 text-gray-400">
+                          <Phone className="h-4 w-4 shrink-0" />
+                          Sin teléfono
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={startEditPhone}
+                        className="link-action shrink-0 !px-2 !py-1"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Editar
+                      </button>
+                    </div>
                   )}
                 </div>
               </section>

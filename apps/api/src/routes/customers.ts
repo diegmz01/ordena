@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "@ordena/database";
+import { updateCustomerPhoneSchema } from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
 import { authenticate, requireAdmin } from "../middleware/auth";
 
@@ -136,6 +137,33 @@ customersRouter.get(
           })),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersRouter.patch(
+  "/admin/:id/phone",
+  authenticate,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const { phone } = updateCustomerPhoneSchema.parse(req.body);
+
+      const customer = await prisma.user.findFirst({
+        where: { id: String(req.params.id), role: "CUSTOMER" },
+        select: { id: true },
+      });
+      if (!customer) throw new AppError(404, "Cliente no encontrado");
+
+      const updated = await prisma.user.update({
+        where: { id: customer.id },
+        data: { phone: phone.trim() },
+        select: { id: true, phone: true },
+      });
+
+      res.json({ data: updated });
     } catch (error) {
       next(error);
     }

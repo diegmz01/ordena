@@ -1,19 +1,59 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Clock3,
+  Facebook,
+  KeyRound,
   LogOut,
   Package,
+  Pencil,
+  Phone,
   ShoppingBag,
 } from "lucide-react";
+import type { AuthUser } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken, logout } from "@/lib/auth";
 import { formatMoney } from "@/lib/cart";
 import { cn } from "@/lib/utils";
+
+type LoginMethod = "EMAIL" | "GOOGLE" | "FACEBOOK";
+
+type LoginMethods = {
+  hasPassword: boolean;
+  oauthAccounts: { provider: "GOOGLE" | "FACEBOOK"; createdAt: string }[];
+};
+
+const LOGIN_METHOD_LABEL: Record<LoginMethod, string> = {
+  EMAIL: "Correo y contraseña",
+  GOOGLE: "Google",
+  FACEBOOK: "Facebook",
+};
+
+function LoginMethodIcon({ method }: { method: LoginMethod }) {
+  if (method === "GOOGLE") {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sm font-black text-sky-600 dark:bg-sky-950/40">
+        G
+      </span>
+    );
+  }
+  if (method === "FACEBOOK") {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+        <Facebook className="h-4 w-4" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+      <KeyRound className="h-4 w-4" />
+    </span>
+  );
+}
 
 type OrderRow = {
   id: string;
@@ -87,6 +127,13 @@ export default function PedidosPage() {
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [loginMethods, setLoginMethods] = useState<LoginMethods | null>(null);
+
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneSaving, setPhoneSaving] = useState(false);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -98,15 +145,15 @@ export default function PedidosPage() {
     let cancelled = false;
 
     Promise.all([
-      apiFetch<{ user: { name: string | null; email: string } }>(
-        "/auth/me",
-        token,
-      ),
+      apiFetch<{ user: AuthUser }>("/auth/me", token),
+      apiFetch<{ data: LoginMethods }>("/auth/me/login-methods", token),
       apiFetch<{ data: OrderRow[] }>("/orders/mine", token),
     ])
-      .then(([me, list]) => {
+      .then(([me, methods, list]) => {
         if (cancelled) return;
         setName(me.user.name?.trim() || me.user.email);
+        setPhone(me.user.phone ?? null);
+        setLoginMethods(methods.data);
         setOrders(list.data);
       })
       .catch((err) => {
@@ -134,6 +181,33 @@ export default function PedidosPage() {
   async function handleLogout() {
     await logout();
     router.push("/");
+  }
+
+  function startEditPhone() {
+    setPhoneInput(phone ?? "");
+    setPhoneError(null);
+    setEditingPhone(true);
+  }
+
+  async function submitPhone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = getAuthToken();
+    if (!token) return;
+
+    setPhoneSaving(true);
+    setPhoneError(null);
+    try {
+      const res = await apiFetch<{ user: AuthUser }>("/auth/me/phone", token, {
+        method: "PATCH",
+        body: JSON.stringify({ phone: phoneInput }),
+      });
+      setPhone(res.user.phone ?? null);
+      setEditingPhone(false);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setPhoneSaving(false);
+    }
   }
 
   function OrderCard({ order }: { order: OrderRow }) {
@@ -206,6 +280,108 @@ export default function PedidosPage() {
 
       <div className="container-page flex min-h-[calc(100vh-12rem)] max-w-xl flex-col !pt-6">
         {error && <p className="admin-alert-error">{error}</p>}
+
+        {loginMethods && (
+          <section className="customer-card mb-6 p-4 sm:p-5">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Mi cuenta
+            </h2>
+
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-medium text-gray-500">
+                Teléfono
+              </p>
+              {editingPhone ? (
+                <form
+                  onSubmit={submitPhone}
+                  className="flex flex-col gap-2 sm:flex-row sm:items-start"
+                >
+                  <div className="flex-1">
+                    <input
+                      type="tel"
+                      required
+                      minLength={8}
+                      maxLength={20}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      autoFocus
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="Ej. 55 1234 5678"
+                      className="input-field"
+                    />
+                    {phoneError && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {phoneError}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={phoneSaving}
+                      className="btn-primary px-4 py-2 text-sm"
+                    >
+                      {phoneSaving ? "Guardando…" : "Guardar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPhone(false)}
+                      disabled={phoneSaving}
+                      className="btn-secondary px-4 py-2 text-sm"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700">
+                  <span className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                    <Phone className="h-4 w-4 shrink-0 text-gray-400" />
+                    {phone || (
+                      <span className="text-gray-400">Sin teléfono</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={startEditPhone}
+                    className="link-action !px-2 !py-1"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <p className="mb-1.5 text-xs font-medium text-gray-500">
+                Inicio de sesión
+              </p>
+              <div className="space-y-2">
+                {loginMethods.hasPassword && (
+                  <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700">
+                    <LoginMethodIcon method="EMAIL" />
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {LOGIN_METHOD_LABEL.EMAIL}
+                    </p>
+                  </div>
+                )}
+                {loginMethods.oauthAccounts.map((acc) => (
+                  <div
+                    key={acc.provider}
+                    className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700"
+                  >
+                    <LoginMethodIcon method={acc.provider} />
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {LOGIN_METHOD_LABEL[acc.provider]}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {orders === null && !error && (
           <div className="space-y-3">

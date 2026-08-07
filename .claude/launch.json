@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ordena/api", "dev"],
+      "port": 4000
+    },
+    {
       "name": "branch",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@ordena/branch", "dev"],

@@ -283,6 +283,29 @@ authRouter.get("/me", authenticate, async (req: AuthenticatedRequest, res) => {
   res.json({ user: toAuthUser(req.authUser!) });
 });
 
+authRouter.get(
+  "/me/login-methods",
+  authenticate,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const oauthAccounts = await prisma.oAuthAccount.findMany({
+        where: { userId: req.authUser!.id },
+        select: { provider: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      });
+
+      res.json({
+        data: {
+          hasPassword: !!req.authUser!.passwordHash,
+          oauthAccounts,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 authRouter.patch("/me/phone", authenticate, async (req, res, next) => {
   try {
     const authReq = req as AuthenticatedRequest;
