@@ -313,6 +313,9 @@ model Order {
   /// (creación + reenvíos de escalamiento). Se usa para calcular cuándo
   /// toca el próximo reenvío (ver escalate-unaccepted-orders.ts).
   lastStaffAlertAt      DateTime?
+  /// Se envía una sola vez cuando el pedido lleva PAID_ORDER_DELAY_ALERT_MS
+  /// sin aceptar (ver handle-stale-paid-orders.ts).
+  customerDelayAlertSentAt DateTime?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
@@ -321,6 +324,7 @@ model Order {
   @@index([createdAt])
   @@index([readyAt])
   @@index([paidAt])
+  @@index([status, paidAt])
 }
 
 model OAuthOneTimeCode {

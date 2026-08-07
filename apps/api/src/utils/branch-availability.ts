@@ -133,7 +133,8 @@ export function isWithinBranchHours(
   };
 }
 
-function isStaffPresenceStale(
+/** ¿El heartbeat de staff de esta sucursal está vencido? */
+export function isStaffPresenceStale(
   staffLastSeenAt: Date | null | undefined,
   now: Date,
 ): boolean {

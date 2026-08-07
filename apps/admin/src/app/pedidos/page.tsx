@@ -12,6 +12,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { getPaidOrderWaitStatus } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ type OrderRow = {
   status: string;
   total: number;
   createdAt: string;
+  paidAt: string | null;
   ptvTicket: number | null;
   guestName: string | null;
   guestEmail: string | null;
@@ -122,6 +124,11 @@ function formatDate(iso: string) {
   }
 }
 
+function formatWaitLabel(elapsedMs: number) {
+  const minutes = Math.floor(elapsedMs / 60_000);
+  return `Esperando ${minutes} min`;
+}
+
 function customerLabel(order: OrderRow) {
   if (order.user) return order.user.name?.trim() || order.user.email;
   return order.guestName?.trim() || "Invitado";
@@ -169,6 +176,14 @@ export default function AdminOrdersPage() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    // No hay polling/SSE en esta página: este tick solo recalcula "tiempo
+    // esperando" contra paidAt mientras la página sigue abierta.
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -240,8 +255,11 @@ export default function AdminOrdersPage() {
       (o) => o.status === "PENDING_PAYMENT",
     ).length;
     const withTicket = orders.filter((o) => o.ptvTicket != null).length;
-    return { active, pendingPay, withTicket, total: orders.length };
-  }, [orders]);
+    const stuck = orders.filter(
+      (o) => getPaidOrderWaitStatus(o.status, o.paidAt, now) != null,
+    ).length;
+    return { active, pendingPay, withTicket, stuck, total: orders.length };
+  }, [orders, now]);
 
   const filtered = useMemo(() => {
     return orders.filter((order) => {
@@ -290,7 +308,7 @@ export default function AdminOrdersPage() {
 
       {error && <p className="admin-alert-error">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {[
           {
             label: "Total",
@@ -315,6 +333,12 @@ export default function AdminOrdersPage() {
             value: summary.withTicket,
             hint: "Ticket asignado",
             tone: "text-sky-600",
+          },
+          {
+            label: "Atascados",
+            value: summary.stuck,
+            hint: "Pagados, sin aceptar +5 min",
+            tone: summary.stuck > 0 ? "text-red-600" : "text-gray-900 dark:text-white",
           },
         ].map((card) => (
           <div
@@ -586,11 +610,16 @@ export default function AdminOrdersPage() {
           </div>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-            {filtered.map((order) => (
+            {filtered.map((order) => {
+              const wait = getPaidOrderWaitStatus(order.status, order.paidAt, now);
+              return (
               <li key={order.id}>
                 <Link
                   href={`/pedidos/${order.id}`}
-                  className="group flex items-center gap-3 px-4 py-3.5 transition hover:bg-orange-50/70 sm:gap-4 sm:px-5 dark:hover:bg-orange-950/20"
+                  className={cn(
+                    "group flex items-center gap-3 px-4 py-3.5 transition hover:bg-orange-50/70 sm:gap-4 sm:px-5 dark:hover:bg-orange-950/20",
+                    wait?.tone === "danger" && "bg-red-50/60 dark:bg-red-950/10",
+                  )}
                 >
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-300">
                     {customerInitial(order)}
@@ -615,6 +644,17 @@ export default function AdminOrdersPage() {
                       >
                         {STATUS_LABEL[order.status] ?? order.status}
                       </span>
+                      {wait && (
+                        <span
+                          className={
+                            wait.tone === "danger"
+                              ? "status-badge-danger"
+                              : "status-badge-warning"
+                          }
+                        >
+                          {formatWaitLabel(wait.elapsedMs)}
+                        </span>
+                      )}
                     </div>
 
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500">
@@ -643,7 +683,8 @@ export default function AdminOrdersPage() {
                   </div>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
