@@ -70,7 +70,8 @@ export function canAdminCancelOrder(
 /**
  * Montos a mostrar en cards de pago (admin / staff / cliente).
  * - Siempre: monto autorizado (`total` del pedido).
- * - Si hay reembolso parcial o cancelación total: también monto cobrado.
+ * - Si ya se capturó (READY/COMPLETED), hay reembolso o cancelación: también cobrado.
+ * - Si autorizado === cobrado: la UI puede unir ambas en una sola línea.
  */
 export function orderPaymentAmounts(order: {
   status: string;
@@ -80,14 +81,21 @@ export function orderPaymentAmounts(order: {
   authorized: number;
   charged: number;
   showCharged: boolean;
+  combined: boolean;
   refunded: number;
 } {
   const refunded = Math.max(0, order.refundedTotal ?? 0);
   const cancelled = order.status === "CANCELLED";
+  const captured =
+    order.status === "READY" || order.status === "COMPLETED";
+  const authorized = order.total;
+  const charged = cancelled ? 0 : Math.max(0, order.total - refunded);
+  const showCharged = cancelled || refunded > 0 || captured;
   return {
-    authorized: order.total,
-    charged: cancelled ? 0 : Math.max(0, order.total - refunded),
-    showCharged: cancelled || refunded > 0,
+    authorized,
+    charged,
+    showCharged,
+    combined: showCharged && authorized === charged,
     refunded,
   };
 }
