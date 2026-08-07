@@ -68,6 +68,31 @@ export function canAdminCancelOrder(
 }
 
 /**
+ * Montos a mostrar en cards de pago (admin / staff / cliente).
+ * - Siempre: monto autorizado (`total` del pedido).
+ * - Si hay reembolso parcial o cancelación total: también monto cobrado.
+ */
+export function orderPaymentAmounts(order: {
+  status: string;
+  total: number;
+  refundedTotal?: number | null;
+}): {
+  authorized: number;
+  charged: number;
+  showCharged: boolean;
+  refunded: number;
+} {
+  const refunded = Math.max(0, order.refundedTotal ?? 0);
+  const cancelled = order.status === "CANCELLED";
+  return {
+    authorized: order.total,
+    charged: cancelled ? 0 : Math.max(0, order.total - refunded),
+    showCharged: cancelled || refunded > 0,
+    refunded,
+  };
+}
+
+/**
  * Umbral para avisarle al cliente (una sola vez) que su pedido PAID se está
  * demorando en ser aceptado. Ver apps/api/src/utils/handle-stale-paid-orders.ts.
  */
