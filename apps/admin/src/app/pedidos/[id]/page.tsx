@@ -631,16 +631,19 @@ export default function AdminOrderDetailPage() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:items-stretch">
-                  <button
-                    type="button"
-                    onClick={openTicketModal}
-                    className="btn-primary inline-flex items-center justify-center gap-2"
-                  >
-                    <Ticket className="h-4 w-4" />
-                    {order.ptvTicket != null
-                      ? `Ticket PTV #${order.ptvTicket}`
-                      : "Asignar ticket PTV"}
-                  </button>
+                  {(order.ptvTicket != null ||
+                    order.status === "COMPLETED") && (
+                    <button
+                      type="button"
+                      onClick={openTicketModal}
+                      className="btn-primary inline-flex items-center justify-center gap-2"
+                    >
+                      <Ticket className="h-4 w-4" />
+                      {order.ptvTicket != null
+                        ? `Ticket PTV #${order.ptvTicket}`
+                        : "Asignar ticket PTV"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1107,8 +1110,12 @@ export default function AdminOrderDetailPage() {
           <Modal
             open={ticketModalOpen}
             onClose={closeTicketModal}
-            title="Asignar ticket PTV"
-            description="Número que aparece en la pantalla de cocina / PTV."
+            title={
+              order.ptvTicket != null
+                ? "Editar ticket PTV"
+                : "Asignar ticket PTV"
+            }
+            description="Número que aparece en la pantalla de cocina / PTV. La asignación inicial la hace el staff de sucursal."
           >
             <form onSubmit={onSubmitTicket} className="space-y-4">
               <div>
