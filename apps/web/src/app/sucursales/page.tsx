@@ -291,7 +291,7 @@ function BranchesPageInner() {
                     className={cn(
                       "branch-row",
                       selected && "branch-row-selected",
-                      unavailable && "opacity-60 grayscale",
+                      unavailable && "opacity-60 grayscale dark:grayscale-50",
                     )}
                   >
                     <div className="flex min-w-0 flex-1 gap-3">
