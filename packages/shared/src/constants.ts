@@ -69,12 +69,14 @@ export function canAdminCancelOrder(
 
 /**
  * Montos a mostrar en cards de pago (admin / staff / cliente).
- * - Siempre: monto autorizado (`total` del pedido).
- * - Si ya se capturó (READY/COMPLETED), hay reembolso o cancelación: también cobrado.
+ * - Autorizado = `subtotal` (lo retenido en Stripe al pagar, antes de
+ *   descuentos por agotados).
+ * - Cobrado = `total − refundedTotal` (o $0 si cancelado).
  * - Si autorizado === cobrado: la UI puede unir ambas en una sola línea.
  */
 export function orderPaymentAmounts(order: {
   status: string;
+  subtotal: number;
   total: number;
   refundedTotal?: number | null;
 }): {
@@ -88,7 +90,7 @@ export function orderPaymentAmounts(order: {
   const cancelled = order.status === "CANCELLED";
   const captured =
     order.status === "READY" || order.status === "COMPLETED";
-  const authorized = order.total;
+  const authorized = order.subtotal;
   const charged = cancelled ? 0 : Math.max(0, order.total - refunded);
   const showCharged = cancelled || refunded > 0 || captured;
   return {
