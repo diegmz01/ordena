@@ -726,12 +726,16 @@ export default function OrderPageClient({
                     return (
                       <>
                         <div className="flex items-center justify-between gap-2">
-                          <dt className="text-gray-500">Monto autorizado</dt>
+                          <dt className="text-gray-500">
+                            {amounts.combined
+                              ? "Monto autorizado y cobrado"
+                              : "Monto autorizado"}
+                          </dt>
                           <dd className="font-semibold tabular-nums text-orange-600">
                             {formatMoney(amounts.authorized)}
                           </dd>
                         </div>
-                        {amounts.showCharged && (
+                        {amounts.showCharged && !amounts.combined && (
                           <div className="flex items-center justify-between gap-2">
                             <dt className="text-gray-500">Monto cobrado</dt>
                             <dd className="font-semibold tabular-nums text-orange-600">
