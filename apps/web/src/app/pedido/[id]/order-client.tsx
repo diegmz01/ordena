@@ -69,8 +69,34 @@ type Order = {
     address: string;
     phone: string | null;
     slug: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
 };
+
+/** URL de Google Maps: solo la dirección; con coords centra el pin. */
+function branchMapsUrl(branch: {
+  address: string;
+  latitude?: number | null;
+  longitude?: number | null;
+}): string {
+  const address = branch.address.trim();
+
+  const lat = branch.latitude;
+  const lng = branch.longitude;
+  const hasCoords =
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng);
+
+  if (hasCoords) {
+    // Dirección en el query + pin exacto por coordenadas (sin nombre de sucursal).
+    return `https://www.google.com/maps/search/${encodeURIComponent(address)}/@${lat},${lng},17z`;
+  }
+
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
 
 const FLOW = [
   "PAID",
@@ -542,9 +568,7 @@ export default function OrderPageClient({
                       </a>
                     )}
                     <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        `${order.branch.name}, ${order.branch.address}`,
-                      )}`}
+                      href={branchMapsUrl(order.branch)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn-secondary btn-compact"
