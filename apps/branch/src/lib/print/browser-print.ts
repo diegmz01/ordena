@@ -1,6 +1,6 @@
 import type { ReceiptLine } from "@ordena/shared";
-import { receiptLogoUrl } from "./logo";
-import { charsPerLine, type PaperWidth } from "./settings";
+import { getLogoDataUrl, logoDisplayMm, receiptLogoUrl } from "./logo";
+import type { PaperWidth } from "./settings";
 
 const IFRAME_ID = "ordena-thermal-print-frame";
 
@@ -12,19 +12,20 @@ function escapeHtml(text: string) {
     .replace(/"/g, "&quot;");
 }
 
-function lineToHtml(line: ReceiptLine, width: number): string {
+function lineToHtml(line: ReceiptLine, logoSrc: string): string {
   if (line.type === "logo") {
-    return `<div class="logo"><img src="${escapeHtml(receiptLogoUrl())}" alt="" /></div>`;
+    return `<div class="logo"><img src="${escapeHtml(logoSrc)}" alt="" /></div>`;
   }
   if (line.type === "blank") return "<br/>";
   if (line.type === "separator") {
-    return `<div class="sep">${escapeHtml("-".repeat(width))}</div>`;
+    return `<hr class="sep" />`;
   }
   if (line.type === "cut") return "";
   if (line.type === "text") {
     const align = line.align ?? "left";
     const bold = line.bold ? "bold" : "";
-    return `<div class="line ${align} ${bold}">${escapeHtml(line.text)}</div>`;
+    const large = line.large ? "large" : "";
+    return `<div class="line ${align} ${bold} ${large}">${escapeHtml(line.text)}</div>`;
   }
   return "";
 }
@@ -32,10 +33,11 @@ function lineToHtml(line: ReceiptLine, width: number): string {
 function buildReceiptDocument(
   lines: ReceiptLine[],
   paperWidth: PaperWidth,
+  logoSrc: string,
 ): string {
-  const width = charsPerLine(paperWidth);
   const mm = paperWidth === 58 ? 58 : 80;
-  const body = lines.map((l) => lineToHtml(l, width)).join("\n");
+  const logoMm = logoDisplayMm(paperWidth);
+  const body = lines.map((l) => lineToHtml(l, logoSrc)).join("\n");
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -47,26 +49,31 @@ function buildReceiptDocument(
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 4mm;
+      padding: 3mm 4mm;
       width: ${mm}mm;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 11px;
-      line-height: 1.25;
+      font-size: ${paperWidth === 58 ? 15 : 17}px;
+      line-height: 1.4;
       color: #000;
       background: #fff;
     }
-    .logo { text-align: center; margin: 0 0 6px; }
+    .logo { text-align: center; margin: 0 0 8px; }
     .logo img {
-      width: ${paperWidth === 58 ? 42 : 52}mm;
+      width: ${logoMm}mm;
       height: auto;
       display: inline-block;
     }
-    .line { white-space: pre-wrap; word-break: break-word; }
+    .line { white-space: pre-wrap; word-break: break-word; margin: 1px 0; }
     .line.center { text-align: center; }
     .line.right { text-align: right; }
     .line.left { text-align: left; }
     .line.bold { font-weight: 700; }
-    .sep { letter-spacing: -0.5px; }
+    .line.large { font-size: 1.5em; margin: 4px 0; }
+    .sep {
+      border: none;
+      border-top: 1px dashed #000;
+      margin: 6px 0;
+    }
     @media print {
       html, body { width: ${mm}mm; }
     }
@@ -126,7 +133,11 @@ export async function printReceiptHtml(
   lines: ReceiptLine[],
   paperWidth: PaperWidth,
 ): Promise<void> {
-  const html = buildReceiptDocument(lines, paperWidth);
+  const needsLogo = lines.some((l) => l.type === "logo");
+  const logoSrc = needsLogo
+    ? ((await getLogoDataUrl(paperWidth)) ?? receiptLogoUrl())
+    : receiptLogoUrl();
+  const html = buildReceiptDocument(lines, paperWidth, logoSrc);
   const frame = getOrCreatePrintFrame();
   const doc = frame.contentDocument;
   const win = frame.contentWindow;

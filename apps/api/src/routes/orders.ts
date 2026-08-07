@@ -209,15 +209,32 @@ ordersRouter.get(
 
       const businessDate = getBusinessDate();
 
-      const orders = await prisma.order.findMany({
-        where: {
-          branchId,
-          businessDate,
-          status: { in: [...HISTORY_BRANCH_STATUSES] },
-        },
-        orderBy: { updatedAt: "desc" },
-        include: branchOrderInclude,
-      });
+      const [orders, receivedCount] = await Promise.all([
+        prisma.order.findMany({
+          where: {
+            branchId,
+            businessDate,
+            status: { in: [...HISTORY_BRANCH_STATUSES] },
+          },
+          orderBy: { updatedAt: "desc" },
+          include: branchOrderInclude,
+        }),
+        // Recibidos hoy = cualquier estado, incluye los que aún siguen
+        // activos (PAID/ACCEPTED/PREPARING/READY) al momento de consultar.
+        // businessDate solo se asigna al quedar PAID, así que ya excluye
+        // intentos de checkout que nunca se pagaron. Se excluyen los
+        // cancelados ANTES de aceptar (nunca tuvieron ptvTicket ni
+        // prepMinutes, que solo se asignan en /accept o /start-prep): esos
+        // nunca llegaron a cocina y solo liberaron la autorización de
+        // Stripe, no representan un pedido realmente atendido.
+        prisma.order.count({
+          where: {
+            branchId,
+            businessDate,
+            NOT: { status: "CANCELLED", ptvTicket: null, prepMinutes: null },
+          },
+        }),
+      ]);
 
       let salesTotal = 0;
       let salesCount = 0;
@@ -239,6 +256,7 @@ ordersRouter.get(
         branchId,
         businessDate: businessDate.toISOString().slice(0, 10),
         summary: {
+          receivedCount,
           salesCount,
           salesTotal,
           cancelledCount,

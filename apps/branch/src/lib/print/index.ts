@@ -1,6 +1,7 @@
 export {
   printOrder,
   printTestTicket,
+  printDailyReport,
   getPrintSettings,
   setPaperWidth,
   isWebSerialSupported,

@@ -107,13 +107,17 @@ export function encodeEscPos(
     if (line.type === "text") {
       const align = line.align ?? "left";
       const alignCode = align === "center" ? 1 : align === "right" ? 2 : 0;
+      // Doble ancho/alto: la impresora imprime la mitad de caracteres por línea.
+      const lineWidth = line.large ? Math.max(1, Math.floor(width / 2)) : width;
       bytes.push(ESC, 0x61, alignCode);
       bytes.push(ESC, 0x45, line.bold ? 1 : 0);
+      bytes.push(GS, 0x21, line.large ? 0x11 : 0x00);
       const finalText =
         align === "left"
-          ? toPrinterText(line.text).slice(0, width)
-          : padLine(line.text, width, align);
+          ? toPrinterText(line.text).slice(0, lineWidth)
+          : padLine(line.text, lineWidth, align);
       bytes.push(...encodeAscii(finalText), LF);
+      bytes.push(GS, 0x21, 0x00);
       bytes.push(ESC, 0x45, 0);
       bytes.push(ESC, 0x61, 0);
     }
