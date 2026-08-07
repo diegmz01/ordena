@@ -74,21 +74,13 @@ type Order = {
   };
 };
 
-/** URL de Google Maps con el nombre de la sucursal siempre en el query. */
+/** URL de Google Maps: solo la dirección; con coords centra el pin. */
 function branchMapsUrl(branch: {
-  name: string;
   address: string;
   latitude?: number | null;
   longitude?: number | null;
 }): string {
-  const name = branch.name.trim();
   const address = branch.address.trim();
-  // Nombre primero y explícito; sin él Maps solo geocodifica la calle.
-  const query = name
-    ? address
-      ? `${name}, ${address}`
-      : name
-    : address;
 
   const lat = branch.latitude;
   const lng = branch.longitude;
@@ -99,11 +91,11 @@ function branchMapsUrl(branch: {
     Number.isFinite(lng);
 
   if (hasCoords) {
-    // Path con el texto de búsqueda (incluye nombre) + pin por coordenadas.
-    return `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${lat},${lng},17z`;
+    // Dirección en el query + pin exacto por coordenadas (sin nombre de sucursal).
+    return `https://www.google.com/maps/search/${encodeURIComponent(address)}/@${lat},${lng},17z`;
   }
 
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
 const FLOW = [
