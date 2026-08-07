@@ -954,6 +954,19 @@ ordersRouter.patch(
 
       assertBranchAccess(user, order.branchId);
 
+      // Admin no asigna el ticket inicial: eso lo hace staff en sucursal.
+      // Solo puede editarlo si ya existe, o en pedidos COMPLETED.
+      if (
+        user.role === "ADMIN" &&
+        order.ptvTicket == null &&
+        order.status !== "COMPLETED"
+      ) {
+        throw new AppError(
+          403,
+          "El ticket PTV lo asigna el staff de la sucursal",
+        );
+      }
+
       if (order.status === "ACCEPTED" && ptvTicket == null) {
         throw new AppError(400, "El número de ticket PTV es obligatorio");
       }
