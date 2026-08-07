@@ -1,7 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { FolderOpen, SlidersHorizontal, UtensilsCrossed } from "lucide-react";
+import {
+  FolderOpen,
+  GripVertical,
+  SlidersHorizontal,
+  UtensilsCrossed,
+} from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { Modal } from "@/components/ui/modal";
@@ -37,6 +42,7 @@ type Product = {
   imageUrl: string | null;
   basePrice: number;
   isActive: boolean;
+  sortOrder: number;
   allowCombo: boolean;
   categoryId: string;
   category: { id: string; name: string };
@@ -122,6 +128,15 @@ export default function AdminMenuPage() {
   const [modifierForm, setModifierForm] =
     useState<ModifierFormState>(emptyModifierForm());
   const [savingModifier, setSavingModifier] = useState(false);
+
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
+  const [reorderCategory, setReorderCategory] = useState<Category | null>(
+    null,
+  );
+  const [reorderList, setReorderList] = useState<Product[]>([]);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+  const [savingReorder, setSavingReorder] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const tokenOrThrow = useCallback(() => {
     const token = getAuthToken();
@@ -279,34 +294,6 @@ export default function AdminMenuPage() {
     }
   }
 
-  async function deactivateProduct(product: Product) {
-    if (!confirm(`¿Desactivar “${product.name}”?`)) return;
-    try {
-      const token = tokenOrThrow();
-      await apiFetch(`/menu/admin/products/${product.id}`, token, {
-        method: "DELETE",
-      });
-      setSuccess("Producto desactivado");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo desactivar");
-    }
-  }
-
-  async function reactivateProduct(product: Product) {
-    try {
-      const token = tokenOrThrow();
-      await apiFetch(`/menu/admin/products/${product.id}`, token, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: true }),
-      });
-      setSuccess("Producto reactivado");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo reactivar");
-    }
-  }
-
   function closeCategoryModal() {
     setCategoryModalOpen(false);
     setEditingCategoryId(null);
@@ -366,35 +353,6 @@ export default function AdminMenuPage() {
       );
     } finally {
       setSavingCategory(false);
-    }
-  }
-
-  async function deactivateCategory(category: Category) {
-    if (!confirm(`¿Desactivar “${category.name}”?`)) return;
-    try {
-      const token = tokenOrThrow();
-      await apiFetch(`/menu/admin/categories/${category.id}`, token, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: false }),
-      });
-      setSuccess("Categoría desactivada");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo desactivar");
-    }
-  }
-
-  async function reactivateCategory(category: Category) {
-    try {
-      const token = tokenOrThrow();
-      await apiFetch(`/menu/admin/categories/${category.id}`, token, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: true }),
-      });
-      setSuccess("Categoría reactivada");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo reactivar");
     }
   }
 
@@ -469,32 +427,61 @@ export default function AdminMenuPage() {
     }
   }
 
-  async function deactivateModifier(modifier: Modifier) {
-    if (!confirm(`¿Desactivar “${modifier.name}”?`)) return;
-    try {
-      const token = tokenOrThrow();
-      await apiFetch(`/menu/admin/modifiers/${modifier.id}`, token, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: false }),
-      });
-      setSuccess("Modificador desactivado");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo desactivar");
-    }
+  function closeReorderModal() {
+    setReorderModalOpen(false);
+    setReorderCategory(null);
+    setReorderList([]);
+    setReorderError(null);
+    setDragIndex(null);
   }
 
-  async function reactivateModifier(modifier: Modifier) {
+  function openReorderProducts(category: Category) {
+    setReorderCategory(category);
+    setReorderList(
+      products
+        .filter((p) => p.categoryId === category.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
+    );
+    setReorderError(null);
+    setSuccess(null);
+    setReorderModalOpen(true);
+  }
+
+  function moveReorderItem(from: number, to: number) {
+    if (to < 0 || to >= reorderList.length || from === to) return;
+    setReorderList((list) => {
+      const next = [...list];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
+  async function saveReorder() {
+    if (!reorderCategory) return;
+    setSavingReorder(true);
+    setReorderError(null);
     try {
       const token = tokenOrThrow();
-      await apiFetch(`/menu/admin/modifiers/${modifier.id}`, token, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: true }),
-      });
-      setSuccess("Modificador reactivado");
+      await apiFetch(
+        `/menu/admin/categories/${reorderCategory.id}/products/reorder`,
+        token,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            productIds: reorderList.map((p) => p.id),
+          }),
+        },
+      );
+      setSuccess("Orden de productos actualizado");
+      closeReorderModal();
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo reactivar");
+      setReorderError(
+        err instanceof Error ? err.message : "No se pudo guardar el orden",
+      );
+    } finally {
+      setSavingReorder(false);
     }
   }
 
@@ -698,23 +685,6 @@ export default function AdminMenuPage() {
                                 >
                                   Editar
                                 </button>
-                                {product.isActive ? (
-                                  <button
-                                    type="button"
-                                    className="btn-red"
-                                    onClick={() => deactivateProduct(product)}
-                                  >
-                                    Desactivar
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    className="btn-amber"
-                                    onClick={() => reactivateProduct(product)}
-                                  >
-                                    Reactivar
-                                  </button>
-                                )}
                               </div>
                             </td>
                           </tr>
@@ -790,23 +760,19 @@ export default function AdminMenuPage() {
                             >
                               Editar
                             </button>
-                            {category.isActive ? (
-                              <button
-                                type="button"
-                                className="btn-red"
-                                onClick={() => deactivateCategory(category)}
-                              >
-                                Desactivar
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn-amber"
-                                onClick={() => reactivateCategory(category)}
-                              >
-                                Reactivar
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              className="btn-secondary btn-compact"
+                              onClick={() => openReorderProducts(category)}
+                              disabled={(category._count?.products ?? 0) < 2}
+                              title={
+                                (category._count?.products ?? 0) < 2
+                                  ? "Se necesitan al menos 2 productos para ordenar"
+                                  : undefined
+                              }
+                            >
+                              Ordenar productos
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -900,23 +866,6 @@ export default function AdminMenuPage() {
                           >
                             Editar
                           </button>
-                          {modifier.isActive ? (
-                            <button
-                              type="button"
-                              className="btn-red"
-                              onClick={() => deactivateModifier(modifier)}
-                            >
-                              Desactivar
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn-amber"
-                              onClick={() => reactivateModifier(modifier)}
-                            >
-                              Reactivar
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -1320,6 +1269,97 @@ export default function AdminMenuPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={reorderModalOpen}
+        onClose={closeReorderModal}
+        title="Ordenar productos"
+        description={
+          reorderCategory
+            ? `Arrastra los productos de “${reorderCategory.name}” para definir el orden en que se muestran al cliente.`
+            : undefined
+        }
+      >
+        <div className="space-y-4">
+          {reorderError && <p className="admin-alert-error">{reorderError}</p>}
+
+          {reorderList.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Esta categoría no tiene productos para ordenar.
+            </p>
+          ) : (
+            <ul className="max-h-96 space-y-1 overflow-y-auto">
+              {reorderList.map((product, index) => (
+                <li
+                  key={product.id}
+                  draggable
+                  onDragStart={() => setDragIndex(index)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragIndex === null || dragIndex === index) return;
+                    moveReorderItem(dragIndex, index);
+                    setDragIndex(index);
+                  }}
+                  onDragEnd={() => setDragIndex(null)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800",
+                    dragIndex === index && "opacity-50",
+                  )}
+                >
+                  <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-gray-400" />
+                  <span className="w-5 shrink-0 text-xs text-gray-400">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-white">
+                    {product.name}
+                  </span>
+                  {!product.isActive && (
+                    <span className="status-badge-inactive shrink-0">
+                      Inactivo
+                    </span>
+                  )}
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={() => moveReorderItem(index, index - 1)}
+                      disabled={index === 0}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={() => moveReorderItem(index, index + 1)}
+                      disabled={index === reorderList.length - 1}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={closeReorderModal}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={saveReorder}
+              disabled={savingReorder || reorderList.length === 0}
+            >
+              {savingReorder ? "Guardando…" : "Guardar orden"}
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
