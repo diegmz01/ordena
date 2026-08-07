@@ -16,7 +16,10 @@ export type CartStockValidation = {
 /** Consulta al API el stock actual de las líneas del carrito. */
 export async function validateCartStock(
   branchId: string,
-  items: Pick<CartItem, "productId" | "name" | "modifierIds">[],
+  items: Pick<
+    CartItem,
+    "productId" | "name" | "modifierIds" | "secondaryProductId"
+  >[],
 ): Promise<CartStockValidation> {
   if (items.length === 0) {
     return { ok: true, unavailable: [] };
@@ -33,6 +36,7 @@ export async function validateCartStock(
           productId: item.productId,
           productName: item.name,
           modifierIds: item.modifierIds,
+          secondaryProductId: item.secondaryProductId ?? undefined,
         })),
       }),
     },

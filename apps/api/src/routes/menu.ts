@@ -368,6 +368,7 @@ menuRouter.post(
           basePrice,
           categoryId: body.categoryId,
           isActive: body.isActive ?? true,
+          allowCombo: body.allowCombo ?? false,
         },
       });
 
@@ -452,6 +453,7 @@ menuRouter.patch(
               : Math.round(body.price * 100),
           categoryId: body.categoryId,
           isActive: body.isActive,
+          allowCombo: body.allowCombo,
         },
       });
 

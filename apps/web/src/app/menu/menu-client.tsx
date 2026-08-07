@@ -307,6 +307,7 @@ export default function MenuPage() {
 
         <ProductSheet
           product={selected}
+          products={products}
           open={!!selected}
           onClose={() => setSelected(null)}
         />

@@ -1,7 +1,11 @@
 import { Router } from "express";
 import Stripe from "stripe";
 import { prisma } from "@ordena/database";
-import { checkoutValidateSchema, guestCheckoutSchema } from "@ordena/shared";
+import {
+  checkoutValidateSchema,
+  comboProductName,
+  guestCheckoutSchema,
+} from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
 import {
   optionalAuth,
@@ -189,13 +193,54 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
       const finalIds = [...new Set([...requiredIds, ...requestedIds])];
       const selectedMods = assigned.filter((m) => finalIds.includes(m.id));
       const modsDelta = selectedMods.reduce((sum, m) => sum + m.priceDelta, 0);
-      const unitPrice = product.basePrice + modsDelta;
       const labels = selectedMods.map((m) => m.name);
+
+      let secondaryProductId: string | undefined;
+      let secondaryProductName: string | undefined;
+      let basePrice = product.basePrice;
+
+      if (item.secondaryProductId) {
+        if (!product.allowCombo) {
+          throw new AppError(
+            400,
+            `${product.name} no admite combinarse con otro producto`,
+          );
+        }
+        if (item.secondaryProductId === product.id) {
+          throw new AppError(400, "No puedes combinar un producto consigo mismo");
+        }
+
+        const secondary = await prisma.product.findFirst({
+          where: {
+            id: item.secondaryProductId,
+            isActive: true,
+            categoryId: product.categoryId,
+            branches: {
+              some: orderableBranchProductWhere(branch.id),
+            },
+          },
+        });
+
+        if (!secondary) {
+          throw new AppError(
+            400,
+            `Producto para combinar no disponible en esta sucursal`,
+          );
+        }
+
+        secondaryProductId = secondary.id;
+        secondaryProductName = secondary.name;
+        basePrice = Math.max(product.basePrice, secondary.basePrice);
+      }
+
+      const unitPrice = basePrice + modsDelta;
 
       resolvedItems.push({
         productId: product.id,
         productName: product.name,
         variantName: labels.length > 0 ? labels.join(", ") : undefined,
+        secondaryProductId,
+        secondaryProductName,
         plateLabel: item.plateLabel?.trim() || null,
         unitPrice,
         quantity: item.quantity,
@@ -228,6 +273,8 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
                 productId,
                 productName,
                 variantName,
+                secondaryProductId,
+                secondaryProductName,
                 plateLabel,
                 unitPrice,
                 quantity,
@@ -236,6 +283,8 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
                 productId,
                 productName,
                 variantName,
+                secondaryProductId,
+                secondaryProductName,
                 plateLabel,
                 unitPrice,
                 quantity,
@@ -288,8 +337,8 @@ checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: Authenti
           unit_amount: item.unitPrice,
           product_data: {
             name: item.variantName
-              ? `${item.productName} (${item.variantName})`
-              : item.productName,
+              ? `${comboProductName(item.productName, item.secondaryProductName)} (${item.variantName})`
+              : comboProductName(item.productName, item.secondaryProductName),
           },
         },
       })),

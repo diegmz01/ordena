@@ -170,6 +170,7 @@ export default function CarritoPage() {
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-white">
               {item.name}
+              {item.secondaryName ? ` + ${item.secondaryName}` : ""}
             </p>
             {item.modifierLabels.length > 0 && (
               <p className="mt-0.5 text-xs text-gray-500">

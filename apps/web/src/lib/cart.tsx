@@ -23,6 +23,9 @@ export type CartItem = {
   modifierIds: string[];
   modifierLabels: string[];
   plateId: string | null;
+  /** Producto combinado (misma categoría); null = sin combo. */
+  secondaryProductId: string | null;
+  secondaryName: string | null;
 };
 
 type CartState = {
@@ -45,9 +48,14 @@ type CartContextValue = CartState & {
     lines: { productId: string; modifierIds: string[] }[],
   ) => string[];
   addItem: (
-    item: Omit<CartItem, "lineKey" | "quantity" | "plateId"> & {
+    item: Omit<
+      CartItem,
+      "lineKey" | "quantity" | "plateId" | "secondaryProductId" | "secondaryName"
+    > & {
       quantity?: number;
       plateId?: string | null;
+      secondaryProductId?: string | null;
+      secondaryName?: string | null;
     },
   ) => void;
   setQuantity: (lineKey: string, quantity: number) => void;
@@ -96,10 +104,12 @@ export function makeLineKey(
   productId: string,
   modifierIds: string[],
   plateId: string | null,
+  secondaryProductId?: string | null,
 ) {
   const mods = [...modifierIds].sort().join(",");
   const plate = plateId ?? "";
-  return `${productId}::${mods}::${plate}`;
+  const combo = secondaryProductId ?? "";
+  return `${productId}::${combo}::${mods}::${plate}`;
 }
 
 function modsKey(modifierIds: string[]) {
@@ -142,6 +152,7 @@ function loadCart(): CartState {
         const modifierIds = Array.isArray(item.modifierIds)
           ? item.modifierIds
           : [];
+        const secondaryProductId = item.secondaryProductId ?? null;
         return {
           ...item,
           plateId,
@@ -149,7 +160,14 @@ function loadCart(): CartState {
           modifierLabels: Array.isArray(item.modifierLabels)
             ? item.modifierLabels
             : [],
-          lineKey: makeLineKey(item.productId, modifierIds, plateId),
+          secondaryProductId,
+          secondaryName: item.secondaryName ?? null,
+          lineKey: makeLineKey(
+            item.productId,
+            modifierIds,
+            plateId,
+            secondaryProductId,
+          ),
         } as CartItem;
       },
     );
@@ -235,13 +253,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback(
     (
-      item: Omit<CartItem, "lineKey" | "quantity" | "plateId"> & {
+      item: Omit<
+        CartItem,
+        "lineKey" | "quantity" | "plateId" | "secondaryProductId" | "secondaryName"
+      > & {
         quantity?: number;
         plateId?: string | null;
+        secondaryProductId?: string | null;
+        secondaryName?: string | null;
       },
     ) => {
       const plateId = item.plateId ?? null;
-      const lineKey = makeLineKey(item.productId, item.modifierIds, plateId);
+      const secondaryProductId = item.secondaryProductId ?? null;
+      const lineKey = makeLineKey(
+        item.productId,
+        item.modifierIds,
+        plateId,
+        secondaryProductId,
+      );
       const qty = item.quantity ?? 1;
       setItems((prev) => {
         const existing = prev.find((i) => i.lineKey === lineKey);
@@ -263,6 +292,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             modifierIds: item.modifierIds,
             modifierLabels: item.modifierLabels,
             plateId,
+            secondaryProductId,
+            secondaryName: item.secondaryName ?? null,
           },
         ];
       });
@@ -292,6 +323,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         source.productId,
         source.modifierIds,
         plateId,
+        source.secondaryProductId,
       );
       const without = prev.filter((i) => i.lineKey !== lineKey);
       const existing = without.find((i) => i.lineKey === nextKey);
@@ -337,7 +369,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           result.push(item);
           continue;
         }
-        const nextKey = makeLineKey(item.productId, item.modifierIds, null);
+        const nextKey = makeLineKey(
+          item.productId,
+          item.modifierIds,
+          null,
+          item.secondaryProductId,
+        );
         const existing = result.find((i) => i.lineKey === nextKey);
         if (existing) {
           existing.quantity += item.quantity;

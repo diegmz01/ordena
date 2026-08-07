@@ -159,6 +159,7 @@ export default function CheckoutClient() {
                   ? item.modifierLabels.join(", ")
                   : undefined,
               plateLabel: plate?.name,
+              secondaryProductId: item.secondaryProductId ?? undefined,
             };
           }),
         }),
@@ -357,6 +358,7 @@ export default function CheckoutClient() {
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-white">
                     {item.quantity}× {item.name}
+                    {item.secondaryName ? ` + ${item.secondaryName}` : ""}
                   </p>
                   {item.modifierLabels.length > 0 && (
                     <p className="text-xs text-gray-500">

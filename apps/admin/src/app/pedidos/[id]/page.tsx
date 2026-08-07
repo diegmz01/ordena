@@ -27,6 +27,7 @@ type OrderItem = {
   id: string;
   productName: string;
   variantName: string | null;
+  secondaryProductName?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -693,6 +694,9 @@ export default function AdminOrderDetailPage() {
                                 )}
                               >
                                 {item.productName}
+                                {item.secondaryProductName
+                                  ? ` + ${item.secondaryProductName}`
+                                  : ""}
                               </p>
                               {item.variantName && (
                                 <p className="mt-0.5 text-xs text-gray-500">
@@ -1024,7 +1028,11 @@ export default function AdminOrderDetailPage() {
                                   const product = order.items.find(
                                     (i) => i.id === line.orderItemId,
                                   );
-                                  return `${line.quantity}× ${product?.productName ?? "Producto"}`;
+                                  const name = product?.productName ?? "Producto";
+                                  const combo = product?.secondaryProductName
+                                    ? ` + ${product.secondaryProductName}`
+                                    : "";
+                                  return `${line.quantity}× ${name}${combo}`;
                                 })
                                 .join(", ")}
                             </p>
@@ -1200,6 +1208,9 @@ export default function AdminOrderDetailPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
                           {item.productName}
+                          {item.secondaryProductName
+                            ? ` + ${item.secondaryProductName}`
+                            : ""}
                         </p>
                         {item.variantName && (
                           <p className="text-xs text-gray-500">

@@ -21,21 +21,25 @@ export type MenuProduct = {
   imageUrl: string | null;
   basePrice: number;
   inStock?: boolean;
+  allowCombo?: boolean;
   category: { id: string; name: string; sortOrder?: number };
   modifiers?: { modifier: MenuModifier }[];
 };
 
 type Props = {
   product: MenuProduct | null;
+  /** Menú completo, usado para ofrecer productos de la misma categoría para combinar. */
+  products?: MenuProduct[];
   open: boolean;
   onClose: () => void;
 };
 
-export function ProductSheet({ product, open, onClose }: Props) {
+export function ProductSheet({ product, products = [], open, onClose }: Props) {
   const { addItem, branchId, plates, addPlate, items, setItemPlate } = useCart();
   const [qty, setQty] = useState(1);
   const [selectedOptional, setSelectedOptional] = useState<string[]>([]);
   const [plateId, setPlateId] = useState<string>("");
+  const [comboProductId, setComboProductId] = useState<string>("");
 
   const mods = useMemo(() => {
     if (!product)
@@ -49,6 +53,21 @@ export function ProductSheet({ product, open, onClose }: Props) {
     };
   }, [product]);
 
+  const comboCandidates = useMemo(() => {
+    if (!product || !product.allowCombo) return [] as MenuProduct[];
+    return products.filter(
+      (p) =>
+        p.id !== product.id &&
+        p.category.id === product.category.id &&
+        p.inStock !== false,
+    );
+  }, [product, products]);
+
+  const comboProduct = useMemo(
+    () => comboCandidates.find((p) => p.id === comboProductId) ?? null,
+    [comboCandidates, comboProductId],
+  );
+
   const productInStock = product?.inStock !== false;
   const requiredOutOfStock = mods.required.some((m) => m.inStock === false);
   const canAddToCart = productInStock && !requiredOutOfStock;
@@ -59,6 +78,7 @@ export function ProductSheet({ product, open, onClose }: Props) {
     setQty(1);
     setSelectedOptional([]);
     setPlateId(plates.length > 0 ? plates[plates.length - 1]!.id : "");
+    setComboProductId("");
     // Solo al abrir otro producto; plates se lee al momento de abrir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
@@ -85,8 +105,11 @@ export function ProductSheet({ product, open, onClose }: Props) {
       (m) => selectedOptional.includes(m.id) && m.inStock !== false,
     ),
   ];
+  const baseComboPrice = comboProduct
+    ? Math.max(product.basePrice, comboProduct.basePrice)
+    : product.basePrice;
   const unitPrice =
-    product.basePrice +
+    baseComboPrice +
     selectedMods.reduce((sum, m) => sum + m.priceDelta, 0);
 
   function toggleOptional(id: string) {
@@ -123,6 +146,8 @@ export function ProductSheet({ product, open, onClose }: Props) {
       modifierIds: selectedMods.map((m) => m.id),
       modifierLabels: selectedMods.map((m) => m.name),
       plateId: plateId || (plates[0]?.id ?? null),
+      secondaryProductId: comboProduct?.id ?? null,
+      secondaryName: comboProduct?.name ?? null,
     });
     onClose();
   }
@@ -287,6 +312,72 @@ export function ProductSheet({ product, open, onClose }: Props) {
                   );
                 })}
               </ul>
+            </div>
+          )}
+
+          {canAddToCart && comboCandidates.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                Combinar con
+              </p>
+              <ul className="space-y-2">
+                <li>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors",
+                      comboProductId === ""
+                        ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
+                        : "border-gray-200 dark:border-gray-700",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="combo-product"
+                        checked={comboProductId === ""}
+                        onChange={() => setComboProductId("")}
+                      />
+                      <span className="font-medium text-gray-800 dark:text-white">
+                        Sin combinar
+                      </span>
+                    </span>
+                  </label>
+                </li>
+                {comboCandidates.map((c) => (
+                  <li key={c.id}>
+                    <label
+                      className={cn(
+                        "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors",
+                        comboProductId === c.id
+                          ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
+                          : "border-gray-200 dark:border-gray-700",
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="combo-product"
+                          checked={comboProductId === c.id}
+                          onChange={() => setComboProductId(c.id)}
+                        />
+                        <span className="font-medium text-gray-800 dark:text-white">
+                          {c.name}
+                        </span>
+                      </span>
+                      <span className="text-orange-600">
+                        desde {formatMoney(c.basePrice)}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              {comboProduct && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Combo {product.name} + {comboProduct.name}: se cobra el
+                  precio del producto más caro. Los extras opcionales
+                  aplican solo a {product.name}.
+                </p>
+              )}
             </div>
           )}
 
