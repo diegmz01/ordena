@@ -92,7 +92,7 @@ const STATUS_TONE: Record<string, string> = {
     "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
   READY:
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
-  COMPLETED: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
   CANCELLED: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
 };
 

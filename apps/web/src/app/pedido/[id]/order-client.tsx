@@ -14,6 +14,7 @@ import {
   MapPin,
   Navigation,
   PackageCheck,
+  Phone,
   ShoppingBag,
   UtensilsCrossed,
   X,
@@ -212,7 +213,7 @@ function paymentStatus(order: Order) {
   if (order.status === "COMPLETED") {
     return {
       label: "Cobrado",
-      tone: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
+      tone: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
     };
   }
   return {
@@ -265,7 +266,7 @@ function OrderTimeline({ status }: { status: string }) {
                 className={cn(
                   "text-sm font-semibold",
                   active
-                    ? "text-orange-600 dark:text-orange-400"
+                    ? "text-emerald-600 dark:text-emerald-400"
                     : done
                       ? "text-gray-900 dark:text-white"
                       : "text-gray-400",
@@ -529,25 +530,28 @@ export default function OrderPageClient({
                   <p className="mt-0.5 text-sm text-gray-500">
                     {order.branch.address}
                   </p>
-                  {order.branch.phone && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {order.branch.phone && (
+                      <a
+                        href={`tel:${order.branch.phone}`}
+                        className="btn-secondary btn-compact"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        Llamar por teléfono
+                      </a>
+                    )}
                     <a
-                      href={`tel:${order.branch.phone}`}
-                      className="mt-2 inline-block text-sm font-medium text-orange-600 hover:underline"
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                        `${order.branch.name}, ${order.branch.address}`,
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary btn-compact"
                     >
-                      {order.branch.phone}
+                      <Navigation className="h-3.5 w-3.5" />
+                      Cómo llegar
                     </a>
-                  )}
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                      `${order.branch.name}, ${order.branch.address}`,
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-secondary btn-compact mt-3"
-                  >
-                    <Navigation className="h-3.5 w-3.5" />
-                    Cómo llegar
-                  </a>
+                  </div>
                 </div>
               </div>
             </div>

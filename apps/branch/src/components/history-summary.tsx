@@ -23,12 +23,12 @@ export function HistorySummary({
     <div className="grid grid-cols-3 gap-2 sm:gap-3">
       <div className="staff-stat-card">
         <div className="flex items-center gap-1.5 text-slate-500">
-          <Banknote className="size-3.5 shrink-0 text-orange-500" />
+          <Banknote className="size-3.5 shrink-0 text-emerald-500" />
           <p className="text-[11px] font-semibold uppercase tracking-wide">
             Totales
           </p>
         </div>
-        <p className="mt-1.5 text-lg font-bold tabular-nums text-orange-600 sm:text-xl">
+        <p className="mt-1.5 text-lg font-bold tabular-nums text-emerald-600 sm:text-xl">
           {salesTotal}
         </p>
         <p className="mt-0.5 text-xs text-slate-500">

@@ -365,7 +365,7 @@ button:disabled {
   }
 
   .staff-order-accent-completed {
-    @apply border-l-4 border-l-slate-400;
+    @apply border-l-4 border-l-emerald-500;
   }
 
   .staff-order-accent-cancelled {
@@ -456,11 +456,11 @@ button:disabled {
   }
 
   .order-step-dot-done {
-    @apply border-orange-500 bg-orange-500 text-white;
+    @apply border-emerald-500 bg-emerald-500 text-white;
   }
 
   .order-step-dot-current {
-    @apply border-orange-500 bg-orange-50 text-orange-600 ring-4 ring-orange-500/20 dark:bg-orange-950/50 dark:text-orange-300;
+    @apply border-emerald-500 bg-emerald-50 text-emerald-600 ring-4 ring-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300;
   }
 
   .status-pulse {
