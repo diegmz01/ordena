@@ -361,7 +361,7 @@ export default function CheckoutClient() {
                     {comboProductName(item.name, item.secondaryName)}
                   </p>
                   {item.modifierLabels.length > 0 && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm text-gray-500">
                       {item.modifierLabels.join(", ")}
                     </p>
                   )}

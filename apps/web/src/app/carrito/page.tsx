@@ -172,11 +172,11 @@ export default function CarritoPage() {
             <p className="font-medium text-gray-900 dark:text-white">
               {comboProductName(item.name, item.secondaryName)}
             </p>
-                        {item.modifierLabels.length > 0 && (
-                          <p className="mt-0.5 text-sm text-gray-500">
-                            {item.modifierLabels.join(", ")}
-                          </p>
-                        )}
+            {item.modifierLabels.length > 0 && (
+              <p className="mt-0.5 text-sm text-gray-500">
+                {item.modifierLabels.join(", ")}
+              </p>
+            )}
             <p className="mt-1 text-xs text-gray-400">
               {formatMoney(item.unitPrice)} c/u
             </p>
