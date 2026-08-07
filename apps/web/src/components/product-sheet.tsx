@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Minus, Plus, UserRoundPlus, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Minus, Plus, Search, UserRoundPlus, X } from "lucide-react";
 import { formatMoney, useCart } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,8 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
   const [selectedOptional, setSelectedOptional] = useState<string[]>([]);
   const [plateId, setPlateId] = useState<string>("");
   const [comboProductId, setComboProductId] = useState<string>("");
+  const [comboPickerOpen, setComboPickerOpen] = useState(false);
+  const [comboSearch, setComboSearch] = useState("");
 
   const mods = useMemo(() => {
     if (!product)
@@ -68,6 +70,12 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
     [comboCandidates, comboProductId],
   );
 
+  const filteredComboCandidates = useMemo(() => {
+    const q = comboSearch.trim().toLowerCase();
+    if (!q) return comboCandidates;
+    return comboCandidates.filter((c) => c.name.toLowerCase().includes(q));
+  }, [comboCandidates, comboSearch]);
+
   const productInStock = product?.inStock !== false;
   const requiredOutOfStock = mods.required.some((m) => m.inStock === false);
   const canAddToCart = productInStock && !requiredOutOfStock;
@@ -79,6 +87,8 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
     setSelectedOptional([]);
     setPlateId(plates.length > 0 ? plates[plates.length - 1]!.id : "");
     setComboProductId("");
+    setComboPickerOpen(false);
+    setComboSearch("");
     // Solo al abrir otro producto; plates se lee al momento de abrir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
@@ -88,14 +98,19 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (comboPickerOpen) {
+        setComboPickerOpen(false);
+        return;
+      }
+      onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, onClose, comboPickerOpen]);
 
   if (!open || !product) return null;
 
@@ -118,6 +133,21 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
     setSelectedOptional((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
+  }
+
+  function toggleCombo() {
+    if (comboProductId !== "") {
+      setComboProductId("");
+      return;
+    }
+    setComboSearch("");
+    setComboPickerOpen(true);
+  }
+
+  function selectCombo(id: string) {
+    setComboProductId(id);
+    setComboPickerOpen(false);
+    setComboSearch("");
   }
 
   function startSplit() {
@@ -153,6 +183,7 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
   }
 
   return (
+    <Fragment>
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <button
         type="button"
@@ -317,114 +348,90 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
 
           {canAddToCart && comboCandidates.length > 0 && (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Combinar con
-              </p>
-              <ul className="space-y-2">
-                <li>
-                  <label
-                    className={cn(
-                      "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors",
-                      comboProductId === ""
-                        ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
-                        : "border-gray-200 dark:border-gray-700",
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="combo-product"
-                        checked={comboProductId === ""}
-                        onChange={() => setComboProductId("")}
-                      />
-                      <span className="font-medium text-gray-800 dark:text-white">
-                        Sin combinar
-                      </span>
-                    </span>
-                  </label>
-                </li>
-                {comboCandidates.map((c) => (
-                  <li key={c.id}>
-                    <label
-                      className={cn(
-                        "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors",
-                        comboProductId === c.id
-                          ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
-                          : "border-gray-200 dark:border-gray-700",
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="combo-product"
-                          checked={comboProductId === c.id}
-                          onChange={() => setComboProductId(c.id)}
-                        />
-                        <span className="font-medium text-gray-800 dark:text-white">
-                          {c.name}
-                        </span>
-                      </span>
-                      <span className="text-orange-600">
-                        desde {formatMoney(c.basePrice)}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors",
+                  comboProductId !== ""
+                    ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
+                    : "border-gray-200 dark:border-gray-700",
+                )}
+              >
+                <span className="font-medium text-gray-800 dark:text-white">
+                  Combinar con otro producto
+                </span>
+                <input
+                  type="checkbox"
+                  checked={comboProductId !== ""}
+                  onChange={toggleCombo}
+                />
+              </label>
+
               {comboProduct && (
-                <p className="mt-2 text-xs text-gray-500">
-                  Combo {product.name} + {comboProduct.name}: se cobra el
-                  precio del producto más caro. Los extras opcionales
-                  aplican solo a {product.name}.
-                </p>
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-orange-50 px-3 py-2.5 text-sm dark:bg-orange-950/30">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-800 dark:text-white">
+                      {product.name} + {comboProduct.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      Se cobra el precio del producto más caro. Los extras
+                      opcionales aplican solo a {product.name}.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="link-action shrink-0 text-xs font-semibold"
+                    onClick={() => setComboPickerOpen(true)}
+                  >
+                    Cambiar
+                  </button>
+                </div>
               )}
             </div>
           )}
 
           {canAddToCart && (
-            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3.5 dark:border-gray-700 dark:bg-gray-800/40">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                Asignar a persona
-              </p>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/40">
+              <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
+                <UserRoundPlus className="h-4 w-4" />
+                Persona
+              </span>
               {plates.length === 0 ? (
                 <button
                   type="button"
-                  className="btn-secondary w-full"
+                  className="link-action text-sm font-semibold"
                   onClick={startSplit}
                 >
-                  <UserRoundPlus className="h-4 w-4" />
                   Asignar por persona
                 </button>
               ) : (
-                <div className="space-y-3">
-                  <div
-                    className="flex flex-wrap gap-2"
-                    role="group"
-                    aria-label="Asignar producto a persona"
-                  >
-                    {plates.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setPlateId(p.id)}
-                        className={cn(
-                          "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                          plateId === p.id
-                            ? "bg-orange-500 text-white"
-                            : "border border-gray-200 bg-white text-gray-600 hover:border-orange-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300",
-                        )}
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
+                <div
+                  className="flex flex-wrap items-center gap-1.5"
+                  role="group"
+                  aria-label="Asignar producto a persona"
+                >
+                  {plates.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPlateId(p.id)}
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                        plateId === p.id
+                          ? "bg-orange-500 text-white"
+                          : "border border-gray-200 bg-white text-gray-600 hover:border-orange-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300",
+                      )}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
                   <button
                     type="button"
-                    className="btn-secondary btn-compact w-full sm:w-auto"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-500 transition hover:border-orange-400 hover:text-orange-600 dark:border-gray-600 dark:text-gray-400"
                     onClick={handleAddPerson}
+                    aria-label="Asignar nueva persona"
+                    title="Asignar nueva persona"
                   >
-                    <UserRoundPlus className="h-3.5 w-3.5" />
-                    Asignar nueva persona
+                    <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
               )}
@@ -479,5 +486,76 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
         </div>
       </div>
     </div>
+
+    {comboPickerOpen && (
+      <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center">
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+          aria-label="Cerrar"
+          onClick={() => setComboPickerOpen(false)}
+        />
+        <div className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-gray-200 bg-white shadow-xl sm:rounded-2xl dark:border-gray-700 dark:bg-gray-900">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Combinar con
+            </h3>
+            <button
+              type="button"
+              className="btn-secondary size-9 shrink-0 p-0"
+              onClick={() => setComboPickerOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {comboCandidates.length > 5 && (
+            <div className="border-b border-gray-100 px-4 py-2.5 dark:border-gray-800">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  className="input-field pl-9"
+                  placeholder="Buscar producto…"
+                  value={comboSearch}
+                  onChange={(e) => setComboSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+
+          <ul className="flex-1 space-y-2 overflow-y-auto p-4">
+            {filteredComboCandidates.length === 0 && (
+              <li className="py-6 text-center text-sm text-gray-500">
+                Sin resultados
+              </li>
+            )}
+            {filteredComboCandidates.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                    comboProductId === c.id
+                      ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
+                      : "border-gray-200 hover:border-orange-300 dark:border-gray-700",
+                  )}
+                  onClick={() => selectCombo(c.id)}
+                >
+                  <span className="font-medium text-gray-800 dark:text-white">
+                    {c.name}
+                  </span>
+                  <span className="shrink-0 text-orange-600">
+                    desde {formatMoney(c.basePrice)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    )}
+    </Fragment>
   );
 }
