@@ -205,9 +205,16 @@ async function resolveStaffBranchId(req: AuthenticatedRequest): Promise<string> 
   throw new AppError(403, "Insufficient permissions");
 }
 
-/** Público: sucursales activas que aceptan pedidos. */
-branchesRouter.get("/", async (_req, res, next) => {
+/**
+ * Público: sucursales activas. Por defecto solo las que aceptan pedidos
+ * (usado para validar/seleccionar sucursal de pickup). Con `?all=1` regresa
+ * todas las activas con `acceptingOrders` para listarlas (mostrando también
+ * las no disponibles).
+ */
+branchesRouter.get("/", async (req, res, next) => {
   try {
+    const includeAll = req.query.all === "1" || req.query.all === "true";
+
     const branches = await prisma.branch.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -227,20 +234,25 @@ branchesRouter.get("/", async (_req, res, next) => {
       },
     });
 
-    const open = branches
-      .filter((b) => effectiveAvailability(b).acceptingOrders)
-      .map(
-        ({
-          availability: _a,
-          pausedUntil: _p,
-          hours: _h,
-          staffLastSeenAt: _s,
-          staffAwayReason: _r,
-          ...rest
-        }) => rest,
-      );
+    const withAvailability = branches.map((b) => ({
+      ...b,
+      acceptingOrders: effectiveAvailability(b).acceptingOrders,
+    }));
 
-    res.json({ data: open });
+    const strip = ({
+      availability: _a,
+      pausedUntil: _p,
+      hours: _h,
+      staffLastSeenAt: _s,
+      staffAwayReason: _r,
+      ...rest
+    }: (typeof withAvailability)[number]) => rest;
+
+    const result = includeAll
+      ? withAvailability.map(strip)
+      : withAvailability.filter((b) => b.acceptingOrders).map(strip);
+
+    res.json({ data: result });
   } catch (error) {
     next(error);
   }

@@ -9,7 +9,6 @@ import {
   LocateFixed,
   MapPin,
   Navigation,
-  Phone,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useCart, writeUnavailableAlert } from "@/lib/cart";
@@ -25,10 +24,10 @@ type Branch = {
   id: string;
   name: string;
   address: string;
-  phone: string | null;
   slug: string;
   latitude: number | null;
   longitude: number | null;
+  acceptingOrders: boolean;
 };
 
 type BranchWithDistance = Branch & { distanceKm: number | null };
@@ -93,7 +92,7 @@ function BranchesPageInner() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch<{ data: Branch[] }>("/branches");
+      const res = await apiFetch<{ data: Branch[] }>("/branches?all=1");
       setBranches(res.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar");
@@ -137,7 +136,9 @@ function BranchesPageInner() {
   }, [branches, userPos]);
 
   const nearestId = useMemo(() => {
-    const nearest = ranked.find((b) => b.distanceKm != null);
+    const nearest = ranked.find(
+      (b) => b.distanceKm != null && b.acceptingOrders,
+    );
     return nearest?.id ?? null;
   }, [ranked]);
 
@@ -279,6 +280,7 @@ function BranchesPageInner() {
           <ul className="space-y-3">
             {ranked.map((branch) => {
               const selected = branchId === branch.id;
+              const unavailable = !branch.acceptingOrders;
               const isNearest =
                 nearestId === branch.id && branch.distanceKm != null;
               const busy = switchingId === branch.id;
@@ -289,15 +291,18 @@ function BranchesPageInner() {
                     className={cn(
                       "branch-row",
                       selected && "branch-row-selected",
+                      unavailable && "opacity-60 grayscale",
                     )}
                   >
                     <div className="flex min-w-0 flex-1 gap-3">
                       <div
                         className={cn(
                           "flex size-11 shrink-0 items-center justify-center rounded-xl",
-                          selected
-                            ? "bg-orange-500 text-white"
-                            : "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300",
+                          unavailable
+                            ? "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                            : selected
+                              ? "bg-orange-500 text-white"
+                              : "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300",
                         )}
                       >
                         <MapPin className="h-5 w-5" />
@@ -307,15 +312,15 @@ function BranchesPageInner() {
                           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
                             {branch.name}
                           </h2>
-                          {selected && (
-                            <span className="status-badge-active">Elegida</span>
-                          )}
-                          {isNearest && !selected && (
-                            <span className="status-badge-brand">
-                              Más cercana
+                          {unavailable && (
+                            <span className="status-badge-inactive">
+                              No disponible
                             </span>
                           )}
-                          {isNearest && selected && (
+                          {!unavailable && selected && (
+                            <span className="status-badge-active">Elegida</span>
+                          )}
+                          {!unavailable && isNearest && (
                             <span className="status-badge-brand">
                               Más cercana
                             </span>
@@ -329,27 +334,25 @@ function BranchesPageInner() {
                         <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-300">
                           {branch.address}
                         </p>
-                        {branch.phone && (
-                          <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-500">
-                            <Phone className="h-3.5 w-3.5 shrink-0 text-orange-500" />
-                            {branch.phone}
-                          </p>
-                        )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      disabled={!!switchingId}
-                      className="btn-primary w-full shrink-0 sm:w-auto sm:min-w-[8.5rem]"
-                      onClick={() => void choose(branch)}
-                    >
-                      {busy
-                        ? "Validando…"
-                        : fromCart
-                          ? "Elegir"
-                          : "Ver menú"}
-                      {!busy && <ChevronRight className="h-4 w-4 opacity-80" />}
-                    </button>
+                    {!unavailable && (
+                      <button
+                        type="button"
+                        disabled={!!switchingId}
+                        className="btn-primary w-full shrink-0 sm:w-auto sm:min-w-[8.5rem]"
+                        onClick={() => void choose(branch)}
+                      >
+                        {busy
+                          ? "Validando…"
+                          : fromCart
+                            ? "Elegir"
+                            : "Ver menú"}
+                        {!busy && (
+                          <ChevronRight className="h-4 w-4 opacity-80" />
+                        )}
+                      </button>
+                    )}
                   </article>
                 </li>
               );

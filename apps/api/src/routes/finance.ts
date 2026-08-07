@@ -159,6 +159,7 @@ financeRouter.get(
           orderNumber: true,
           status: true,
           total: true,
+          refundedTotal: true,
           paidAt: true,
           createdAt: true,
           branchId: true,
@@ -195,6 +196,9 @@ financeRouter.get(
       >();
 
       for (const order of orders) {
+        /// Neto de reembolsos parciales (no de la cancelación total, que ya
+        /// se excluye vía el bucket `cancelledCents` de abajo).
+        const netTotal = order.total - order.refundedTotal;
         const day = dateKeyLocal(order.paidAt ?? order.createdAt);
         if (!byDay.has(day)) {
           byDay.set(day, { date: day, captured: 0, orderCount: 0 });
@@ -224,18 +228,18 @@ financeRouter.get(
         }
 
         if (AUTHORIZED_STATUSES.includes(order.status)) {
-          authorizedCents += order.total;
+          authorizedCents += netTotal;
           authorizedCount += 1;
-          branchRow.authorized += order.total;
+          branchRow.authorized += netTotal;
           branchRow.orderCount += 1;
           dayRow.orderCount += 1;
 
           if (CAPTURED_STATUSES.includes(order.status)) {
-            capturedCents += order.total;
+            capturedCents += netTotal;
             capturedCount += 1;
-            branchRow.captured += order.total;
+            branchRow.captured += netTotal;
             branchRow.capturedCount += 1;
-            dayRow.captured += order.total;
+            dayRow.captured += netTotal;
           } else {
             pendingCaptureCents += order.total;
             pendingCaptureCount += 1;
@@ -246,15 +250,18 @@ financeRouter.get(
       const recentCompleted = orders
         .filter((o) => CAPTURED_STATUSES.includes(o.status))
         .slice(0, 25)
-        .map((o) => ({
-          id: o.id,
-          orderNumber: o.orderNumber,
-          total: o.total,
-          /** Sin comisión Ordena: a depositar = capturado. */
-          toDeposit: o.total,
-          paidAt: (o.paidAt ?? o.createdAt).toISOString(),
-          branchName: o.branch.name,
-        }));
+        .map((o) => {
+          const netTotal = o.total - o.refundedTotal;
+          return {
+            id: o.id,
+            orderNumber: o.orderNumber,
+            total: netTotal,
+            /** Sin comisión Ordena: a depositar = capturado neto de reembolsos. */
+            toDeposit: netTotal,
+            paidAt: (o.paidAt ?? o.createdAt).toISOString(),
+            branchName: o.branch.name,
+          };
+        });
 
       // Sin application_fee: lo capturado liquida íntegro a la cuenta principal.
       const toDepositCents = capturedCents;
@@ -341,6 +348,7 @@ financeRouter.get(
               orderNumber: true,
               status: true,
               total: true,
+              refundedTotal: true,
               paidAt: true,
               createdAt: true,
               branchId: true,
@@ -378,7 +386,10 @@ financeRouter.get(
         );
         const captured = rows.filter((o) => CAPTURED_STATUSES.includes(o.status));
         const nonCancelled = rows.filter((o) => o.status !== "CANCELLED");
-        const capturedCents = captured.reduce((sum, o) => sum + o.total, 0);
+        const capturedCents = captured.reduce(
+          (sum, o) => sum + (o.total - o.refundedTotal),
+          0,
+        );
         return {
           ordersCount: nonCancelled.length,
           capturedCents,
@@ -412,7 +423,8 @@ financeRouter.get(
         const row = last7ByKey.get(dateKeyLocal(eff));
         if (!row) continue;
         if (o.status !== "CANCELLED") row.ordersCount += 1;
-        if (CAPTURED_STATUSES.includes(o.status)) row.capturedCents += o.total;
+        if (CAPTURED_STATUSES.includes(o.status))
+          row.capturedCents += o.total - o.refundedTotal;
       }
 
       const byBranchMonth = new Map<
@@ -437,7 +449,8 @@ financeRouter.get(
         }
         const row = byBranchMonth.get(o.branchId)!;
         row.ordersCount += 1;
-        if (CAPTURED_STATUSES.includes(o.status)) row.capturedCents += o.total;
+        if (CAPTURED_STATUSES.includes(o.status))
+          row.capturedCents += o.total - o.refundedTotal;
       }
       const topBranches = [...byBranchMonth.values()]
         .sort((a, b) => b.capturedCents - a.capturedCents)

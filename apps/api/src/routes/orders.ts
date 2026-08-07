@@ -1,4 +1,5 @@
 import { Router } from "express";
+import Stripe from "stripe";
 import { prisma } from "@ordena/database";
 import {
   updateOrderStatusSchema,
@@ -7,6 +8,7 @@ import {
   startOrderPrepSchema,
   acceptOrderSchema,
   adminCancelOrderSchema,
+  orderRefundSchema,
   isValidOrderStatusTransition,
   canAdminCancelOrder,
   type OrderStatus,
@@ -24,7 +26,7 @@ import {
   notifyCustomerOrderStatus,
   notifyCustomerOrderItemsChanged,
 } from "../utils/web-push";
-import { settleStripePayment } from "../utils/stripe";
+import { settleStripePayment, getStripe } from "../utils/stripe";
 import { getBusinessDate } from "../utils/branch-day-number";
 import { recordAdminAction } from "../utils/audit-log";
 import { generatePickupCode } from "../utils/pickup-code";
@@ -273,6 +275,10 @@ ordersRouter.get(
           user: {
             select: { id: true, name: true, email: true, phone: true },
           },
+          refunds: {
+            orderBy: { createdAt: "desc" },
+            include: { items: true },
+          },
         },
       });
       if (!order) {
@@ -318,6 +324,10 @@ ordersRouter.get(
           user: null,
           stripeSessionId: null,
           stripePaymentIntentId: null,
+          refunds: publicOrder.refunds.map(
+            ({ stripeRefundId: _srid, actorId: _aid, ...safeRefund }) =>
+              safeRefund,
+          ),
         },
       });
     } catch (error) {
@@ -513,6 +523,185 @@ ordersRouter.post(
       }
 
       res.json({ data: cancelled });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const REFUNDABLE_STATUSES: OrderStatus[] = ["READY", "COMPLETED"];
+
+/**
+ * Admin: reembolso parcial de uno o varios productos de un pedido ya cobrado
+ * (READY o COMPLETED), sin cancelarlo. Para cancelar y devolver el total
+ * completo, usar `POST /orders/:id/admin-cancel`.
+ */
+ordersRouter.post(
+  "/:id/refund",
+  authenticate,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { reason, items } = orderRefundSchema.parse(req.body);
+
+      const order = await prisma.order.findUnique({
+        where: { id: String(req.params.id) },
+        include: { items: true },
+      });
+      if (!order) {
+        throw new AppError(404, "Pedido no encontrado");
+      }
+
+      const currentStatus = order.status as OrderStatus;
+      if (!REFUNDABLE_STATUSES.includes(currentStatus)) {
+        throw new AppError(
+          400,
+          `Solo se puede reembolsar un pedido cobrado (listo o entregado); estado actual: ${currentStatus}`,
+        );
+      }
+      if (!order.stripePaymentIntentId) {
+        throw new AppError(
+          400,
+          "El pedido no tiene un pago registrado en Stripe",
+        );
+      }
+
+      const alreadyRefunded = await prisma.refundItem.findMany({
+        where: { orderItem: { orderId: order.id } },
+      });
+      const refundedQtyByItem = new Map<string, number>();
+      for (const ri of alreadyRefunded) {
+        refundedQtyByItem.set(
+          ri.orderItemId,
+          (refundedQtyByItem.get(ri.orderItemId) ?? 0) + ri.quantity,
+        );
+      }
+
+      const seen = new Set<string>();
+      let amount = 0;
+      const refundItemsData: {
+        orderItemId: string;
+        quantity: number;
+        amount: number;
+      }[] = [];
+
+      for (const requested of items) {
+        if (seen.has(requested.orderItemId)) {
+          throw new AppError(
+            400,
+            "Producto repetido en la solicitud de devolución",
+          );
+        }
+        seen.add(requested.orderItemId);
+
+        const item = order.items.find((i) => i.id === requested.orderItemId);
+        if (!item) {
+          throw new AppError(400, "Artículo no encontrado en el pedido");
+        }
+        if (item.unavailable) {
+          throw new AppError(
+            400,
+            `${item.productName} ya fue descontado por agotado, no se puede reembolsar`,
+          );
+        }
+
+        const alreadyQty = refundedQtyByItem.get(item.id) ?? 0;
+        const remainingQty = item.quantity - alreadyQty;
+        if (requested.quantity > remainingQty) {
+          throw new AppError(
+            400,
+            `Solo quedan ${remainingQty} de "${item.productName}" por devolver`,
+          );
+        }
+
+        const unitAmount = Math.round(item.lineTotal / item.quantity);
+        const itemAmount = unitAmount * requested.quantity;
+        amount += itemAmount;
+        refundItemsData.push({
+          orderItemId: item.id,
+          quantity: requested.quantity,
+          amount: itemAmount,
+        });
+      }
+
+      if (amount <= 0) {
+        throw new AppError(400, "El monto a devolver debe ser mayor a 0");
+      }
+
+      const maxRefundable = order.total - order.refundedTotal;
+      if (amount > maxRefundable) {
+        throw new AppError(
+          400,
+          "El monto a devolver excede lo disponible en este pedido",
+        );
+      }
+
+      let stripeRefundId: string | null = null;
+      try {
+        const stripeRefund = await getStripe().refunds.create({
+          payment_intent: order.stripePaymentIntentId,
+          amount,
+          metadata: {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            reason,
+          },
+        });
+        stripeRefundId = stripeRefund.id;
+      } catch (error) {
+        if (error instanceof Stripe.errors.StripeError) {
+          throw new AppError(502, `Error de Stripe: ${error.message}`);
+        }
+        throw error;
+      }
+
+      const [, updatedOrder] = await prisma.$transaction([
+        prisma.refund.create({
+          data: {
+            orderId: order.id,
+            amount,
+            reason,
+            stripeRefundId,
+            actorId: req.authUser!.id,
+            items: { create: refundItemsData },
+          },
+        }),
+        prisma.order.update({
+          where: { id: order.id },
+          data: { refundedTotal: { increment: amount } },
+          include: {
+            items: true,
+            branch: {
+              select: { id: true, name: true, address: true, phone: true },
+            },
+            user: {
+              select: { id: true, name: true, email: true, phone: true },
+            },
+            refunds: {
+              orderBy: { createdAt: "desc" },
+              include: { items: true },
+            },
+          },
+        }),
+      ]);
+
+      await recordAdminAction({
+        actorId: req.authUser!.id,
+        action: "order.refund",
+        entityType: "Order",
+        entityId: order.id,
+        metadata: { amount, reason, items: refundItemsData, stripeRefundId },
+      });
+
+      try {
+        await notifyCustomerOrderStatus(updatedOrder, {
+          body: `Reembolso de ${(amount / 100).toFixed(2)} ${order.currency.toUpperCase()} · ${reason}`,
+        });
+      } catch (pushError) {
+        console.error("[orders.refund] web-push", pushError);
+      }
+
+      res.json({ data: updatedOrder });
     } catch (error) {
       next(error);
     }

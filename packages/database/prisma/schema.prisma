@@ -58,6 +58,7 @@ model User {
   oauthAccounts       OAuthAccount[]
   adminAuditLogs      AdminAuditLog[]
   passwordResetTokens PasswordResetToken[]
+  refunds             Refund[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -274,7 +275,11 @@ model Order {
   notes                 String?
   /// Motivo obligatorio ingresado por sucursal o admin al cancelar el pedido
   cancellationReason    String?
+  /// Suma de reembolsos parciales de Stripe (centavos); no incluye la
+  /// cancelación total del pedido, que se refleja vía `status = CANCELLED`.
+  refundedTotal         Int         @default(0)
   items                 OrderItem[]
+  refunds               Refund[]
   paidAt                DateTime?
   /// Última vez que se envió un push de "pedido nuevo/urgente" a staff
   /// (creación + reenvíos de escalamiento). Se usa para calcular cuándo
@@ -316,6 +321,41 @@ model OrderItem {
   lineTotal   Int
   /// Marcado por sucursal: no se prepara ni se cobra
   unavailable Boolean @default(false)
+  refundItems RefundItem[]
+}
+
+/// Reembolso parcial (uno o varios productos) de un pedido ya cobrado por
+/// Stripe, sin cancelar el pedido completo. La cancelación total con
+/// devolución íntegra sigue siendo `POST /orders/:id/admin-cancel`.
+model Refund {
+  id             String       @id @default(cuid())
+  orderId        String
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Monto reembolsado en este evento (centavos)
+  amount         Int
+  /// Motivo obligatorio ingresado por el admin
+  reason         String
+  stripeRefundId String?
+  actorId        String
+  actor          User         @relation(fields: [actorId], references: [id])
+  items          RefundItem[]
+  createdAt      DateTime     @default(now())
+
+  @@index([orderId])
+}
+
+/// Detalle por producto de un `Refund` (qué línea y cuánta cantidad/monto).
+model RefundItem {
+  id          String    @id @default(cuid())
+  refundId    String
+  refund      Refund    @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  quantity    Int
+  amount      Int
+
+  @@index([refundId])
+  @@index([orderItemId])
 }
 
 /// Web Push: clientes (pedido) y staff (sucursal / pedidos nuevos)

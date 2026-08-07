@@ -139,6 +139,23 @@ export const adminCancelOrderSchema = z.object({
   cancellationReason: z.string().trim().min(1).max(500),
 });
 
+/**
+ * Body de `POST /orders/:id/refund`: reembolso parcial de uno o varios
+ * productos de un pedido ya cobrado por Stripe (no cancela el pedido).
+ */
+export const orderRefundSchema = z.object({
+  reason: z.string().trim().min(1, "El motivo es obligatorio").max(500),
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        quantity: z.number().int().positive(),
+      }),
+    )
+    .min(1, "Selecciona al menos un producto a devolver")
+    .max(50),
+});
+
 export const updateOrderItemAvailabilitySchema = z.object({
   unavailable: z.boolean(),
 });

@@ -15,6 +15,7 @@ import {
   Ticket,
   UserRound,
   Ban,
+  Undo2,
 } from "lucide-react";
 import { canAdminCancelOrder, groupItemsByPlateLabel, type OrderStatus } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
@@ -33,6 +34,21 @@ type OrderItem = {
   plateLabel?: string | null;
 };
 
+type RefundItemEntry = {
+  id: string;
+  orderItemId: string;
+  quantity: number;
+  amount: number;
+};
+
+type RefundEntry = {
+  id: string;
+  amount: number;
+  reason: string;
+  createdAt: string;
+  items: RefundItemEntry[];
+};
+
 type OrderDetail = {
   id: string;
   orderNumber: string;
@@ -40,6 +56,7 @@ type OrderDetail = {
   subtotal: number;
   discount: number;
   total: number;
+  refundedTotal: number;
   currency: string;
   notes: string | null;
   cancellationReason: string | null;
@@ -62,6 +79,7 @@ type OrderDetail = {
     phone: string | null;
   };
   items: OrderItem[];
+  refunds: RefundEntry[];
   user: {
     id: string;
     name: string | null;
@@ -213,6 +231,13 @@ export default function AdminOrderDetailPage() {
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [refundPending, setRefundPending] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundSelection, setRefundSelection] = useState<
+    Record<string, number>
+  >({});
 
   useEffect(() => {
     if (!id) return;
@@ -339,6 +364,103 @@ export default function AdminOrderDetailPage() {
       );
     } finally {
       setCancelPending(false);
+    }
+  }
+
+  const refundedQtyByItem = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!order) return map;
+    for (const refund of order.refunds) {
+      for (const line of refund.items) {
+        map.set(
+          line.orderItemId,
+          (map.get(line.orderItemId) ?? 0) + line.quantity,
+        );
+      }
+    }
+    return map;
+  }, [order]);
+
+  const refundableItems = useMemo(() => {
+    if (!order) return [];
+    return order.items
+      .filter((item) => !item.unavailable)
+      .map((item) => ({
+        item,
+        remaining: item.quantity - (refundedQtyByItem.get(item.id) ?? 0),
+      }))
+      .filter((row) => row.remaining > 0);
+  }, [order, refundedQtyByItem]);
+
+  const canPartialRefund =
+    order != null &&
+    (order.status === "READY" || order.status === "COMPLETED") &&
+    order.total - order.refundedTotal > 0 &&
+    refundableItems.length > 0;
+
+  const refundAmount = refundableItems.reduce((sum, { item }) => {
+    const qty = refundSelection[item.id] ?? 0;
+    return sum + qty * item.unitPrice;
+  }, 0);
+
+  function openRefundModal() {
+    setRefundError(null);
+    setRefundReason("");
+    setRefundSelection({});
+    setRefundModalOpen(true);
+  }
+
+  function closeRefundModal() {
+    if (refundPending) return;
+    setRefundModalOpen(false);
+    setRefundError(null);
+  }
+
+  function setRefundQty(itemId: string, qty: number, max: number) {
+    const clamped = Math.max(0, Math.min(qty, max));
+    setRefundSelection((prev) => ({ ...prev, [itemId]: clamped }));
+    setRefundError(null);
+  }
+
+  async function confirmPartialRefund() {
+    if (!order) return;
+    const reason = refundReason.trim();
+    if (!reason) {
+      setRefundError("Ingresa el motivo de la devolución");
+      return;
+    }
+    const items = Object.entries(refundSelection)
+      .filter(([, qty]) => qty > 0)
+      .map(([orderItemId, quantity]) => ({ orderItemId, quantity }));
+    if (items.length === 0) {
+      setRefundError("Selecciona al menos un producto a devolver");
+      return;
+    }
+    const token = getAuthToken();
+    if (!token) {
+      setRefundError("Sesión no válida");
+      return;
+    }
+
+    setRefundPending(true);
+    setRefundError(null);
+    try {
+      const res = await apiFetch<{ data: OrderDetail }>(
+        `/orders/${order.id}/refund`,
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ reason, items }),
+        },
+      );
+      setOrder(res.data);
+      setRefundModalOpen(false);
+    } catch (err) {
+      setRefundError(
+        err instanceof Error ? err.message : "Error al generar la devolución",
+      );
+    } finally {
+      setRefundPending(false);
     }
   }
 
@@ -621,6 +743,14 @@ export default function AdminOrderDetailPage() {
                       <span>−{formatMoney(order.total, order.currency)}</span>
                     </div>
                   )}
+                  {order.status !== "CANCELLED" && order.refundedTotal > 0 && (
+                    <div className="flex justify-between text-sm font-medium text-red-600">
+                      <span>Reembolsado</span>
+                      <span>
+                        −{formatMoney(order.refundedTotal, order.currency)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-base font-bold text-gray-900 dark:text-white">
                     <span>
                       {order.status === "READY" || order.status === "COMPLETED"
@@ -629,7 +759,9 @@ export default function AdminOrderDetailPage() {
                     </span>
                     <span className="text-orange-600">
                       {formatMoney(
-                        order.status === "CANCELLED" ? 0 : order.total,
+                        order.status === "CANCELLED"
+                          ? 0
+                          : order.total - order.refundedTotal,
                         order.currency,
                       )}
                     </span>
@@ -801,6 +933,25 @@ export default function AdminOrderDetailPage() {
                         </div>
                       </>
                     )}
+                    {order.status !== "CANCELLED" && order.refundedTotal > 0 && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">Reembolsado</dt>
+                          <dd className="font-semibold text-red-600">
+                            −{formatMoney(order.refundedTotal, order.currency)}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <dt className="text-gray-500">Neto cobrado</dt>
+                          <dd className="font-semibold text-orange-600">
+                            {formatMoney(
+                              order.total - order.refundedTotal,
+                              order.currency,
+                            )}
+                          </dd>
+                        </div>
+                      </>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <dt className="text-gray-500">Autorizado en</dt>
                       <dd className="text-right font-medium text-gray-800 dark:text-gray-100">
@@ -843,6 +994,55 @@ export default function AdminOrderDetailPage() {
                         )}
                       </div>
                     </details>
+                  )}
+
+                  {order.refunds.length > 0 && (
+                    <div className="space-y-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        Reembolsos
+                      </p>
+                      <ul className="space-y-2">
+                        {order.refunds.map((refund) => (
+                          <li
+                            key={refund.id}
+                            className="rounded-lg bg-gray-50 p-2.5 text-xs dark:bg-gray-800/50"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-red-600">
+                                −{formatMoney(refund.amount, order.currency)}
+                              </span>
+                              <span className="text-gray-400">
+                                {formatDate(refund.createdAt)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-gray-600 dark:text-gray-300">
+                              {refund.reason}
+                            </p>
+                            <p className="mt-1 text-gray-400">
+                              {refund.items
+                                .map((line) => {
+                                  const product = order.items.find(
+                                    (i) => i.id === line.orderItemId,
+                                  );
+                                  return `${line.quantity}× ${product?.productName ?? "Producto"}`;
+                                })
+                                .join(", ")}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {canPartialRefund && (
+                    <button
+                      type="button"
+                      onClick={openRefundModal}
+                      className="btn-secondary inline-flex w-full items-center justify-center gap-2"
+                    >
+                      <Undo2 className="h-4 w-4" />
+                      Reembolso parcial
+                    </button>
                   )}
 
                   {canCancel && (
@@ -977,6 +1177,117 @@ export default function AdminOrderDetailPage() {
                   onClick={() => void confirmAdminCancel()}
                 >
                   {cancelPending ? "Cancelando…" : "Confirmar cancelación"}
+                </button>
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            open={refundModalOpen}
+            onClose={closeRefundModal}
+            title="Reembolso parcial"
+            description="Devuelve uno o varios productos sin cancelar el pedido. Se reembolsa directo en Stripe."
+          >
+            <div className="space-y-4">
+              <div className="max-h-64 space-y-2 overflow-y-auto">
+                {refundableItems.map(({ item, remaining }) => {
+                  const qty = refundSelection[item.id] ?? 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                          {item.productName}
+                        </p>
+                        {item.variantName && (
+                          <p className="text-xs text-gray-500">
+                            {item.variantName}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400">
+                          {formatMoney(item.unitPrice, order.currency)} c/u ·
+                          disponible {remaining}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={qty <= 0}
+                          onClick={() =>
+                            setRefundQty(item.id, qty - 1, remaining)
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-base font-medium leading-none text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          −
+                        </button>
+                        <span className="w-6 text-center text-sm font-semibold text-gray-900 dark:text-white">
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={qty >= remaining}
+                          onClick={() =>
+                            setRefundQty(item.id, qty + 1, remaining)
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-base font-medium leading-none text-gray-700 transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div>
+                <label htmlFor="refundReasonModal" className="field-label">
+                  Motivo de la devolución
+                </label>
+                <textarea
+                  id="refundReasonModal"
+                  required
+                  placeholder="Ej. Producto llegó frío, faltó un artículo…"
+                  value={refundReason}
+                  onChange={(e) => {
+                    setRefundReason(e.target.value);
+                    setRefundError(null);
+                  }}
+                  className="input-field mt-1 min-h-[6rem] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-700 dark:bg-gray-800/50">
+                <span className="text-gray-500">Monto a reembolsar</span>
+                <span className="font-bold text-red-600">
+                  {formatMoney(refundAmount, order.currency)}
+                </span>
+              </div>
+
+              {refundError && (
+                <p className="text-sm text-red-600">{refundError}</p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+                <button
+                  type="button"
+                  disabled={refundPending}
+                  className="btn-secondary"
+                  onClick={closeRefundModal}
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    refundPending ||
+                    refundAmount <= 0 ||
+                    !refundReason.trim()
+                  }
+                  className="btn-red"
+                  onClick={() => void confirmPartialRefund()}
+                >
+                  {refundPending ? "Procesando…" : "Confirmar devolución"}
                 </button>
               </div>
             </div>
