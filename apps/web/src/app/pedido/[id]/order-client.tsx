@@ -56,6 +56,7 @@ type Order = {
   readyAt: string | null;
   paidAt: string | null;
   createdAt: string;
+  updatedAt?: string;
   ptvTicket: number | null;
   pickupCode: string | null;
   paymentBrand: string | null;
@@ -514,13 +515,42 @@ export default function OrderPageClient({
         {order && (
           <div className="space-y-4">
             {showsOrderProgress(order.status) && (
-                <div className="customer-card p-5">
-                  <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    Progreso
-                  </p>
+              <div className="customer-card p-5">
+                <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Progreso
+                </p>
+                {order.status === "COMPLETED" ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="order-step-dot order-step-dot-done">
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                      </span>
+                      <p className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
+                        Entregado
+                      </p>
+                    </div>
+                    <dl className="space-y-2 rounded-xl bg-gray-50 px-3.5 py-3 text-sm dark:bg-gray-800/50">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-gray-500">Fecha y hora</dt>
+                        <dd className="text-right font-medium text-gray-900 dark:text-white">
+                          {formatPaidAt(order.updatedAt ?? order.readyAt)}
+                        </dd>
+                      </div>
+                      {order.pickupCode && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-gray-500">Código de entrega</dt>
+                          <dd className="font-semibold tabular-nums tracking-wider text-gray-900 dark:text-white">
+                            {order.pickupCode}
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                ) : (
                   <OrderTimeline status={order.status} />
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
             {order.status === "READY" && order.pickupCode && (
               <div className="customer-card overflow-hidden border-2 border-orange-200 dark:border-orange-900/60">
