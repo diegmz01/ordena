@@ -238,7 +238,13 @@ export function buildReceiptTicket(
 export type DailyReportTotals = {
   businessDate: string;
   receivedCount: number;
+  salesCount: number;
+  salesTotal: number;
   cancelledCount: number;
+  cancelledTotal: number;
+  refundCount: number;
+  refundTotal: number;
+  currency?: string;
 };
 
 /** Ticket con los totales del día (sin detalle por pedido). */
@@ -249,6 +255,7 @@ export function buildDailyReportTicket(
   } & { now?: Date },
 ): ReceiptLine[] {
   const { branchName, totals, now = new Date() } = input;
+  const currency = totals.currency ?? "mxn";
   const lines: ReceiptLine[] = [];
 
   lines.push({ type: "logo" });
@@ -285,13 +292,49 @@ export function buildDailyReportTicket(
     large: true,
   });
   lines.push({ type: "blank" });
-  lines.push({ type: "text", text: "Pedidos cancelados", bold: true });
+
+  lines.push({ type: "text", text: "Total cobrado", bold: true });
   lines.push({
     type: "text",
-    text: String(totals.cancelledCount),
+    text: formatMoney(totals.salesTotal, currency),
     align: "right",
     bold: true,
     large: true,
+  });
+  lines.push({
+    type: "text",
+    text: `${totals.salesCount} entregado${totals.salesCount === 1 ? "" : "s"}`,
+    align: "right",
+  });
+  lines.push({ type: "blank" });
+
+  lines.push({ type: "text", text: "Cancelaciones", bold: true });
+  lines.push({
+    type: "text",
+    text: formatMoney(totals.cancelledTotal, currency),
+    align: "right",
+    bold: true,
+    large: true,
+  });
+  lines.push({
+    type: "text",
+    text: `${totals.cancelledCount} cancelado${totals.cancelledCount === 1 ? "" : "s"}`,
+    align: "right",
+  });
+  lines.push({ type: "blank" });
+
+  lines.push({ type: "text", text: "Devoluciones", bold: true });
+  lines.push({
+    type: "text",
+    text: formatMoney(totals.refundTotal, currency),
+    align: "right",
+    bold: true,
+    large: true,
+  });
+  lines.push({
+    type: "text",
+    text: `${totals.refundCount} reembolso${totals.refundCount === 1 ? "" : "s"}`,
+    align: "right",
   });
 
   lines.push({ type: "blank" });

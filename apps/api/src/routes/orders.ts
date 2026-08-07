@@ -240,11 +240,23 @@ ordersRouter.get(
       let salesCount = 0;
       let cancelledCount = 0;
       let cancelledTotal = 0;
+      let refundCount = 0;
+      let refundTotal = 0;
 
       for (const order of orders) {
         if (order.status === "COMPLETED") {
           salesCount += 1;
           salesTotal += order.total;
+          // Devoluciones = solo pedidos entregados con algo no cobrado del
+          // todo: artículos agotados (discount) o reembolsos parciales de
+          // Stripe ya hechos (refundedTotal). Un cancelado no es una
+          // devolución (ver /branch/history arriba: pre-aceptar nunca se
+          // cobró, post-aceptar es un caso distinto no rastreado aquí).
+          const orderRefunded = order.discount + order.refundedTotal;
+          if (orderRefunded > 0) {
+            refundCount += 1;
+            refundTotal += orderRefunded;
+          }
         } else if (order.status === "CANCELLED") {
           cancelledCount += 1;
           cancelledTotal += order.total;
@@ -261,9 +273,8 @@ ordersRouter.get(
           salesTotal,
           cancelledCount,
           cancelledTotal,
-          /** En este flujo, cancelar libera/reembolsa → igual a cancelaciones */
-          refundCount: cancelledCount,
-          refundTotal: cancelledTotal,
+          refundCount,
+          refundTotal,
           currency: "mxn",
         },
       });
