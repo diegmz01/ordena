@@ -153,12 +153,16 @@ model Product {
   imageUrl    String?
   basePrice   Int
   isActive    Boolean          @default(true)
+  /// Si es true, el cliente puede combinarlo con otro producto de la misma
+  /// categoría (dos productos por línea, precio = el más caro + modificador).
+  allowCombo  Boolean          @default(false)
   categoryId  String
   category    Category         @relation(fields: [categoryId], references: [id])
   variants    ProductVariant[]
   modifiers   ProductModifier[]
   branches    BranchProduct[]
   orderItems  OrderItem[]
+  comboOrderItems OrderItem[]  @relation("OrderItemSecondaryProduct")
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 }
@@ -314,6 +318,11 @@ model OrderItem {
   product     Product @relation(fields: [productId], references: [id])
   productName String
   variantName String?
+  /// Producto secundario combinado (mismo categoría, solo el principal
+  /// expone modificadores). Null = línea sin combo.
+  secondaryProductId   String?
+  secondaryProduct     Product? @relation("OrderItemSecondaryProduct", fields: [secondaryProductId], references: [id])
+  secondaryProductName String?
   /// Etiqueta visual "Persona 1", "Ana", etc. Null = sin separar
   plateLabel  String?
   unitPrice   Int

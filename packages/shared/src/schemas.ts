@@ -96,6 +96,8 @@ export const guestCheckoutSchema = z.object({
         modifierIds: z.array(z.string().min(1)).max(20).optional(),
         /** Agrupación visual Plato/Persona; no afecta el cobro. */
         plateLabel: z.string().trim().min(1).max(40).optional(),
+        /** Producto combinado (misma categoría); los modificadores son solo del principal. */
+        secondaryProductId: z.string().min(1).optional(),
       }),
     )
     .min(1)
@@ -111,6 +113,7 @@ export const checkoutValidateSchema = z.object({
         productId: z.string().min(1),
         productName: z.string().min(1).optional(),
         modifierIds: z.array(z.string().min(1)).max(20).optional(),
+        secondaryProductId: z.string().min(1).optional(),
       }),
     )
     .min(1)
@@ -230,6 +233,8 @@ export const productCreateSchema = z.object({
     .optional(),
   isActive: z.boolean().optional(),
   modifierIds: z.array(z.string().min(1)).max(50).optional(),
+  /** Permite combinarlo con otro producto de la misma categoría. */
+  allowCombo: z.boolean().optional(),
 });
 
 export const productUpdateSchema = z.object({
@@ -243,6 +248,8 @@ export const productUpdateSchema = z.object({
   isActive: z.boolean().optional(),
   /** IDs de modificadores asignados al producto (reemplazo completo). */
   modifierIds: z.array(z.string().min(1)).max(50).optional(),
+  /** Permite combinarlo con otro producto de la misma categoría. */
+  allowCombo: z.boolean().optional(),
 });
 
 export const modifierCreateSchema = z.object({

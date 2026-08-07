@@ -12,6 +12,8 @@ export type ReceiptLine =
 export type ReceiptTicketItem = {
   productName: string;
   variantName?: string | null;
+  /** Nombre del segundo producto si esta línea es una combinación. */
+  secondaryProductName?: string | null;
   quantity: number;
   lineTotal: number;
   unavailable?: boolean;
@@ -82,10 +84,19 @@ function customerPhone(order: ReceiptTicketOrder) {
   return order.user?.phone?.trim() || order.guestPhone?.trim() || null;
 }
 
+/** Nombre a mostrar de una línea de pedido, combinando el producto secundario si existe. */
+export function comboProductName(
+  productName: string,
+  secondaryProductName?: string | null,
+) {
+  return secondaryProductName?.trim()
+    ? `${productName} + ${secondaryProductName}`
+    : productName;
+}
+
 function itemLabel(item: ReceiptTicketItem) {
-  const base = item.variantName?.trim()
-    ? `${item.productName} (${item.variantName})`
-    : item.productName;
+  const name = comboProductName(item.productName, item.secondaryProductName);
+  const base = item.variantName?.trim() ? `${name} (${item.variantName})` : name;
   return `${item.quantity}x ${base}`;
 }
 

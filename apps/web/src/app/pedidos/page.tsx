@@ -67,6 +67,7 @@ type OrderRow = {
     id: string;
     productName: string;
     variantName: string | null;
+    secondaryProductName?: string | null;
     quantity: number;
     lineTotal: number;
     unavailable?: boolean;
@@ -213,7 +214,12 @@ export default function PedidosPage() {
   function OrderCard({ order }: { order: OrderRow }) {
     const summary = order.items
       .slice(0, 2)
-      .map((i) => `${i.quantity}× ${i.productName}`)
+      .map(
+        (i) =>
+          `${i.quantity}× ${i.productName}${
+            i.secondaryProductName ? ` + ${i.secondaryProductName}` : ""
+          }`,
+      )
       .join(", ");
     const extra =
       order.items.length > 2 ? ` +${order.items.length - 2} más` : "";

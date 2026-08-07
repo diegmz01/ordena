@@ -37,6 +37,7 @@ type Product = {
   imageUrl: string | null;
   basePrice: number;
   isActive: boolean;
+  allowCombo: boolean;
   categoryId: string;
   category: { id: string; name: string };
   modifiers?: { modifier: Modifier }[];
@@ -49,6 +50,7 @@ type ProductFormState = {
   categoryId: string;
   imageUrl: string;
   isActive: boolean;
+  allowCombo: boolean;
   modifierIds: string[];
 };
 
@@ -71,6 +73,7 @@ const emptyProductForm = (): ProductFormState => ({
   categoryId: "",
   imageUrl: "",
   isActive: true,
+  allowCombo: false,
   modifierIds: [],
 });
 
@@ -210,6 +213,7 @@ export default function AdminMenuPage() {
       categoryId: product.categoryId,
       imageUrl: product.imageUrl ?? "",
       isActive: product.isActive,
+      allowCombo: product.allowCombo,
       modifierIds: (product.modifiers ?? []).map((m) => m.modifier.id),
     });
     setFormError(null);
@@ -248,6 +252,7 @@ export default function AdminMenuPage() {
         categoryId: productForm.categoryId,
         imageUrl: productForm.imageUrl.trim() || null,
         isActive: productForm.isActive,
+        allowCombo: productForm.allowCombo,
         modifierIds: productForm.modifierIds,
       };
 
@@ -1098,6 +1103,21 @@ export default function AdminMenuPage() {
                 }
               />
               Producto activo (visible en el menú)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={productForm.allowCombo}
+                onChange={(e) =>
+                  setProductForm((f) => ({
+                    ...f,
+                    allowCombo: e.target.checked,
+                  }))
+                }
+              />
+              Permitir combinar (el cliente puede combinarlo con otro
+              producto de la misma categoría; el precio final es el del
+              producto más caro)
             </label>
           </div>
 

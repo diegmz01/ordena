@@ -42,6 +42,7 @@ type OrderItem = {
   id: string;
   productName: string;
   variantName: string | null;
+  secondaryProductName?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -1005,6 +1006,9 @@ export default function BranchHomePage() {
                                   )}
                                 >
                                   {item.productName}
+                                  {item.secondaryProductName
+                                    ? ` + ${item.secondaryProductName}`
+                                    : ""}
                                 </p>
                                 {item.variantName && (
                                   <p

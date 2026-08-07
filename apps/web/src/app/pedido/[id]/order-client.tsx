@@ -33,6 +33,7 @@ type OrderItem = {
   id: string;
   productName: string;
   variantName: string | null;
+  secondaryProductName?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -584,6 +585,9 @@ export default function OrderPageClient({
                               )}
                             >
                               {item.quantity}× {item.productName}
+                              {item.secondaryProductName
+                                ? ` + ${item.secondaryProductName}`
+                                : ""}
                             </p>
                             {item.variantName && (
                               <p className="text-xs text-gray-500">

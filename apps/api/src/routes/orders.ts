@@ -126,6 +126,7 @@ ordersRouter.get(
               id: true,
               productName: true,
               variantName: true,
+              secondaryProductName: true,
               quantity: true,
               lineTotal: true,
               unavailable: true,

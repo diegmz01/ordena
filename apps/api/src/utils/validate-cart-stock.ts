@@ -10,6 +10,7 @@ export type CartStockLineInput = {
   productId: string;
   productName?: string;
   modifierIds?: string[];
+  secondaryProductId?: string;
 };
 
 export type UnavailableCartLine = {
@@ -107,6 +108,29 @@ export async function findUnavailableCartLines(
         modifierIds,
         reason: `opción agotada (${[...new Set(soldOutOptional)].join(", ")})`,
       });
+      continue;
+    }
+
+    if (item.secondaryProductId) {
+      const secondary = await prisma.product.findFirst({
+        where: {
+          id: item.secondaryProductId,
+          isActive: true,
+          categoryId: product.categoryId,
+          branches: {
+            some: orderableBranchProductWhere(branchId),
+          },
+        },
+        select: { id: true },
+      });
+      if (!product.allowCombo || !secondary) {
+        out.push({
+          productId: product.id,
+          productName: product.name,
+          modifierIds,
+          reason: "combinación no disponible",
+        });
+      }
     }
   }
 
