@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Calendar,
   ChevronRight,
   ClipboardList,
   MapPin,
@@ -63,6 +64,48 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 type TicketFilter = "all" | "with" | "without";
+type DateFilter = "all" | "today" | "yesterday" | "week" | "month" | "custom";
+
+const DATE_FILTER_OPTIONS: [DateFilter, string][] = [
+  ["all", "Todas"],
+  ["today", "Hoy"],
+  ["yesterday", "Ayer"],
+  ["week", "Esta semana"],
+  ["month", "Este mes"],
+  ["custom", "Rango…"],
+];
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function startOfWeek(d: Date) {
+  const x = startOfDay(d);
+  const day = x.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function startOfMonth(d: Date) {
+  const x = startOfDay(d);
+  x.setDate(1);
+  return x;
+}
+
+// Los inputs <input type="date"> devuelven YYYY-MM-DD; se interpretan como
+// hora local (no UTC) para que "Hoy" refleje el día calendario del navegador.
+function parseLocalDate(value: string) {
+  return new Date(`${value}T00:00:00`);
+}
 
 function formatMoney(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
@@ -122,6 +165,10 @@ export default function AdminOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ticketFilter, setTicketFilter] = useState<TicketFilter>("all");
   const [branchFilter, setBranchFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -136,17 +183,45 @@ export default function AdminOrdersPage() {
       .then((res) => setOrders(res.data))
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+
+    apiFetch<{ data: { id: string; name: string }[] }>("/branches/admin", token)
+      .then((res) =>
+        setBranches(
+          [...res.data]
+            .map((b) => ({ id: b.id, name: b.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, "es")),
+        ),
+      )
+      .catch(() => {
+        // El listado de sucursales es un complemento del filtro; si falla, el
+        // selector simplemente no se muestra en vez de romper la página.
+      });
   }, []);
 
-  const branches = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const order of orders) {
-      map.set(order.branch.id, order.branch.name);
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    switch (dateFilter) {
+      case "today":
+        return { from: startOfDay(now), to: endOfDay(now) };
+      case "yesterday": {
+        const y = new Date(now);
+        y.setDate(y.getDate() - 1);
+        return { from: startOfDay(y), to: endOfDay(y) };
+      }
+      case "week":
+        return { from: startOfWeek(now), to: endOfDay(now) };
+      case "month":
+        return { from: startOfMonth(now), to: endOfDay(now) };
+      case "custom":
+        if (!customFrom && !customTo) return null;
+        return {
+          from: customFrom ? startOfDay(parseLocalDate(customFrom)) : null,
+          to: customTo ? endOfDay(parseLocalDate(customTo)) : null,
+        };
+      default:
+        return null;
     }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [orders]);
+  }, [dateFilter, customFrom, customTo]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: orders.length };
@@ -176,21 +251,30 @@ export default function AdminOrdersPage() {
       if (branchFilter !== "all" && order.branch.id !== branchFilter) {
         return false;
       }
+      if (dateRange) {
+        const created = new Date(order.createdAt);
+        if (dateRange.from && created < dateRange.from) return false;
+        if (dateRange.to && created > dateRange.to) return false;
+      }
       return matchesSearch(order, search);
     });
-  }, [orders, search, statusFilter, ticketFilter, branchFilter]);
+  }, [orders, search, statusFilter, ticketFilter, branchFilter, dateRange]);
 
   const hasActiveFilters =
     search.trim() !== "" ||
     statusFilter !== "all" ||
     ticketFilter !== "all" ||
-    branchFilter !== "all";
+    branchFilter !== "all" ||
+    dateFilter !== "all";
 
   function clearFilters() {
     setSearch("");
     setStatusFilter("all");
     setTicketFilter("all");
     setBranchFilter("all");
+    setDateFilter("all");
+    setCustomFrom("");
+    setCustomTo("");
   }
 
   return (
@@ -250,24 +334,50 @@ export default function AdminOrdersPage() {
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         <div className="space-y-4 border-b border-gray-200 p-4 sm:p-5 dark:border-gray-700">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar ORD, PTV, cliente, email o sucursal…"
-              className="input-field h-11 pl-10 pr-10"
-            />
-            {search && (
-              <button
-                type="button"
-                aria-label="Limpiar búsqueda"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800"
-                onClick={() => setSearch("")}
-              >
-                <X className="h-4 w-4" />
-              </button>
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-3",
+              branches.length > 1 && "sm:grid-cols-2",
+            )}
+          >
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar ORD, PTV, cliente, email o sucursal…"
+                className="input-field h-11 pl-10 pr-10"
+              />
+              {search && (
+                <button
+                  type="button"
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800"
+                  onClick={() => setSearch("")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            {branches.length > 1 && (
+              <div className="relative">
+                <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <select
+                  id="branchFilter"
+                  value={branchFilter}
+                  onChange={(e) => setBranchFilter(e.target.value)}
+                  className="input-field h-11 appearance-none pl-10"
+                >
+                  <option value="all">Todas las sucursales</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
 
@@ -315,6 +425,28 @@ export default function AdminOrdersPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500">
+                <Calendar className="h-3.5 w-3.5" />
+                Fecha
+              </span>
+              {DATE_FILTER_OPTIONS.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={cn(
+                    "rounded-lg px-2.5 py-1 text-xs font-medium transition",
+                    dateFilter === value
+                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                      : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800",
+                  )}
+                  onClick={() => setDateFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-gray-500">Ticket</span>
               {(
                 [
@@ -338,26 +470,51 @@ export default function AdminOrdersPage() {
                 </button>
               ))}
             </div>
-
-            {branches.length > 1 && (
-              <div className="relative min-w-[11rem] sm:max-w-[14rem] sm:flex-1">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                <select
-                  id="branchFilter"
-                  value={branchFilter}
-                  onChange={(e) => setBranchFilter(e.target.value)}
-                  className="input-field h-9 appearance-none pl-8 text-sm"
-                >
-                  <option value="all">Todas las sucursales</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
+
+          {dateFilter === "custom" && (
+            <div className="flex flex-wrap items-end gap-3 rounded-xl bg-gray-50 p-3 dark:bg-gray-800/60">
+              <div>
+                <label htmlFor="dateFrom" className="field-label">
+                  Desde
+                </label>
+                <input
+                  id="dateFrom"
+                  type="date"
+                  value={customFrom}
+                  max={customTo || undefined}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="input-field h-9 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="dateTo" className="field-label">
+                  Hasta
+                </label>
+                <input
+                  id="dateTo"
+                  type="date"
+                  value={customTo}
+                  min={customFrom || undefined}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="input-field h-9 text-sm"
+                />
+              </div>
+              {(customFrom || customTo) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomFrom("");
+                    setCustomTo("");
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Quitar rango
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
             <p className="text-xs text-gray-500">
