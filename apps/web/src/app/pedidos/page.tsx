@@ -36,21 +36,21 @@ const LOGIN_METHOD_LABEL: Record<LoginMethod, string> = {
 function LoginMethodIcon({ method }: { method: LoginMethod }) {
   if (method === "GOOGLE") {
     return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sm font-black text-sky-600 dark:bg-sky-950/40">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-sky-50 text-[11px] font-black text-sky-600 dark:bg-sky-950/40">
         G
       </span>
     );
   }
   if (method === "FACEBOOK") {
     return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
-        <Facebook className="h-4 w-4" />
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+        <Facebook className="h-3 w-3" />
       </span>
     );
   }
   return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-      <KeyRound className="h-4 w-4" />
+    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+      <KeyRound className="h-3 w-3" />
     </span>
   );
 }
@@ -271,117 +271,119 @@ export default function PedidosPage() {
   return (
     <div className="pb-28">
       <div className="customer-page-band">
-        <div className="container-page max-w-xl !pb-6 !pt-8">
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
+        <div className="container-page max-w-xl !pb-4 !pt-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-600">
             Cuenta
           </p>
-          <h1 className="page-title mt-1">Mis pedidos</h1>
-          <p className="page-description">
+          <h1 className="page-title mt-0.5 !text-lg sm:!text-xl">
+            Mis pedidos
+          </h1>
+          <p className="page-description !mt-0.5">
             {name ? `Hola, ${name.split(/\s+/)[0]}` : "Tu historial de pedidos"}
           </p>
         </div>
       </div>
 
-      <div className="container-page flex min-h-[calc(100vh-12rem)] max-w-xl flex-col !pt-6">
+      <div className="container-page flex min-h-[calc(100vh-12rem)] max-w-xl flex-col !pt-4">
         {error && <p className="admin-alert-error">{error}</p>}
 
         {loginMethods && (
-          <section className="customer-card mb-6 p-4 sm:p-5">
+          <section className="customer-card mb-4 p-3">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               Mi cuenta
             </h2>
 
-            <div className="mt-3">
-              <p className="mb-1.5 text-xs font-medium text-gray-500">
-                Teléfono
-              </p>
-              {editingPhone ? (
-                <form
-                  onSubmit={submitPhone}
-                  className="flex flex-col gap-2 sm:flex-row sm:items-start"
-                >
-                  <div className="flex-1">
-                    <input
-                      type="tel"
-                      required
-                      minLength={8}
-                      maxLength={20}
-                      inputMode="tel"
-                      autoComplete="tel"
-                      autoFocus
-                      value={phoneInput}
-                      onChange={(e) => setPhoneInput(e.target.value)}
-                      placeholder="Ej. 55 1234 5678"
-                      className="input-field"
-                    />
-                    {phoneError && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {phoneError}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      disabled={phoneSaving}
-                      className="btn-primary px-4 py-2 text-sm"
-                    >
-                      {phoneSaving ? "Guardando…" : "Guardar"}
-                    </button>
+            <div className="mt-2 space-y-2">
+              <div>
+                <p className="mb-1 text-[11px] font-medium text-gray-500">
+                  Teléfono
+                </p>
+                {editingPhone ? (
+                  <form
+                    onSubmit={submitPhone}
+                    className="flex flex-col gap-2 sm:flex-row sm:items-start"
+                  >
+                    <div className="flex-1">
+                      <input
+                        type="tel"
+                        required
+                        minLength={8}
+                        maxLength={20}
+                        inputMode="tel"
+                        autoComplete="tel"
+                        autoFocus
+                        value={phoneInput}
+                        onChange={(e) => setPhoneInput(e.target.value)}
+                        placeholder="Ej. 55 1234 5678"
+                        className="input-field !py-2"
+                      />
+                      {phoneError && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {phoneError}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={phoneSaving}
+                        className="btn-primary px-3 py-1.5 text-sm"
+                      >
+                        {phoneSaving ? "Guardando…" : "Guardar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPhone(false)}
+                        disabled={phoneSaving}
+                        className="btn-secondary px-3 py-1.5 text-sm"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5 dark:border-gray-700">
+                    <span className="flex min-w-0 items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
+                      <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      <span className="truncate">
+                        {phone || (
+                          <span className="text-gray-400">Sin teléfono</span>
+                        )}
+                      </span>
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setEditingPhone(false)}
-                      disabled={phoneSaving}
-                      className="btn-secondary px-4 py-2 text-sm"
+                      onClick={startEditPhone}
+                      className="link-action shrink-0 !px-1.5 !py-0.5 text-xs"
                     >
-                      Cancelar
+                      <Pencil className="h-3 w-3" />
+                      Editar
                     </button>
                   </div>
-                </form>
-              ) : (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700">
-                  <span className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                    <Phone className="h-4 w-4 shrink-0 text-gray-400" />
-                    {phone || (
-                      <span className="text-gray-400">Sin teléfono</span>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={startEditPhone}
-                    className="link-action !px-2 !py-1"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Editar
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4">
-              <p className="mb-1.5 text-xs font-medium text-gray-500">
-                Inicio de sesión
-              </p>
-              <div className="space-y-2">
-                {loginMethods.hasPassword && (
-                  <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700">
-                    <LoginMethodIcon method="EMAIL" />
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {LOGIN_METHOD_LABEL.EMAIL}
-                    </p>
-                  </div>
                 )}
-                {loginMethods.oauthAccounts.map((acc) => (
-                  <div
-                    key={acc.provider}
-                    className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-700"
-                  >
-                    <LoginMethodIcon method={acc.provider} />
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+              </div>
+
+              <div>
+                <p className="mb-1 text-[11px] font-medium text-gray-500">
+                  Inicio de sesión
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {loginMethods.hasPassword && (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100">
+                      <LoginMethodIcon method="EMAIL" />
+                      {LOGIN_METHOD_LABEL.EMAIL}
+                    </span>
+                  )}
+                  {loginMethods.oauthAccounts.map((acc) => (
+                    <span
+                      key={acc.provider}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100"
+                    >
+                      <LoginMethodIcon method={acc.provider} />
                       {LOGIN_METHOD_LABEL[acc.provider]}
-                    </p>
-                  </div>
-                ))}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
@@ -447,11 +449,11 @@ export default function PedidosPage() {
           </div>
         )}
 
-        <div className="mt-auto border-t border-gray-200 pt-6 dark:border-gray-700">
+        <div className="mt-auto border-t border-gray-200 pt-4 dark:border-gray-700">
           <button
             type="button"
             onClick={handleLogout}
-            className="btn-secondary w-full gap-2 py-3"
+            className="btn-secondary w-full gap-2 py-2.5 text-sm"
           >
             <LogOut className="h-4 w-4" />
             Cerrar sesión
