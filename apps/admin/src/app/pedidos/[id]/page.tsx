@@ -20,6 +20,7 @@ import {
 import {
   canAdminCancelOrder,
   comboProductName,
+  getPaidOrderWaitStatus,
   groupItemsByPlateLabel,
   type OrderStatus,
 } from "@ordena/shared";
@@ -159,6 +160,11 @@ function formatDate(iso: string | null) {
   }
 }
 
+function formatWaitLabel(elapsedMs: number) {
+  const minutes = Math.floor(elapsedMs / 60_000);
+  return `Esperando ${minutes} min`;
+}
+
 function paymentStatus(order: OrderDetail) {
   if (order.status === "CANCELLED") {
     return { label: "Cancelado", tone: STATUS_TONE.CANCELLED };
@@ -229,6 +235,7 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => Date.now());
   const [ticketInput, setTicketInput] = useState("");
   const [ticketPending, setTicketPending] = useState(false);
   const [ticketError, setTicketError] = useState<string | null>(null);
@@ -244,6 +251,11 @@ export default function AdminOrderDetailPage() {
   const [refundSelection, setRefundSelection] = useState<
     Record<string, number>
   >({});
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -564,6 +576,25 @@ export default function AdminOrderDetailPage() {
                       PTV #{order.ptvTicket}
                     </span>
                   )}
+                  {(() => {
+                    const wait = getPaidOrderWaitStatus(
+                      order.status,
+                      order.paidAt,
+                      now,
+                    );
+                    if (!wait) return null;
+                    return (
+                      <span
+                        className={
+                          wait.tone === "danger"
+                            ? "status-badge-danger"
+                            : "status-badge-warning"
+                        }
+                      >
+                        {formatWaitLabel(wait.elapsedMs)}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
