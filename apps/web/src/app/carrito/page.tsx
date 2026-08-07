@@ -173,7 +173,7 @@ export default function CarritoPage() {
               {comboProductName(item.name, item.secondaryName)}
             </p>
             {item.modifierLabels.length > 0 && (
-              <p className="mt-0.5 text-sm text-gray-500">
+              <p className="mt-0.5 text-base font-normal text-gray-500">
                 {item.modifierLabels.join(", ")}
               </p>
             )}
