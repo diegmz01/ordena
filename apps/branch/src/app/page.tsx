@@ -664,7 +664,13 @@ export default function BranchHomePage() {
         {
           businessDate: historyDate,
           receivedCount: historySummary.receivedCount,
+          salesCount: historySummary.salesCount,
+          salesTotal: historySummary.salesTotal,
           cancelledCount: historySummary.cancelledCount,
+          cancelledTotal: historySummary.cancelledTotal,
+          refundCount: historySummary.refundCount,
+          refundTotal: historySummary.refundTotal,
+          currency: historySummary.currency,
         },
         branchName,
       );

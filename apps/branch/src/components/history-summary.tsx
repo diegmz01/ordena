@@ -43,9 +43,11 @@ export function HistorySummary({
           </p>
         </div>
         <p className="mt-1.5 text-lg font-bold tabular-nums text-rose-600 sm:text-xl">
-          {cancelledCount}
+          {cancelledTotal}
         </p>
-        <p className="mt-0.5 text-xs text-slate-500">{cancelledTotal}</p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {cancelledCount} cancelado{cancelledCount === 1 ? "" : "s"}
+        </p>
       </div>
       <div className="staff-stat-card">
         <div className="flex items-center gap-1.5 text-slate-500">
