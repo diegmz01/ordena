@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { BranchHeader } from "@/components/branch-header";
+import { ScrollArrows } from "@/components/scroll-arrows";
 import { StaffPresence } from "@/components/staff-presence";
 
 export function BranchShell({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export function BranchShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5 sm:py-7">
         {children}
       </main>
+      <ScrollArrows />
     </>
   );
 }

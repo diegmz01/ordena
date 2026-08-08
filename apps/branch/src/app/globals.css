@@ -1,2 +1,12 @@
 @import "tailwindcss";
 @import "../../../../packages/shared/src/design-system.css";
+
+/* Scroll nativo oculto: la app usa las flechas flotantes (scroll-arrows.tsx)
+   como control de desplazamiento en pantallas touch de escritorio. */
+html {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
+}
