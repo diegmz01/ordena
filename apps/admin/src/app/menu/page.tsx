@@ -138,6 +138,19 @@ export default function AdminMenuPage() {
   const [savingReorder, setSavingReorder] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
+  const [categoryReorderModalOpen, setCategoryReorderModalOpen] =
+    useState(false);
+  const [categoryReorderList, setCategoryReorderList] = useState<Category[]>(
+    [],
+  );
+  const [categoryReorderError, setCategoryReorderError] = useState<
+    string | null
+  >(null);
+  const [savingCategoryReorder, setSavingCategoryReorder] = useState(false);
+  const [categoryDragIndex, setCategoryDragIndex] = useState<number | null>(
+    null,
+  );
+
   const tokenOrThrow = useCallback(() => {
     const token = getAuthToken();
     if (!token) throw new Error("Inicia sesión como admin");
@@ -180,7 +193,10 @@ export default function AdminMenuPage() {
   );
 
   const sortedCategories = useMemo(
-    () => [...categories].sort((a, b) => a.name.localeCompare(b.name)),
+    () =>
+      [...categories].sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+      ),
     [categories],
   );
 
@@ -485,15 +501,77 @@ export default function AdminMenuPage() {
     }
   }
 
+  function closeCategoryReorderModal() {
+    setCategoryReorderModalOpen(false);
+    setCategoryReorderList([]);
+    setCategoryReorderError(null);
+    setCategoryDragIndex(null);
+  }
+
+  function openReorderCategories() {
+    setCategoryReorderList(sortedCategories);
+    setCategoryReorderError(null);
+    setSuccess(null);
+    setCategoryReorderModalOpen(true);
+  }
+
+  function moveCategoryReorderItem(from: number, to: number) {
+    if (to < 0 || to >= categoryReorderList.length || from === to) return;
+    setCategoryReorderList((list) => {
+      const next = [...list];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
+  async function saveCategoryReorder() {
+    setSavingCategoryReorder(true);
+    setCategoryReorderError(null);
+    try {
+      const token = tokenOrThrow();
+      await apiFetch("/menu/admin/categories/reorder", token, {
+        method: "PATCH",
+        body: JSON.stringify({
+          categoryIds: categoryReorderList.map((c) => c.id),
+        }),
+      });
+      setSuccess("Orden de categorías actualizado");
+      closeCategoryReorderModal();
+      await load();
+    } catch (err) {
+      setCategoryReorderError(
+        err instanceof Error ? err.message : "No se pudo guardar el orden",
+      );
+    } finally {
+      setSavingCategoryReorder(false);
+    }
+  }
+
   const headerAction =
     tab === "categories" ? (
-      <button
-        type="button"
-        className="btn-primary"
-        onClick={openCreateCategory}
-      >
-        Nueva categoría
-      </button>
+      <>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={openReorderCategories}
+          disabled={categories.length < 2}
+          title={
+            categories.length < 2
+              ? "Se necesitan al menos 2 categorías para ordenar"
+              : undefined
+          }
+        >
+          Ordenar categorías
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={openCreateCategory}
+        >
+          Nueva categoría
+        </button>
+      </>
     ) : tab === "modifiers" ? (
       <button
         type="button"
@@ -1357,6 +1435,99 @@ export default function AdminMenuPage() {
               disabled={savingReorder || reorderList.length === 0}
             >
               {savingReorder ? "Guardando…" : "Guardar orden"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={categoryReorderModalOpen}
+        onClose={closeCategoryReorderModal}
+        title="Ordenar categorías"
+        description="Arrastra las categorías para definir el orden en que se muestran en el menú del cliente."
+      >
+        <div className="space-y-4">
+          {categoryReorderError && (
+            <p className="admin-alert-error">{categoryReorderError}</p>
+          )}
+
+          {categoryReorderList.length === 0 ? (
+            <p className="text-sm text-gray-500">No hay categorías.</p>
+          ) : (
+            <ul className="max-h-96 space-y-1 overflow-y-auto">
+              {categoryReorderList.map((category, index) => (
+                <li
+                  key={category.id}
+                  draggable
+                  onDragStart={() => setCategoryDragIndex(index)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (
+                      categoryDragIndex === null ||
+                      categoryDragIndex === index
+                    )
+                      return;
+                    moveCategoryReorderItem(categoryDragIndex, index);
+                    setCategoryDragIndex(index);
+                  }}
+                  onDragEnd={() => setCategoryDragIndex(null)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800",
+                    categoryDragIndex === index && "opacity-50",
+                  )}
+                >
+                  <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-gray-400" />
+                  <span className="w-5 shrink-0 text-xs text-gray-400">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-white">
+                    {category.name}
+                  </span>
+                  {!category.isActive && (
+                    <span className="status-badge-inactive shrink-0">
+                      Inactiva
+                    </span>
+                  )}
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={() => moveCategoryReorderItem(index, index - 1)}
+                      disabled={index === 0}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={() => moveCategoryReorderItem(index, index + 1)}
+                      disabled={index === categoryReorderList.length - 1}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={closeCategoryReorderModal}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={saveCategoryReorder}
+              disabled={
+                savingCategoryReorder || categoryReorderList.length === 0
+              }
+            >
+              {savingCategoryReorder ? "Guardando…" : "Guardar orden"}
             </button>
           </div>
         </div>

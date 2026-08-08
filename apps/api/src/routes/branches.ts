@@ -479,7 +479,7 @@ branchesRouter.get(
           include: {
             products: {
               where: { isActive: true },
-              orderBy: { name: "asc" },
+              orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
               select: {
                 id: true,
                 name: true,

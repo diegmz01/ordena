@@ -47,7 +47,7 @@ export default function MenuPage() {
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeCat, setActiveCat] = useState<string>("all");
+  const [activeCat, setActiveCat] = useState<string>("");
   const [selected, setSelected] = useState<MenuProduct | null>(null);
 
   const effectiveBranch = branchParam || branchId;
@@ -103,9 +103,19 @@ export default function MenuPage() {
     );
   }, [products]);
 
+  useEffect(() => {
+    if (categories.length === 0) return;
+    if (categories.some((c) => c.id === activeCat)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- selecciona la primera categoría (según su orden) cuando cambia el listado o la activa deja de existir
+    setActiveCat(categories[0].id);
+  }, [categories, activeCat]);
+
   const filtered = useMemo(() => {
-    if (activeCat === "all") return products;
-    return products.filter((p) => p.category.id === activeCat);
+    const inCategory = products.filter((p) => p.category.id === activeCat);
+    // Estable: agota al final sin alterar el orden relativo (categoría/sortOrder/nombre).
+    return [...inCategory].sort(
+      (a, b) => Number(a.inStock === false) - Number(b.inStock === false),
+    );
   }, [products, activeCat]);
 
   if (!effectiveBranch) {
@@ -214,16 +224,6 @@ export default function MenuPage() {
           {categories.length > 0 && (
             <div className="sticky top-14 z-20 -mx-4 mb-5 border-b border-gray-100 bg-background/95 px-4 py-2 backdrop-blur dark:border-gray-800">
               <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  type="button"
-                  className={cn(
-                    "admin-tab-pill shrink-0",
-                    activeCat === "all" && "admin-tab-pill-active",
-                  )}
-                  onClick={() => setActiveCat("all")}
-                >
-                  Todos
-                </button>
                 {categories.map((cat) => (
                   <button
                     key={cat.id}
@@ -248,13 +248,6 @@ export default function MenuPage() {
               <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                 Sin productos en esta categoría
               </p>
-              <button
-                type="button"
-                className="btn-secondary mt-4"
-                onClick={() => setActiveCat("all")}
-              >
-                Ver todo el menú
-              </button>
             </div>
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2">

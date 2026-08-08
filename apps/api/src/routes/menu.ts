@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "@ordena/database";
 import {
   categoryCreateSchema,
+  categoryReorderSchema,
   categoryUpdateSchema,
   modifierCreateSchema,
   modifierUpdateSchema,
@@ -208,6 +209,45 @@ menuRouter.post(
       });
 
       res.status(201).json({ data: category });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+menuRouter.patch(
+  "/admin/categories/reorder",
+  authenticate,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const body = categoryReorderSchema.parse(req.body);
+
+      const allCategories = await prisma.category.findMany({
+        select: { id: true },
+      });
+      const allCategoryIds = new Set(allCategories.map((c) => c.id));
+
+      if (
+        body.categoryIds.length !== allCategoryIds.size ||
+        !body.categoryIds.every((id) => allCategoryIds.has(id))
+      ) {
+        throw new AppError(
+          400,
+          "La lista de categorías no coincide con las categorías existentes",
+        );
+      }
+
+      await prisma.$transaction(
+        body.categoryIds.map((id, index) =>
+          prisma.category.update({
+            where: { id },
+            data: { sortOrder: index },
+          }),
+        ),
+      );
+
+      res.json({ ok: true });
     } catch (error) {
       next(error);
     }

@@ -222,6 +222,10 @@ export const categoryCreateSchema = z.object({
 
 export const categoryUpdateSchema = categoryCreateSchema.partial();
 
+export const categoryReorderSchema = z.object({
+  categoryIds: z.array(z.string().min(1)).min(1),
+});
+
 export const productCreateSchema = z.object({
   name: z.string().min(2, "Nombre demasiado corto"),
   description: z.string().max(1000).optional().nullable(),
