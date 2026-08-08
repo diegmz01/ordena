@@ -6,52 +6,66 @@ import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Clock3,
-  Facebook,
-  KeyRound,
   LogOut,
   Package,
   Pencil,
-  Phone,
   ShoppingBag,
 } from "lucide-react";
 import { comboProductName, type AuthUser } from "@ordena/shared";
+import { Modal } from "@/components/ui/modal";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken, logout } from "@/lib/auth";
 import { formatMoney } from "@/lib/cart";
 import { cn } from "@/lib/utils";
-
-type LoginMethod = "EMAIL" | "GOOGLE" | "FACEBOOK";
 
 type LoginMethods = {
   hasPassword: boolean;
   oauthAccounts: { provider: "GOOGLE" | "FACEBOOK"; createdAt: string }[];
 };
 
-const LOGIN_METHOD_LABEL: Record<LoginMethod, string> = {
-  EMAIL: "Correo y contraseña",
-  GOOGLE: "Google",
-  FACEBOOK: "Facebook",
-};
-
-function LoginMethodIcon({ method }: { method: LoginMethod }) {
-  if (method === "GOOGLE") {
-    return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-sky-50 text-[11px] font-black text-sky-600 dark:bg-sky-950/40">
-        G
-      </span>
-    );
-  }
-  if (method === "FACEBOOK") {
-    return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
-        <Facebook className="h-3 w-3" />
-      </span>
-    );
-  }
+function GoogleIcon({ className }: { className?: string }) {
   return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-      <KeyRound className="h-3 w-3" />
-    </span>
+    <svg
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path
+        fill="#EA4335"
+        d="M12 10.2v3.6h5.1c-.2 1.2-.9 2.2-1.9 2.9l3.1 2.4c1.8-1.7 2.8-4.1 2.8-7 0-.7-.1-1.3-.2-1.9H12z"
+      />
+      <path
+        fill="#34A853"
+        d="M6.6 14.3l-.7.5-2.4 1.9C5.1 19.3 8.3 21 12 21c2.7 0 5-.9 6.7-2.4l-3.1-2.4c-.9.6-2 .9-3.6.9-2.8 0-5.1-1.9-6-4.4z"
+      />
+      <path
+        fill="#4A90E2"
+        d="M3.5 7.3C2.6 9 2 10.9 2 13s.6 4 1.5 5.7l3.1-2.4C6 15.1 5.7 14.1 5.7 13s.3-2.1.8-3l-3-2.7z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M12 5.3c1.5 0 2.8.5 3.9 1.5l2.9-2.9C16.9 2.2 14.6 1 12 1 8.3 1 5.1 2.7 3.5 5.3l3.1 2.4C7 5.2 9.2 3.3 12 3.3z"
+      />
+    </svg>
+  );
+}
+
+function FacebookIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <path
+        fill="#1877F2"
+        d="M24 12.1C24 5.4 18.6 0 12 0S0 5.4 0 12.1C0 18.1 4.4 23.1 10.1 24v-8.4H7.1v-3.5h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.2 2.6.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8v2.2h3.3l-.5 3.5h-2.8V24C19.6 23.1 24 18.1 24 12.1z"
+      />
+    </svg>
   );
 }
 
@@ -93,7 +107,8 @@ const STATUS_TONE: Record<string, string> = {
     "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
   READY:
     "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
-  COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
+  COMPLETED:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
   CANCELLED: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
 };
 
@@ -131,7 +146,7 @@ export default function PedidosPage() {
   const [phone, setPhone] = useState<string | null>(null);
   const [loginMethods, setLoginMethods] = useState<LoginMethods | null>(null);
 
-  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [phoneSaving, setPhoneSaving] = useState(false);
@@ -179,15 +194,31 @@ export default function PedidosPage() {
     };
   }, [orders]);
 
+  const oauthProviders = useMemo(() => {
+    const set = new Set(
+      loginMethods?.oauthAccounts.map((a) => a.provider) ?? [],
+    );
+    return {
+      google: set.has("GOOGLE"),
+      facebook: set.has("FACEBOOK"),
+    };
+  }, [loginMethods]);
+
   async function handleLogout() {
     await logout();
     router.push("/");
   }
 
-  function startEditPhone() {
+  function openPhoneModal() {
     setPhoneInput(phone ?? "");
     setPhoneError(null);
-    setEditingPhone(true);
+    setPhoneModalOpen(true);
+  }
+
+  function closePhoneModal() {
+    if (phoneSaving) return;
+    setPhoneModalOpen(false);
+    setPhoneError(null);
   }
 
   async function submitPhone(event: FormEvent<HTMLFormElement>) {
@@ -203,7 +234,7 @@ export default function PedidosPage() {
         body: JSON.stringify({ phone: phoneInput }),
       });
       setPhone(res.user.phone ?? null);
-      setEditingPhone(false);
+      setPhoneModalOpen(false);
     } catch (err) {
       setPhoneError(err instanceof Error ? err.message : "Error");
     } finally {
@@ -272,122 +303,69 @@ export default function PedidosPage() {
     <div className="pb-28">
       <div className="customer-page-band">
         <div className="container-page max-w-xl !pb-4 !pt-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-600">
-            Cuenta
-          </p>
-          <h1 className="page-title mt-0.5 !text-lg sm:!text-xl">
-            Mis pedidos
-          </h1>
-          <p className="page-description !mt-0.5">
-            {name ? `Hola, ${name.split(/\s+/)[0]}` : "Tu historial de pedidos"}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-600">
+                Cuenta
+              </p>
+              <h1 className="page-title mt-0.5 !text-lg sm:!text-xl">
+                Mis pedidos
+              </h1>
+              <p className="page-description !mt-0.5">
+                {name
+                  ? `Hola, ${name.split(/\s+/)[0]}`
+                  : "Tu historial de pedidos"}
+              </p>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="max-w-[9.5rem] truncate text-sm font-medium tabular-nums text-gray-800 dark:text-gray-100">
+                  {phone || (
+                    <span className="font-normal text-gray-400">
+                      Sin teléfono
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={openPhoneModal}
+                  className="inline-flex size-7 items-center justify-center rounded-lg text-orange-600 transition hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-950/40"
+                  aria-label="Editar teléfono"
+                  title="Editar teléfono"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {(oauthProviders.google || oauthProviders.facebook) && (
+                <div className="mt-1.5 flex items-center justify-end gap-2">
+                  {oauthProviders.google && (
+                    <span
+                      className="inline-flex size-7 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700"
+                      title="Google"
+                      aria-label="Inicio de sesión con Google"
+                    >
+                      <GoogleIcon />
+                    </span>
+                  )}
+                  {oauthProviders.facebook && (
+                    <span
+                      className="inline-flex size-7 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-700"
+                      title="Facebook"
+                      aria-label="Inicio de sesión con Facebook"
+                    >
+                      <FacebookIcon />
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="container-page flex min-h-[calc(100vh-12rem)] max-w-xl flex-col !pt-4">
         {error && <p className="admin-alert-error">{error}</p>}
-
-        {loginMethods && (
-          <section className="customer-card mb-4 p-3">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Mi cuenta
-            </h2>
-
-            <div className="mt-2 space-y-2">
-              <div>
-                <p className="mb-1 text-[11px] font-medium text-gray-500">
-                  Teléfono
-                </p>
-                {editingPhone ? (
-                  <form
-                    onSubmit={submitPhone}
-                    className="flex flex-col gap-2 sm:flex-row sm:items-start"
-                  >
-                    <div className="flex-1">
-                      <input
-                        type="tel"
-                        required
-                        minLength={8}
-                        maxLength={20}
-                        inputMode="tel"
-                        autoComplete="tel"
-                        autoFocus
-                        value={phoneInput}
-                        onChange={(e) => setPhoneInput(e.target.value)}
-                        placeholder="Ej. 55 1234 5678"
-                        className="input-field !py-2"
-                      />
-                      {phoneError && (
-                        <p className="mt-1 text-xs text-red-600">
-                          {phoneError}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={phoneSaving}
-                        className="btn-primary px-3 py-1.5 text-sm"
-                      >
-                        {phoneSaving ? "Guardando…" : "Guardar"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingPhone(false)}
-                        disabled={phoneSaving}
-                        className="btn-secondary px-3 py-1.5 text-sm"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5 dark:border-gray-700">
-                    <span className="flex min-w-0 items-center gap-2 text-sm text-gray-800 dark:text-gray-100">
-                      <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                      <span className="truncate">
-                        {phone || (
-                          <span className="text-gray-400">Sin teléfono</span>
-                        )}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={startEditPhone}
-                      className="link-action shrink-0 !px-1.5 !py-0.5 text-xs"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      Editar
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <p className="mb-1 text-[11px] font-medium text-gray-500">
-                  Inicio de sesión
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {loginMethods.hasPassword && (
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100">
-                      <LoginMethodIcon method="EMAIL" />
-                      {LOGIN_METHOD_LABEL.EMAIL}
-                    </span>
-                  )}
-                  {loginMethods.oauthAccounts.map((acc) => (
-                    <span
-                      key={acc.provider}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100"
-                    >
-                      <LoginMethodIcon method={acc.provider} />
-                      {LOGIN_METHOD_LABEL[acc.provider]}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
 
         {orders === null && !error && (
           <div className="space-y-3">
@@ -460,6 +438,58 @@ export default function PedidosPage() {
           </button>
         </div>
       </div>
+
+      <Modal
+        open={phoneModalOpen}
+        onClose={closePhoneModal}
+        title="Editar teléfono"
+        description="Usamos este número para contactarte sobre tu pedido."
+      >
+        <form onSubmit={submitPhone} className="space-y-4">
+          <div>
+            <label htmlFor="phoneModal" className="field-label">
+              Teléfono
+            </label>
+            <input
+              id="phoneModal"
+              type="tel"
+              required
+              minLength={8}
+              maxLength={20}
+              inputMode="tel"
+              autoComplete="tel"
+              autoFocus
+              value={phoneInput}
+              onChange={(e) => {
+                setPhoneInput(e.target.value);
+                setPhoneError(null);
+              }}
+              placeholder="Ej. 55 1234 5678"
+              className="input-field mt-1"
+            />
+            {phoneError && (
+              <p className="mt-1 text-xs text-red-600">{phoneError}</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+            <button
+              type="button"
+              disabled={phoneSaving}
+              onClick={closePhoneModal}
+              className="btn-secondary px-4 py-2 text-sm"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={phoneSaving}
+              className="btn-primary px-4 py-2 text-sm"
+            >
+              {phoneSaving ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
