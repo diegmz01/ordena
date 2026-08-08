@@ -35,6 +35,11 @@ import {
   promoteDuePreparingOrders,
 } from "../utils/promote-ready-orders";
 import { escalateUnacceptedOrders } from "../utils/escalate-unaccepted-orders";
+import {
+  listedBranchProductWhere,
+  unavailableModifierIdsForBranch,
+  unavailableProductIdsForBranch,
+} from "../utils/branch-menu-stock";
 
 export const ordersRouter = Router();
 
@@ -136,6 +141,177 @@ ordersRouter.get(
       });
 
       res.json({ data: orders });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Cuántas líneas históricas de un mismo grupo (producto + combo + modificadores)
+ * se consideran antes de intentar reconstruir cada una contra el catálogo
+ * vigente; se piden más de 5 porque algunas pueden quedar descartadas por
+ * estar agotadas/descatalogadas o tener modificadores que ya no existen.
+ */
+const SUGGESTION_CANDIDATE_LIMIT = 20;
+const SUGGESTIONS_LIMIT = 5;
+
+ordersRouter.get(
+  "/suggestions",
+  authenticate,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const user = req.authUser!;
+      if (user.role !== "CUSTOMER") {
+        throw new AppError(403, "Solo clientes pueden ver sugerencias");
+      }
+      const branchId =
+        typeof req.query.branchId === "string" && req.query.branchId
+          ? req.query.branchId
+          : undefined;
+
+      const orders = await prisma.order.findMany({
+        where: {
+          userId: user.id,
+          status: { notIn: ["CANCELLED", "PENDING_PAYMENT"] },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select: {
+          items: {
+            select: {
+              productId: true,
+              secondaryProductId: true,
+              variantName: true,
+              quantity: true,
+            },
+          },
+        },
+      });
+
+      // Agrupa por combinación exacta (producto + combo + modificadores) —
+      // así "Taco de Pastor + extra queso" se sugiere aparte de "Taco de
+      // Pastor" solo.
+      const groups = new Map<
+        string,
+        {
+          productId: string;
+          secondaryProductId: string | null;
+          variantName: string | null;
+          timesOrdered: number;
+        }
+      >();
+      for (const order of orders) {
+        for (const item of order.items) {
+          const key = `${item.productId}::${item.secondaryProductId ?? ""}::${item.variantName ?? ""}`;
+          const existing = groups.get(key);
+          if (existing) {
+            existing.timesOrdered += item.quantity;
+          } else {
+            groups.set(key, {
+              productId: item.productId,
+              secondaryProductId: item.secondaryProductId,
+              variantName: item.variantName,
+              timesOrdered: item.quantity,
+            });
+          }
+        }
+      }
+
+      const ranked = [...groups.values()]
+        .sort((a, b) => b.timesOrdered - a.timesOrdered)
+        .slice(0, SUGGESTION_CANDIDATE_LIMIT);
+
+      const [outProducts, outMods] = branchId
+        ? await Promise.all([
+            unavailableProductIdsForBranch(branchId),
+            unavailableModifierIdsForBranch(branchId),
+          ])
+        : [new Set<string>(), new Set<string>()];
+
+      const suggestions: {
+        productId: string;
+        name: string;
+        imageUrl: string | null;
+        unitPrice: number;
+        modifierIds: string[];
+        modifierLabels: string[];
+        secondaryProductId: string | null;
+        secondaryName: string | null;
+        timesOrdered: number;
+      }[] = [];
+
+      for (const group of ranked) {
+        if (suggestions.length >= SUGGESTIONS_LIMIT) break;
+
+        const product = await prisma.product.findFirst({
+          where: {
+            id: group.productId,
+            isActive: true,
+            ...(branchId
+              ? { branches: { some: listedBranchProductWhere(branchId) } }
+              : {}),
+          },
+          include: { modifiers: { include: { modifier: true } } },
+        });
+        if (!product || (branchId && outProducts.has(product.id))) continue;
+
+        let secondaryProduct: { id: string; name: string; basePrice: number } | null =
+          null;
+        if (group.secondaryProductId) {
+          secondaryProduct = await prisma.product.findFirst({
+            where: {
+              id: group.secondaryProductId,
+              isActive: true,
+              ...(branchId
+                ? { branches: { some: listedBranchProductWhere(branchId) } }
+                : {}),
+            },
+            select: { id: true, name: true, basePrice: true },
+          });
+          if (!secondaryProduct || (branchId && outProducts.has(secondaryProduct.id)))
+            continue;
+        }
+
+        const activeMods = product.modifiers
+          .map((pm) => pm.modifier)
+          .filter((m) => m.isActive && !(branchId && outMods.has(m.id)));
+
+        const historicLabels = group.variantName
+          ? group.variantName
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+        const matchedMods = activeMods.filter((m) =>
+          historicLabels.includes(m.name),
+        );
+
+        // Si algún modificador de la línea original ya no existe, cambió de
+        // nombre o está agotado, no reconstruimos "a medias": se omite para
+        // no sugerir una combinación distinta a la que el cliente pidió.
+        if (matchedMods.length !== historicLabels.length) continue;
+
+        const basePrice = secondaryProduct
+          ? Math.max(product.basePrice, secondaryProduct.basePrice)
+          : product.basePrice;
+        const unitPrice =
+          basePrice + matchedMods.reduce((sum, m) => sum + m.priceDelta, 0);
+
+        suggestions.push({
+          productId: product.id,
+          name: product.name,
+          imageUrl: product.imageUrl,
+          unitPrice,
+          modifierIds: matchedMods.map((m) => m.id),
+          modifierLabels: matchedMods.map((m) => m.name),
+          secondaryProductId: secondaryProduct?.id ?? null,
+          secondaryName: secondaryProduct?.name ?? null,
+          timesOrdered: group.timesOrdered,
+        });
+      }
+
+      res.json({ data: suggestions });
     } catch (error) {
       next(error);
     }

@@ -10,6 +10,7 @@ import {
   ProductSheet,
   type MenuProduct,
 } from "@/components/product-sheet";
+import { SuggestedProducts } from "@/components/suggested-products";
 import { useBranchStatus } from "@/lib/use-branch-status";
 import { cn } from "@/lib/utils";
 
@@ -207,6 +208,8 @@ export default function MenuPage() {
       ) : (
         <div className="container-page !pt-4">
           {error && <p className="admin-alert-error mb-4">{error}</p>}
+
+          {!loading && <SuggestedProducts branchId={effectiveBranch} />}
 
           {categories.length > 0 && (
             <div className="sticky top-14 z-20 -mx-4 mb-5 border-b border-gray-100 bg-background/95 px-4 py-2 backdrop-blur dark:border-gray-800">
