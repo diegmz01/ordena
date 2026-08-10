@@ -169,6 +169,25 @@ model Category {
   updatedAt DateTime  @updatedAt
 }
 
+model Faq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String   @db.Text
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Contenido de páginas estáticas del sitio de cliente (aviso de privacidad,
+/// términos y condiciones). Una fila fija por slug, editada desde admin.
+model SiteContent {
+  id        String   @id
+  title     String
+  content   String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 model Product {
   id          String           @id @default(cuid())
   name        String

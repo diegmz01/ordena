@@ -16,6 +16,7 @@ import { stripeWebhookRouter } from "./routes/stripe-webhook";
 import { healthRouter } from "./routes/health";
 import { financeRouter } from "./routes/finance";
 import { settingsRouter } from "./routes/settings";
+import { contentRouter } from "./routes/content";
 import { errorHandler } from "./middleware/error-handler";
 import { globalRateLimiter } from "./middleware/rate-limit";
 import { assertProductionEnv, corsOrigins } from "./utils/env";
@@ -66,6 +67,7 @@ app.use("/customers", customersRouter);
 app.use("/push", pushRouter);
 app.use("/finance", financeRouter);
 app.use("/settings", settingsRouter);
+app.use("/content", contentRouter);
 
 app.use(errorHandler);
 

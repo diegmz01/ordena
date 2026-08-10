@@ -6,7 +6,8 @@ export type AdminAuditEntityType =
   | "Category"
   | "Modifier"
   | "Branch"
-  | "SmtpSettings";
+  | "SmtpSettings"
+  | "SiteContent";
 
 /**
  * Registro best-effort de una acción administrativa sensible (cancelaciones,

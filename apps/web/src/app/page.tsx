@@ -55,9 +55,26 @@ const paymentMethods = [
   },
 ];
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_CUSTOMER_URL ?? "http://localhost:3000";
+
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Ordena",
+  url: siteUrl,
+  logo: `${siteUrl}/logos/icono.png`,
+};
+
 export default function HomePage() {
   return (
     <div className="pb-24 md:pb-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(organizationJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
       <section className="customer-hero">
         <Image
           src="/images/background-burgers-home-top.jpg"

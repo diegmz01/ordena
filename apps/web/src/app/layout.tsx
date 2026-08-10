@@ -15,7 +15,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_CUSTOMER_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: "Ordena",
     template: "%s · Ordena",
@@ -39,6 +43,21 @@ export const metadata: Metadata = {
   },
   other: {
     "mobile-web-app-capable": "yes",
+  },
+  openGraph: {
+    type: "website",
+    locale: "es_MX",
+    siteName: "Ordena",
+    url: siteUrl,
+    title: "Ordena",
+    description:
+      "Ordena comida para recoger. Instala la app y recibe el estado de tu pedido.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ordena",
+    description:
+      "Ordena comida para recoger. Instala la app y recibe el estado de tu pedido.",
   },
 };
 
