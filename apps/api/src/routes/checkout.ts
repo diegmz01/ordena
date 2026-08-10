@@ -15,6 +15,7 @@ import { effectiveAvailability } from "../utils/branch-availability";
 import { generateOrderNumber, generateViewToken } from "../utils/jwt";
 import { getStripe } from "../utils/stripe";
 import { checkoutRateLimiter } from "../middleware/rate-limit";
+import { requireTurnstile } from "../middleware/turnstile";
 import {
   orderableBranchProductWhere,
   unavailableModifierIdsForBranch,
@@ -105,7 +106,14 @@ checkoutRouter.post("/validate", checkoutRateLimiter, async (req, res, next) => 
   }
 });
 
-checkoutRouter.post("/", checkoutRateLimiter, optionalAuth, async (req: AuthenticatedRequest, res, next) => {
+checkoutRouter.post(
+  "/",
+  checkoutRateLimiter,
+  optionalAuth,
+  // Solo invitados (sin sesión) necesitan pasar Turnstile: un cliente ya
+  // autenticado pasó login (que ya exige Turnstile) para llegar hasta acá.
+  requireTurnstile({ skip: (req) => !!(req as AuthenticatedRequest).authUser }),
+  async (req: AuthenticatedRequest, res, next) => {
   let createdOrderId: string | null = null;
   try {
     assertStripeConfigured();

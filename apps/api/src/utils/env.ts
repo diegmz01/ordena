@@ -59,6 +59,8 @@ export function assertProductionEnv() {
 
   required("STRIPE_WEBHOOK_SECRET");
 
+  required("TURNSTILE_SECRET_KEY");
+
   if (
     !process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ||
     !process.env.VAPID_PRIVATE_KEY?.trim()

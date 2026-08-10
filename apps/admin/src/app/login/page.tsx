@@ -3,6 +3,10 @@
 import { FormEvent, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { login } from "@/lib/auth";
+import {
+  isTurnstileConfigured,
+  TurnstileWidget,
+} from "@/components/turnstile-widget";
 
 function safeNext(raw: string | null) {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
@@ -15,9 +19,15 @@ function AdminLoginForm() {
   const next = safeNext(searchParams.get("next"));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError("Completa la verificación de seguridad");
+      return;
+    }
     setPending(true);
     setError(null);
     const form = new FormData(event.currentTarget);
@@ -26,11 +36,14 @@ function AdminLoginForm() {
         String(form.get("email")),
         String(form.get("password")),
         "ADMIN",
+        turnstileToken ?? undefined,
       );
       router.replace(next);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+      setTurnstileToken(null);
+      setTurnstileResetKey((k) => k + 1);
     } finally {
       setPending(false);
     }
@@ -74,6 +87,11 @@ function AdminLoginForm() {
               className="input-field"
             />
           </div>
+          <TurnstileWidget
+            key={turnstileResetKey}
+            onVerify={setTurnstileToken}
+            onExpire={() => setTurnstileToken(null)}
+          />
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           )}

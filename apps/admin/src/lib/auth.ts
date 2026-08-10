@@ -27,6 +27,7 @@ export async function login(
   email: string,
   password: string,
   expectedRole?: Role,
+  turnstileToken?: string,
 ): Promise<LoginResponse> {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
@@ -35,7 +36,7 @@ export async function login(
       "X-Ordena-Client": "admin",
     },
     credentials: "include",
-    body: JSON.stringify({ email, password, expectedRole }),
+    body: JSON.stringify({ email, password, expectedRole, turnstileToken }),
   });
   const data = await response.json().catch(() => ({ error: "Error de login" }));
   if (!response.ok) throw new Error(data.error ?? "Error de login");

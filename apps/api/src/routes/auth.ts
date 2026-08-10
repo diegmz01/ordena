@@ -38,6 +38,7 @@ import {
   forgotPasswordRateLimiter,
   loginRateLimiter,
 } from "../middleware/rate-limit";
+import { requireTurnstile } from "../middleware/turnstile";
 import {
   clearSessionCookie,
   resolveAudience,
@@ -138,7 +139,7 @@ function clearOAuthCookie(res: import("express").Response) {
   res.clearCookie(OAUTH_COOKIE, { path: "/auth/oauth" });
 }
 
-authRouter.post("/login", authRateLimiter, loginRateLimiter, async (req, res, next) => {
+authRouter.post("/login", requireTurnstile(), authRateLimiter, loginRateLimiter, async (req, res, next) => {
   try {
     const { email, password, expectedRole } = loginSchema.parse(req.body);
 
@@ -165,7 +166,7 @@ authRouter.post("/login", authRateLimiter, loginRateLimiter, async (req, res, ne
   }
 });
 
-authRouter.post("/register", authRateLimiter, async (req, res, next) => {
+authRouter.post("/register", requireTurnstile(), authRateLimiter, async (req, res, next) => {
   try {
     const data = registerSchema.parse(req.body);
     const email = data.email.toLowerCase();
@@ -194,6 +195,7 @@ authRouter.post("/register", authRateLimiter, async (req, res, next) => {
 
 authRouter.post(
   "/forgot-password",
+  requireTurnstile(),
   authRateLimiter,
   forgotPasswordRateLimiter,
   async (req, res, next) => {
