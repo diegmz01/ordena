@@ -4,6 +4,10 @@ import { FormEvent, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { forgotPassword } from "@/lib/auth";
+import {
+  isTurnstileConfigured,
+  TurnstileWidget,
+} from "@/components/turnstile-widget";
 
 function safeNext(raw: string | null) {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
@@ -16,17 +20,28 @@ function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError("Completa la verificación de seguridad");
+      return;
+    }
     setPending(true);
     setError(null);
     const form = new FormData(event.currentTarget);
     try {
-      await forgotPassword(String(form.get("email")));
+      await forgotPassword(
+        String(form.get("email")),
+        turnstileToken ?? undefined,
+      );
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+      setTurnstileToken(null);
+      setTurnstileResetKey((k) => k + 1);
     } finally {
       setPending(false);
     }
@@ -67,6 +82,11 @@ function ForgotPasswordForm() {
                 autoFocus
               />
             </div>
+            <TurnstileWidget
+              key={turnstileResetKey}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+            />
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button
               type="submit"

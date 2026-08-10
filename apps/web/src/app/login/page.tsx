@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { login } from "@/lib/auth";
 import { SocialAuthButtons } from "@/components/social-auth-buttons";
+import {
+  isTurnstileConfigured,
+  TurnstileWidget,
+} from "@/components/turnstile-widget";
 
 function safeNext(raw: string | null) {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/";
@@ -18,9 +22,15 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isTurnstileConfigured() && !turnstileToken) {
+      setError("Completa la verificación de seguridad");
+      return;
+    }
     setPending(true);
     setError(null);
     const form = new FormData(event.currentTarget);
@@ -29,10 +39,13 @@ function LoginForm() {
         String(form.get("email")),
         String(form.get("password")),
         "CUSTOMER",
+        turnstileToken ?? undefined,
       );
       router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
+      setTurnstileToken(null);
+      setTurnstileResetKey((k) => k + 1);
     } finally {
       setPending(false);
     }
@@ -113,6 +126,11 @@ function LoginForm() {
                 autoComplete="current-password"
               />
             </div>
+            <TurnstileWidget
+              key={turnstileResetKey}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+            />
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button
               type="submit"

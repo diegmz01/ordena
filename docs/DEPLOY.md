@@ -35,6 +35,7 @@ Las cookies de sesión se setean vía el **Route Handler** `app/api-backend/[...
 | `VAPID_SUBJECT` | sí | `mailto:ops@tudominio.com` |
 | `OAUTH_REDIRECT_BASE` | si OAuth | URL pública de la **API** |
 | Google/Facebook secrets | si OAuth | |
+| `TURNSTILE_SECRET_KEY` | sí | Cloudflare Turnstile — verifica login/registro/forgot-password/checkout de invitado |
 
 En production la API **falla al arrancar** si faltan secretos críticos (`assertProductionEnv`).
 
@@ -48,6 +49,7 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 | `NEXT_PUBLIC_BRANCH_URL` | — | — | sí |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_live_…` | — | — |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | sí | — | sí (pedidos nuevos) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | sí | sí | sí |
 
 `NEXT_PUBLIC_API_URL` es la base que usa el proxy server-side; el browser llama a `/api-backend/...` same-origin.
 
@@ -115,6 +117,7 @@ Orden: Backend (API + Postgres) → Frontend (web/admin/branch) → Stripe → s
 - [ ] Env: `CUSTOMER_URL` / `ADMIN_URL` / `BRANCH_URL` = HTTPS finales
 - [ ] Env: `STRIPE_SECRET_KEY=sk_live_…`, `STRIPE_WEBHOOK_SECRET` del endpoint live
 - [ ] Env: VAPID (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`)
+- [ ] Env: `TURNSTILE_SECRET_KEY` (sitio creado en Cloudflare con los hostnames finales de las 3 apps)
 - [ ] Migraciones: `pnpm db:migrate:deploy` — **nunca** `db:seed`
 - [ ] Healthcheck `GET /health` OK
 - [ ] Crear admin/staff reales (no `admin@ordena.local`)
@@ -127,6 +130,7 @@ Orden: Backend (API + Postgres) → Frontend (web/admin/branch) → Stripe → s
 | URL propia | `NEXT_PUBLIC_CUSTOMER_URL` | `NEXT_PUBLIC_ADMIN_URL` | `NEXT_PUBLIC_BRANCH_URL` |
 | Stripe | `pk_live_…` | — | — |
 | VAPID public | sí | — | sí |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | sí | sí | sí |
 
 - [ ] Cada app buildeada y corriendo como proceso propio, subdominio + HTTPS propio
 - [ ] Reverse proxy (Nginx u otro) enrutando cada subdominio a su puerto interno

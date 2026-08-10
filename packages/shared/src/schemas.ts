@@ -41,10 +41,18 @@ function strongPasswordSchema(minLength: number) {
 /** Login mantiene el mínimo histórico (6): no se puede subirlo retroactivamente
  * sin bloquear cuentas ya creadas con contraseñas más cortas. La política fuerte
  * aplica en registro/creación (strongPasswordSchema). */
+/**
+ * Token de Cloudflare Turnstile (widget anti-bot). Opcional a nivel de schema:
+ * la exigencia real (y el 400 si falta) la hace el middleware `requireTurnstile`
+ * en la API, que también sabe omitirla en dev sin TURNSTILE_SECRET_KEY.
+ */
+const turnstileTokenSchema = z.string().optional();
+
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   expectedRole: z.enum(ROLES).optional(),
+  turnstileToken: turnstileTokenSchema,
 });
 
 export const registerSchema = z.object({
@@ -52,10 +60,12 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: strongPasswordSchema(10),
   phone: z.string().optional(),
+  turnstileToken: turnstileTokenSchema,
 });
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email(),
+  turnstileToken: turnstileTokenSchema,
 });
 
 export const resetPasswordSchema = z.object({
@@ -84,6 +94,7 @@ export const guestCheckoutSchema = z.object({
    * duplicados por doble submit o retry de red.
    */
   idempotencyKey: z.string().uuid().optional(),
+  turnstileToken: turnstileTokenSchema,
   items: z
     .array(
       z.object({

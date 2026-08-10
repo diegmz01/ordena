@@ -28,6 +28,7 @@ export async function login(
   email: string,
   password: string,
   expectedRole?: Role,
+  turnstileToken?: string,
 ): Promise<LoginResponse> {
   const response = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
@@ -36,7 +37,7 @@ export async function login(
       "X-Ordena-Client": "customer",
     },
     credentials: "include",
-    body: JSON.stringify({ email, password, expectedRole }),
+    body: JSON.stringify({ email, password, expectedRole, turnstileToken }),
   });
   const data = await response.json().catch(() => ({ error: "Error de login" }));
   if (!response.ok) throw new Error(data.error ?? "Error de login");
@@ -49,6 +50,7 @@ export async function register(payload: {
   email: string;
   password: string;
   phone?: string;
+  turnstileToken?: string;
 }): Promise<LoginResponse> {
   const response = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
@@ -65,7 +67,10 @@ export async function register(payload: {
   return data;
 }
 
-export async function forgotPassword(email: string): Promise<{ message: string }> {
+export async function forgotPassword(
+  email: string,
+  turnstileToken?: string,
+): Promise<{ message: string }> {
   const response = await fetch(`${API_URL}/auth/forgot-password`, {
     method: "POST",
     headers: {
@@ -73,7 +78,7 @@ export async function forgotPassword(email: string): Promise<{ message: string }
       "X-Ordena-Client": "customer",
     },
     credentials: "include",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, turnstileToken }),
   });
   const data = await response.json().catch(() => ({ error: "Error" }));
   if (!response.ok) throw new Error(data.error ?? "Error");

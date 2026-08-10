@@ -14,6 +14,10 @@ import {
 } from "@/lib/cart";
 import { cn } from "@/lib/utils";
 import { SocialAuthButtons } from "@/components/social-auth-buttons";
+import {
+  isTurnstileConfigured,
+  TurnstileWidget,
+} from "@/components/turnstile-widget";
 import { validateCartStock } from "@/lib/validate-cart-stock";
 
 type CheckoutMode = "guest" | "register";
@@ -38,6 +42,8 @@ export default function CheckoutClient() {
   const [customer, setCustomer] = useState<AuthUser | null>(null);
   const [mode, setMode] = useState<CheckoutMode>("guest");
   const [showAltForm, setShowAltForm] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   // Misma key en todos los submits de este intento de checkout: si el usuario
   // reenvía (doble clic, retry de red), la API reusa el pedido/Stripe Session
   // en vez de duplicarlos. Se renueva solo al volver a montar la página.
@@ -143,6 +149,7 @@ export default function CheckoutClient() {
           guestPhone: asGuest
             ? String(form.get("guestPhone") || "") || undefined
             : undefined,
+          turnstileToken: asGuest ? turnstileToken ?? undefined : undefined,
           notes: String(form.get("notes") || "") || undefined,
           items: items.map((item) => {
             const plate = item.plateId
@@ -183,6 +190,10 @@ export default function CheckoutClient() {
       setError("Tu carrito está vacío");
       return;
     }
+    if (!hasToken && isTurnstileConfigured() && !turnstileToken) {
+      setError("Completa la verificación de seguridad");
+      return;
+    }
     setPending(true);
     setError(null);
     const form = new FormData(event.currentTarget);
@@ -199,6 +210,7 @@ export default function CheckoutClient() {
           email: String(form.get("regEmail")),
           password: String(form.get("regPassword")),
           phone: String(form.get("regPhone") || "") || undefined,
+          turnstileToken: turnstileToken ?? undefined,
         });
         setHasToken(true);
         await payWithToken(getAuthToken(), form, false);
@@ -211,6 +223,8 @@ export default function CheckoutClient() {
       // Intento fallido (ej. producto agotado): un reintento deliberado del
       // usuario es un pedido nuevo, no debe chocar con la key ya cancelada.
       idempotencyKeyRef.current = crypto.randomUUID();
+      setTurnstileToken(null);
+      setTurnstileResetKey((k) => k + 1);
     } finally {
       setPending(false);
     }
@@ -526,6 +540,12 @@ export default function CheckoutClient() {
                     />
                   </div>
                 )}
+
+                <TurnstileWidget
+                  key={turnstileResetKey}
+                  onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken(null)}
+                />
               </div>
             )}
 
