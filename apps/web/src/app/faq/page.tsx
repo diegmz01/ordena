@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { apiFetch } from "@/lib/api";
 
+// Evita que Next intente prerenderizar esta página en build time (llamaría a
+// la API real durante el build, que puede no tener aún el código desplegado).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Preguntas frecuentes",
   description:
