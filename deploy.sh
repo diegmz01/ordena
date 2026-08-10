@@ -354,7 +354,13 @@ pnpm db:migrate:deploy
 ok "Migraciones aplicadas"
 
 log "Compilando aplicaciones (web, admin, branch, api)"
-pnpm build
+# --concurrency=1: turbo por default compila las 6 tareas en paralelo según
+# CPUs disponibles; en el VPS (RAM limitada) eso hace que varios `next build`
+# corran type-check a la vez y el OOM killer mate al proceso (exit 137).
+# Serializar el build cuesta tiempo pero evita el pico de memoria.
+# (pnpm build -- --concurrency=1 no sirve: pnpm reenvía "--" tal cual y turbo
+# lo vuelve a pasar al script de cada paquete, rompiendo `tsc`.)
+pnpm exec turbo build --concurrency=1
 ok "Build completado"
 
 log "Reiniciando servicios PM2"
