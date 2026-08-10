@@ -50,6 +50,7 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_live_…` | — | — |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | sí | — | sí (pedidos nuevos) |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | sí | sí | sí |
+| `NEXT_PUBLIC_SENTRY_DSN` | opcional | opcional | opcional |
 
 `NEXT_PUBLIC_API_URL` es la base que usa el proxy server-side; el browser llama a `/api-backend/...` same-origin.
 
@@ -90,6 +91,33 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 2. Dashboard Stripe (cuenta plataforma): el cargo aparece capturado, sin ningún transfer a otra cuenta.
 3. Cancelar pedido autorizado antes de marcarlo listo: hold liberado.
 
+## Backups y restauración
+
+Dumps diarios de Postgres vía `pg_dump`, con rotación local. **Hoy es solo local**: si se pierde el VPS completo se pierden también los backups — queda como TODO añadir copia remota (p. ej. `rclone` a un bucket S3-compatible, o `rsync`/`scp` a otro servidor) reutilizando el mismo `scripts/backup-db.sh` como base.
+
+### Configurar el cron
+
+```bash
+crontab -e
+```
+
+```cron
+# Backup diario de Postgres a las 3am
+0 3 * * * DATABASE_URL='postgresql://...' BACKUP_DIR=/var/backups/ordena BACKUP_RETENTION_DAYS=14 /var/www/ordena/scripts/backup-db.sh >> /var/log/ordena-backup.log 2>&1
+```
+
+- `BACKUP_DIR` (default `/var/backups/ordena`): dónde quedan los `.dump` (formato custom de `pg_dump`, comprimido).
+- `BACKUP_RETENTION_DAYS` (default `14`): dumps más viejos se borran automáticamente en cada corrida.
+- Revisar `/var/log/ordena-backup.log` periódicamente (o engancharlo a un servicio de log/alertas) para detectar fallos silenciosos del cron.
+
+### Restaurar
+
+```bash
+DATABASE_URL='postgresql://...' ./scripts/restore-db.sh /var/backups/ordena/ordena-20260810-030000.dump
+```
+
+Pide confirmación interactiva antes de sobreescribir (`--clean --if-exists`); usar `--yes` para saltarla en un script no interactivo. Probar la restauración periódicamente contra una base de datos que no sea la de producción (por ejemplo, un Postgres local o un branch temporal) para confirmar que los dumps son realmente restaurables, no solo que el cron corrió.
+
 ## VAPID
 
 ```bash
@@ -121,6 +149,7 @@ Orden: Backend (API + Postgres) → Frontend (web/admin/branch) → Stripe → s
 - [ ] Migraciones: `pnpm db:migrate:deploy` — **nunca** `db:seed`
 - [ ] Healthcheck `GET /health` OK
 - [ ] Crear admin/staff reales (no `admin@ordena.local`)
+- [ ] Cron de `scripts/backup-db.sh` configurado (ver "Backups y restauración") y una restauración de prueba verificada
 
 ### Frontend (web / admin / branch)
 
@@ -131,6 +160,7 @@ Orden: Backend (API + Postgres) → Frontend (web/admin/branch) → Stripe → s
 | Stripe | `pk_live_…` | — | — |
 | VAPID public | sí | — | sí |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | sí | sí | sí |
+| `NEXT_PUBLIC_SENTRY_DSN` | opcional | opcional | opcional |
 
 - [ ] Cada app buildeada y corriendo como proceso propio, subdominio + HTTPS propio
 - [ ] Reverse proxy (Nginx u otro) enrutando cada subdominio a su puerto interno

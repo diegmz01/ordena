@@ -311,6 +311,74 @@ financeRouter.get(
 );
 
 financeRouter.get(
+  "/products",
+  authenticate,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const from = parseDateParam(req.query.from, "from", false);
+      const to = parseDateParam(req.query.to, "to", true);
+      if (from.getTime() > to.getTime()) {
+        throw new AppError(400, "`from` no puede ser posterior a `to`");
+      }
+
+      const branchId =
+        typeof req.query.branchId === "string" && req.query.branchId.trim()
+          ? req.query.branchId.trim()
+          : undefined;
+
+      if (branchId) {
+        const branch = await prisma.branch.findUnique({
+          where: { id: branchId },
+          select: { id: true },
+        });
+        if (!branch) throw new AppError(404, "Sucursal no encontrada");
+      }
+
+      // Mismo criterio que "capturado" en /summary: solo pedidos que
+      // realmente cobraron (READY o COMPLETED), sin líneas "unavailable"
+      // (marcadas por sucursal como no cobradas, ver itemsDiscount en
+      // routes/orders.ts).
+      const grouped = await prisma.orderItem.groupBy({
+        by: ["productId"],
+        where: {
+          unavailable: false,
+          order: {
+            status: { in: CAPTURED_STATUSES },
+            AND: [
+              paidAtRangeFilter(from, to),
+              ...(branchId ? [{ branchId }] : []),
+            ],
+          },
+        },
+        _sum: { quantity: true, lineTotal: true },
+        _max: { productName: true },
+      });
+
+      const products = grouped
+        .map((row) => ({
+          productId: row.productId,
+          productName: row._max.productName ?? "(producto eliminado)",
+          quantity: row._sum.quantity ?? 0,
+          revenueCents: row._sum.lineTotal ?? 0,
+        }))
+        .sort((a, b) => b.revenueCents - a.revenueCents);
+
+      res.json({
+        data: {
+          from: from.toISOString().slice(0, 10),
+          to: to.toISOString().slice(0, 10),
+          branchId: branchId ?? null,
+          products,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+financeRouter.get(
   "/dashboard",
   authenticate,
   requireAdmin,

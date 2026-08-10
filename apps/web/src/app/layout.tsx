@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { CookieConsentBanner } from "@/components/cookie-consent-banner";
 import { PwaRegister } from "@/components/pwa/pwa-register";
 import { Providers } from "@/components/providers";
 import { SiteShell } from "@/components/site-shell";
@@ -87,6 +88,7 @@ export default function RootLayout({
         <Providers>
           <PwaRegister />
           <SiteShell>{children}</SiteShell>
+          <CookieConsentBanner />
         </Providers>
       </body>
     </html>
