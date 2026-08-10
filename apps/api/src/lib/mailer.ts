@@ -57,6 +57,33 @@ export async function sendPasswordResetEmail(
   });
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  GOOGLE: "Google",
+  FACEBOOK: "Facebook",
+};
+
+export async function sendOAuthOnlyAccountEmail(
+  to: string,
+  providers: string[],
+  name?: string | null,
+) {
+  const { transport, from } = await getSmtpTransport();
+  const greeting = name ? `Hola ${name},` : "Hola,";
+  const providerNames = providers.map((p) => PROVIDER_LABELS[p] ?? p);
+  const providerList =
+    providerNames.length > 0
+      ? providerNames.join(" y ")
+      : "Google o Facebook";
+
+  await transport.sendMail({
+    from,
+    to,
+    subject: `Tu cuenta de ${RESTAURANT_NAME} usa inicio de sesión con ${providerList}`,
+    text: `${greeting}\n\nRecibimos una solicitud para restablecer la contraseña de esta cuenta, pero no tiene una contraseña configurada: se creó e inicia sesión con ${providerList}.\n\nPara entrar, usa el botón "Continuar con ${providerList}" en la pantalla de inicio de sesión.\n\nSi no pediste esto, ignora este correo.`,
+    html: `<p>${greeting}</p><p>Recibimos una solicitud para restablecer la contraseña de esta cuenta, pero no tiene una contraseña configurada: se creó e inicia sesión con <strong>${providerList}</strong>.</p><p>Para entrar, usa el botón "Continuar con ${providerList}" en la pantalla de inicio de sesión.</p><p>Si no pediste esto, ignora este correo.</p>`,
+  });
+}
+
 export async function sendTestEmail(to: string) {
   const { transport, from } = await getSmtpTransport();
   await transport.sendMail({

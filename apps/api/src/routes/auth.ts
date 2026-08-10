@@ -32,7 +32,7 @@ import {
   sanitizeNext,
   upsertOAuthUser,
 } from "../lib/oauth";
-import { sendPasswordResetEmail } from "../lib/mailer";
+import { sendOAuthOnlyAccountEmail, sendPasswordResetEmail } from "../lib/mailer";
 import {
   authRateLimiter,
   forgotPasswordRateLimiter,
@@ -208,34 +208,44 @@ authRouter.post(
         },
       };
 
-      // Solo clientes con login por correo (no OAuth-only, no admin/staff),
-      // pero siempre respondemos igual para no revelar si la cuenta existe.
+      // Solo clientes (no admin/staff), pero siempre respondemos igual para
+      // no revelar si la cuenta existe. Incluye cuentas OAuth-only (sin
+      // passwordHash): para esas enviamos un correo explicando que inician
+      // sesión con Google/Facebook, en vez de dejarlas sin ningún correo.
       const user = await prisma.user.findFirst({
-        where: {
-          email: email.toLowerCase(),
-          role: "CUSTOMER",
-          passwordHash: { not: null },
-        },
+        where: { email: email.toLowerCase(), role: "CUSTOMER" },
       });
 
       if (user) {
-        const token = randomBytes(32).toString("hex");
-        await prisma.passwordResetToken.deleteMany({
-          where: { userId: user.id },
-        });
-        await prisma.passwordResetToken.create({
-          data: {
-            tokenHash: hashResetToken(token),
-            userId: user.id,
-            expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
-          },
-        });
+        if (user.passwordHash) {
+          const token = randomBytes(32).toString("hex");
+          await prisma.passwordResetToken.deleteMany({
+            where: { userId: user.id },
+          });
+          await prisma.passwordResetToken.create({
+            data: {
+              tokenHash: hashResetToken(token),
+              userId: user.id,
+              expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+            },
+          });
 
-        const customerUrl = process.env.CUSTOMER_URL ?? "http://localhost:3000";
-        const resetUrl = `${customerUrl}/reset-password?token=${token}`;
-        sendPasswordResetEmail(user.email, resetUrl, user.name).catch(
-          (error) => console.error("[forgot-password]", error),
-        );
+          const customerUrl =
+            process.env.CUSTOMER_URL ?? "http://localhost:3000";
+          const resetUrl = `${customerUrl}/reset-password?token=${token}`;
+          sendPasswordResetEmail(user.email, resetUrl, user.name).catch(
+            (error) => console.error("[forgot-password]", error),
+          );
+        } else {
+          const oauthAccounts = await prisma.oAuthAccount.findMany({
+            where: { userId: user.id },
+            select: { provider: true },
+          });
+          const providers = oauthAccounts.map((a) => a.provider);
+          sendOAuthOnlyAccountEmail(user.email, providers, user.name).catch(
+            (error) => console.error("[forgot-password]", error),
+          );
+        }
       }
 
       res.json(genericResponse);
