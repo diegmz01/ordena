@@ -11,6 +11,8 @@ import {
   orderRefundSchema,
   isValidOrderStatusTransition,
   canAdminCancelOrder,
+  canCustomerCancelOrder,
+  CUSTOMER_CANCELLATION_REASON,
   type OrderStatus,
 } from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
@@ -538,6 +540,75 @@ ordersRouter.get(
           ),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Cliente: cancela su propio pedido, solo mientras la sucursal no lo haya
+ * aceptado (PAID). Libera/reembolsa el hold en Stripe y avisa a la sucursal
+ * por SSE para que no proceda con el pedido (mismo mecanismo que admin-cancel
+ * / la cancelación de staff, que ya hace desaparecer el pedido de la cola).
+ */
+ordersRouter.post(
+  "/:id/cancel",
+  optionalAuth,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: String(req.params.id) },
+      });
+      if (!order) {
+        throw new AppError(404, "Pedido no encontrado");
+      }
+
+      const user = req.authUser;
+      const viewToken =
+        typeof req.query.t === "string" ? req.query.t.trim() : "";
+      const isOwner = Boolean(
+        user && order.userId && user.id === order.userId,
+      );
+      const hasViewToken = Boolean(
+        viewToken && viewToken === order.viewToken,
+      );
+
+      if (!isOwner && !hasViewToken) {
+        throw new AppError(404, "Pedido no encontrado");
+      }
+
+      const currentStatus = order.status as OrderStatus;
+
+      // Idempotente: si ya está cancelado (doble click / retry), no falla.
+      if (currentStatus === "CANCELLED") {
+        return res.json({ data: { id: order.id, status: order.status } });
+      }
+
+      if (!canCustomerCancelOrder(currentStatus)) {
+        throw new AppError(
+          400,
+          "Ya no se puede cancelar: la sucursal ya está preparando tu pedido",
+        );
+      }
+
+      await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
+
+      const cancelled = await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: "CANCELLED",
+          cancellationReason: CUSTOMER_CANCELLATION_REASON,
+        },
+      });
+
+      await notifyBranchOrderUpdated(order.branchId, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: "CANCELLED",
+      });
+
+      res.json({ data: { id: cancelled.id, status: cancelled.status } });
     } catch (error) {
       next(error);
     }

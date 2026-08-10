@@ -67,6 +67,21 @@ export function canAdminCancelOrder(
   return (ADMIN_ORDER_CANCEL_FROM as readonly string[]).includes(status);
 }
 
+/** Estados desde los que el cliente puede autocancelar su pedido (antes de que la sucursal lo acepte). */
+export const CUSTOMER_ORDER_CANCEL_FROM = [
+  "PAID",
+] as const satisfies readonly (typeof ORDER_STATUSES)[number][];
+
+export function canCustomerCancelOrder(
+  status: (typeof ORDER_STATUSES)[number],
+): boolean {
+  return (CUSTOMER_ORDER_CANCEL_FROM as readonly string[]).includes(status);
+}
+
+/** Motivo fijo grabado en `Order.cancellationReason` cuando cancela el cliente (no admin/staff). */
+export const CUSTOMER_CANCELLATION_REASON =
+  "Cliente canceló el pedido antes de que la sucursal lo aceptara.";
+
 /**
  * Montos a mostrar en cards de pago (admin / staff / cliente).
  * - Autorizado = `subtotal` (lo retenido en Stripe al pagar, antes de
