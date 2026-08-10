@@ -43,6 +43,12 @@ enum StaffAwayReason {
   CONNECTION_LOST
 }
 
+/** FIXED = monto fijo en centavos. PERCENTAGE = % del subtotal (basis points). */
+enum ServiceFeeType {
+  FIXED
+  PERCENTAGE
+}
+
 model User {
   id                  String               @id @default(cuid())
   name                String?
@@ -104,6 +110,21 @@ model SmtpSettings {
   fromEmail         String
   fromName          String?
   updatedAt         DateTime @updatedAt
+}
+
+/// Tarifa de servicios global (fila única), sumada al total de todo pedido en
+/// cualquier sucursal. Editable desde admin. El monto/porcentaje vigente al
+/// pagar se congela en `Order.serviceFee` para no alterar pedidos ya creados
+/// si el admin cambia la tarifa después.
+model ServiceFeeSettings {
+  id         String         @id @default("singleton")
+  type       ServiceFeeType @default(FIXED)
+  /// Monto fijo en centavos (MXN * 100), usado si type = FIXED.
+  amount     Int            @default(0)
+  /// Porcentaje del subtotal en basis points (1/100 de 1%; 250 = 2.50%), usado si type = PERCENTAGE.
+  percentage Int            @default(0)
+  isActive   Boolean        @default(false)
+  updatedAt  DateTime       @updatedAt
 }
 
 model Branch {
@@ -296,7 +317,10 @@ model Order {
   subtotal              Int
   /// Suma de lineTotal de ítems marcados agotados (centavos)
   discount              Int         @default(0)
-  /// subtotal - discount (monto a capturar en Stripe)
+  /// Tarifa de servicios vigente al pagar, congelada del ServiceFeeSettings
+  /// singleton (centavos). No cambia si el admin ajusta la tarifa después.
+  serviceFee            Int         @default(0)
+  /// subtotal - discount + serviceFee (monto a capturar en Stripe)
   total                 Int
   currency              String      @default("mxn")
   stripeSessionId       String?     @unique

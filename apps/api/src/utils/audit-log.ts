@@ -7,6 +7,7 @@ export type AdminAuditEntityType =
   | "Modifier"
   | "Branch"
   | "SmtpSettings"
+  | "ServiceFeeSettings"
   | "SiteContent";
 
 /**

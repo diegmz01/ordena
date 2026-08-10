@@ -4,6 +4,7 @@ import { prisma } from "@ordena/database";
 import {
   checkoutValidateSchema,
   comboProductName,
+  computeServiceFee,
   guestCheckoutSchema,
 } from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
@@ -258,6 +259,11 @@ checkoutRouter.post(
 
     const subtotal = resolvedItems.reduce((sum, item) => sum + item.lineTotal, 0);
 
+    const feeSettings = await prisma.serviceFeeSettings.findUnique({
+      where: { id: "singleton" },
+    });
+    const serviceFee = computeServiceFee(feeSettings, subtotal);
+
     const viewToken = generateViewToken();
     let order;
     try {
@@ -273,7 +279,8 @@ checkoutRouter.post(
           guestPhone: user ? null : parsed.guestPhone,
           subtotal,
           discount: 0,
-          total: subtotal,
+          serviceFee,
+          total: subtotal + serviceFee,
           notes: parsed.notes,
           items: {
             create: resolvedItems.map(
@@ -338,18 +345,32 @@ checkoutRouter.post(
         },
       },
       customer_email: user?.email ?? parsed.guestEmail ?? undefined,
-      line_items: resolvedItems.map((item) => ({
-        quantity: item.quantity,
-        price_data: {
-          currency: "mxn",
-          unit_amount: item.unitPrice,
-          product_data: {
-            name: item.variantName
-              ? `${comboProductName(item.productName, item.secondaryProductName)} (${item.variantName})`
-              : comboProductName(item.productName, item.secondaryProductName),
+      line_items: [
+        ...resolvedItems.map((item) => ({
+          quantity: item.quantity,
+          price_data: {
+            currency: "mxn",
+            unit_amount: item.unitPrice,
+            product_data: {
+              name: item.variantName
+                ? `${comboProductName(item.productName, item.secondaryProductName)} (${item.variantName})`
+                : comboProductName(item.productName, item.secondaryProductName),
+            },
           },
-        },
-      })),
+        })),
+        ...(serviceFee > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: "mxn",
+                  unit_amount: serviceFee,
+                  product_data: { name: "Tarifa de servicios" },
+                },
+              },
+            ]
+          : []),
+      ],
       metadata: {
         orderId: order.id,
         orderNumber: order.orderNumber,

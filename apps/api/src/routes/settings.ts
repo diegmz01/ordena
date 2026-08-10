@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "@ordena/database";
-import { smtpSettingsSchema } from "@ordena/shared";
+import { serviceFeeSettingsSchema, smtpSettingsSchema } from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
 import {
   authenticate,
@@ -107,6 +107,71 @@ settingsRouter.put(
           updatedAt: settings.updatedAt,
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/** Público: tarifa de servicios vigente, para mostrarla antes de pagar. */
+settingsRouter.get("/service-fee", async (_req, res, next) => {
+  try {
+    const settings = await prisma.serviceFeeSettings.findUnique({
+      where: { id: "singleton" },
+    });
+    res.json({
+      data: {
+        type: settings?.type ?? "FIXED",
+        amount: settings?.amount ?? 0,
+        percentage: settings?.percentage ?? 0,
+        isActive: settings?.isActive ?? false,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+settingsRouter.put(
+  "/service-fee",
+  authenticate,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const data = serviceFeeSettingsSchema.parse(req.body);
+
+      const settings = await prisma.serviceFeeSettings.upsert({
+        where: { id: "singleton" },
+        create: {
+          id: "singleton",
+          type: data.type,
+          amount: data.amount,
+          percentage: data.percentage,
+          isActive: data.isActive,
+        },
+        update: {
+          type: data.type,
+          amount: data.amount,
+          percentage: data.percentage,
+          isActive: data.isActive,
+        },
+      });
+
+      await recordAdminAction({
+        actorId: authReq.authUser!.id,
+        action: "settings.service_fee_update",
+        entityType: "ServiceFeeSettings",
+        entityId: settings.id,
+        metadata: {
+          type: settings.type,
+          amount: settings.amount,
+          percentage: settings.percentage,
+          isActive: settings.isActive,
+        },
+      });
+
+      res.json({ data: settings });
     } catch (error) {
       next(error);
     }

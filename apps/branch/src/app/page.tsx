@@ -57,6 +57,7 @@ type Order = {
   status: string;
   subtotal: number;
   discount: number;
+  serviceFee: number;
   total: number;
   currency: string;
   refundedTotal?: number;
@@ -628,6 +629,7 @@ export default function BranchHomePage() {
         notes: order.notes,
         subtotal: order.subtotal,
         discount: order.discount,
+        serviceFee: order.serviceFee,
         total: order.total,
         currency: order.currency,
         guestName: order.guestName,
@@ -1154,6 +1156,14 @@ export default function BranchHomePage() {
                       <span>Descuento (agotados)</span>
                       <span className="tabular-nums">
                         −{formatMoney(selected.discount, selected.currency)}
+                      </span>
+                    </div>
+                  )}
+                  {selected.serviceFee > 0 && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Tarifa de servicios</span>
+                      <span className="tabular-nums">
+                        {formatMoney(selected.serviceFee, selected.currency)}
                       </span>
                     </div>
                   )}

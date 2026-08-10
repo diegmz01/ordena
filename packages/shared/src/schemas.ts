@@ -439,6 +439,22 @@ export const smtpSettingsSchema = z.object({
   fromName: z.string().optional(),
 });
 
+/** Body de `PUT /settings/service-fee` (admin). Tarifa fija (centavos) o porcentaje (basis points). */
+export const serviceFeeSettingsSchema = z.object({
+  type: z.enum(["FIXED", "PERCENTAGE"]),
+  amount: z
+    .number({ invalid_type_error: "El monto debe ser un número" })
+    .int()
+    .min(0, "El monto no puede ser negativo")
+    .max(1_000_000, "Monto demasiado grande"),
+  percentage: z
+    .number({ invalid_type_error: "El porcentaje debe ser un número" })
+    .int()
+    .min(0, "El porcentaje no puede ser negativo")
+    .max(10_000, "El porcentaje no puede superar 100%"),
+  isActive: z.boolean(),
+});
+
 export const faqCreateSchema = z.object({
   question: z.string().min(1, "Pregunta requerida").max(300),
   answer: z.string().min(1, "Respuesta requerida").max(5000),
