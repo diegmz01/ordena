@@ -459,7 +459,7 @@ export function ContentPanel() {
                 </label>
                 <textarea
                   id="page-content"
-                  className="input-field font-mono"
+                  className="input-textarea min-h-80 font-mono leading-relaxed"
                   rows={20}
                   required
                   value={pageForm.content}
