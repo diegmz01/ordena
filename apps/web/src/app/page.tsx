@@ -99,14 +99,9 @@ export default function HomePage() {
               className="mb-6 rounded-2xl shadow-lg ring-2 ring-white/30"
               priority
             />
-            <Image
-              src="/logos/logo.svg"
-              alt="Ordena"
-              width={320}
-              height={120}
-              className="h-12 w-auto brightness-0 invert sm:h-14"
-              priority
-            />
+            <h1 className="text-balance text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">
+              Tu pedido te espera listo al llegar
+            </h1>
             <p className="mt-5 max-w-md text-pretty text-lg leading-relaxed text-white/90 sm:text-xl">
               Pide, paga en línea y recoge en tu sucursal. Sin filas, sin
               esperas.

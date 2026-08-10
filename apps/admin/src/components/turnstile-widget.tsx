@@ -108,10 +108,12 @@ export function TurnstileWidget({
   if (!siteKey) return null;
 
   return (
-    <div className={className}>
+    <div
+      className={["turnstile-widget", className].filter(Boolean).join(" ")}
+    >
       <div ref={containerRef} />
       {error && (
-        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+        <p className="mt-1 text-center text-xs text-red-600 dark:text-red-400">
           No se pudo cargar la verificación de seguridad. Recarga la página.
         </p>
       )}

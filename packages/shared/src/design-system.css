@@ -292,6 +292,15 @@ button:disabled {
     @apply p-4 sm:p-7;
   }
 
+  /* Cloudflare Turnstile: el iframe es ~300px; centrarlo en formularios full-width */
+  .turnstile-widget {
+    @apply flex w-full flex-col items-center;
+  }
+
+  .turnstile-widget > div {
+    @apply flex w-full justify-center;
+  }
+
   .pwa-card {
     @apply rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-border dark:bg-surface-muted;
   }
