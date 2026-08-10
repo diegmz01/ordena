@@ -17,6 +17,8 @@ type StockProduct = {
   basePrice: number;
   inStock: boolean;
   unavailableUntil: string | null;
+  inSchedule?: boolean;
+  scheduleLabel?: string | null;
 };
 
 type StockCategory = {
@@ -746,6 +748,12 @@ export default function MenuStockPage() {
                       const hint = !product.inStock
                         ? stockHint(product.unavailableUntil)
                         : null;
+                      const scheduleHint =
+                        product.inSchedule === false
+                          ? `Fuera de horario${product.scheduleLabel ? ` (${product.scheduleLabel})` : ""}`
+                          : product.scheduleLabel
+                            ? `Horario: ${product.scheduleLabel}`
+                            : null;
                       const productBusy =
                         busyKey?.includes(product.id) ?? false;
                       const selected = selectedIds.has(product.id);
@@ -799,6 +807,7 @@ export default function MenuStockPage() {
                             <p className="text-xs tabular-nums text-slate-500">
                               {formatMoney(product.basePrice)}
                               {hint ? ` · ${hint}` : ""}
+                              {scheduleHint ? ` · ${scheduleHint}` : ""}
                             </p>
                           </div>
                           <StockToggle

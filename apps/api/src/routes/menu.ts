@@ -20,6 +20,7 @@ import { effectiveAvailability } from "../utils/branch-availability";
 import {
   restoreExpiredBranchStock,
   listedBranchProductWhere,
+  scheduleStatusForBranch,
   unavailableModifierIdsForBranch,
   unavailableProductIdsForBranch,
 } from "../utils/branch-menu-stock";
@@ -116,6 +117,8 @@ menuRouter.get("/", async (req, res, next) => {
         data: products.map((p) => ({
           ...p,
           inStock: true,
+          inSchedule: true,
+          scheduleLabel: null,
           modifiers: p.modifiers.map((pm) => ({
             ...pm,
             modifier: { ...pm.modifier, inStock: true },
@@ -125,23 +128,29 @@ menuRouter.get("/", async (req, res, next) => {
       return;
     }
 
-    const [outProducts, outMods] = await Promise.all([
+    const [outProducts, outMods, scheduleStatus] = await Promise.all([
       unavailableProductIdsForBranch(branchId),
       unavailableModifierIdsForBranch(branchId),
+      scheduleStatusForBranch(branchId),
     ]);
 
     res.json({
-      data: products.map((p) => ({
-        ...p,
-        inStock: !outProducts.has(p.id),
-        modifiers: p.modifiers.map((pm) => ({
-          ...pm,
-          modifier: {
-            ...pm.modifier,
-            inStock: !outMods.has(pm.modifierId),
-          },
-        })),
-      })),
+      data: products.map((p) => {
+        const schedule = scheduleStatus.get(p.id);
+        return {
+          ...p,
+          inStock: !outProducts.has(p.id),
+          inSchedule: schedule ? schedule.inSchedule : true,
+          scheduleLabel: schedule?.scheduleLabel ?? null,
+          modifiers: p.modifiers.map((pm) => ({
+            ...pm,
+            modifier: {
+              ...pm.modifier,
+              inStock: !outMods.has(pm.modifierId),
+            },
+          })),
+        };
+      }),
     });
   } catch (error) {
     next(error);

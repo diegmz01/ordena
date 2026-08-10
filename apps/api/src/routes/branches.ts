@@ -21,6 +21,7 @@ import {
 } from "../middleware/auth";
 import {
   effectiveAvailability,
+  isWithinBranchHours,
   type EffectiveAvailability,
 } from "../utils/branch-availability";
 import {
@@ -493,6 +494,7 @@ branchesRouter.get(
           select: {
             productId: true,
             unavailableUntil: true,
+            schedule: true,
           },
         }),
         prisma.modifier.findMany({
@@ -517,6 +519,9 @@ branchesRouter.get(
       const stockByProduct = new Map(
         links.map((l) => [l.productId, l.unavailableUntil]),
       );
+      const scheduleByProduct = new Map(
+        links.map((l) => [l.productId, l.schedule]),
+      );
       const stockByModifier = new Map(
         modifierLinks.map((l) => [l.modifierId, l.unavailableUntil]),
       );
@@ -534,12 +539,21 @@ branchesRouter.get(
                 .filter((p) => stockByProduct.has(p.id))
                 .map((p) => {
                   const unavailableUntil = stockByProduct.get(p.id) ?? null;
+                  const schedule = scheduleByProduct.get(p.id) ?? null;
+                  const scheduleStatus = schedule
+                    ? isWithinBranchHours(schedule, now)
+                    : null;
                   return {
                     id: p.id,
                     name: p.name,
                     basePrice: p.basePrice,
                     inStock: isProductInStock(unavailableUntil, now),
                     unavailableUntil,
+                    schedule,
+                    inSchedule: scheduleStatus ? scheduleStatus.within : true,
+                    scheduleLabel: scheduleStatus
+                      ? scheduleStatus.todayHoursLabel
+                      : null,
                   };
                 }),
             }))
@@ -1047,12 +1061,12 @@ branchesRouter.get(
         }),
         prisma.branchProduct.findMany({
           where: { branchId: branch.id },
-          select: { productId: true, available: true },
+          select: { productId: true, available: true, schedule: true },
         }),
       ]);
 
-      const availability = new Map(
-        links.map((l) => [l.productId, l.available]),
+      const linksByProduct = new Map(
+        links.map((l) => [l.productId, l]),
       );
 
       res.json({
@@ -1067,7 +1081,8 @@ branchesRouter.get(
               name: p.name,
               isActive: p.isActive,
               basePrice: p.basePrice,
-              available: availability.get(p.id) ?? false,
+              available: linksByProduct.get(p.id)?.available ?? false,
+              schedule: linksByProduct.get(p.id)?.schedule ?? null,
             })),
           })),
         },
@@ -1114,11 +1129,15 @@ branchesRouter.put(
               productId: item.productId,
               available: item.available,
               unavailableUntil: null,
+              schedule: item.schedule ?? undefined,
             },
             update: {
               available: item.available,
               ...(item.available === false
                 ? { unavailableUntil: null }
+                : {}),
+              ...(item.schedule !== undefined
+                ? { schedule: item.schedule ?? Prisma.JsonNull }
                 : {}),
             },
           }),

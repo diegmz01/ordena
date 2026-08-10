@@ -9,12 +9,16 @@ import {
   Pencil,
   UtensilsCrossed,
 } from "lucide-react";
-import type { BranchDayHours, BranchHours } from "@ordena/shared";
+import type { BranchHours } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { Modal } from "@/components/ui/modal";
 import { BranchMenuModal } from "@/components/branch-menu-modal";
-import { cn } from "@/lib/utils";
+import {
+  WeeklyHoursEditor,
+  defaultWeeklyHours,
+  normalizeWeeklyHours,
+} from "@/components/weekly-hours-editor";
 
 type StaffInfo = {
   id: string;
@@ -66,54 +70,16 @@ function availabilityBadgeClass(detail: AvailabilityDetail | undefined) {
   return "status-badge-inactive";
 }
 
-type DayKey = keyof BranchHours;
-
-const DAY_KEYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-const DAY_LABELS: Record<DayKey, string> = {
-  mon: "Lunes",
-  tue: "Martes",
-  wed: "Miércoles",
-  thu: "Jueves",
-  fri: "Viernes",
-  sat: "Sábado",
-  sun: "Domingo",
-};
-
-function defaultDay(): BranchDayHours {
-  return { closed: false, open: "09:00", close: "22:00" };
-}
-
 function defaultHours(): BranchHours {
   return {
-    mon: defaultDay(),
-    tue: defaultDay(),
-    wed: defaultDay(),
-    thu: defaultDay(),
-    fri: defaultDay(),
-    sat: defaultDay(),
+    ...defaultWeeklyHours(),
     sun: { closed: true },
   };
 }
 
 function normalizeHours(raw: unknown): BranchHours {
-  const base = defaultHours();
-  if (!raw || typeof raw !== "object") return base;
-  const obj = raw as Partial<Record<DayKey, Partial<BranchDayHours>>>;
-  for (const key of DAY_KEYS) {
-    const day = obj[key];
-    if (!day) continue;
-    if (day.closed) {
-      base[key] = { closed: true };
-    } else {
-      base[key] = {
-        closed: false,
-        open: day.open ?? "09:00",
-        close: day.close ?? "22:00",
-      };
-    }
-  }
-  return base;
+  if (!raw || typeof raw !== "object") return defaultHours();
+  return normalizeWeeklyHours(raw);
 }
 
 type FormState = {
@@ -253,30 +219,6 @@ export default function AdminBranchesPage() {
     setCredEmail("");
     setCredPassword("");
     setCredError(null);
-  }
-
-  function updateDay(day: DayKey, patch: Partial<BranchDayHours>) {
-    setForm((f) => {
-      const current = f.hours[day];
-      if (patch.closed === true) {
-        return { ...f, hours: { ...f.hours, [day]: { closed: true } } };
-      }
-      const open =
-        patch.open ??
-        (!current.closed ? current.open : undefined) ??
-        "09:00";
-      const close =
-        patch.close ??
-        (!current.closed ? current.close : undefined) ??
-        "22:00";
-      return {
-        ...f,
-        hours: {
-          ...f.hours,
-          [day]: { closed: false, open, close },
-        },
-      };
-    });
   }
 
   async function save(event: FormEvent) {
@@ -664,61 +606,10 @@ export default function AdminBranchesPage() {
 
           <div>
             <p className="field-label mb-2">Horarios</p>
-            <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-              {DAY_KEYS.map((day) => {
-                const hours = form.hours[day];
-                return (
-                  <div
-                    key={day}
-                    className="grid grid-cols-[7rem_1fr] items-center gap-2 sm:grid-cols-[8rem_auto_1fr_auto_1fr]"
-                  >
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                      {DAY_LABELS[day]}
-                    </span>
-                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                      <input
-                        type="checkbox"
-                        checked={hours.closed}
-                        onChange={(e) =>
-                          updateDay(day, { closed: e.target.checked })
-                        }
-                      />
-                      Cerrado
-                    </label>
-                    <input
-                      type="time"
-                      className={cn(
-                        "input-field",
-                        hours.closed && "opacity-40",
-                      )}
-                      disabled={hours.closed}
-                      value={hours.closed ? "" : (hours.open ?? "09:00")}
-                      onChange={(e) =>
-                        updateDay(day, { closed: false, open: e.target.value })
-                      }
-                    />
-                    <span className="hidden text-center text-xs text-gray-400 sm:block">
-                      a
-                    </span>
-                    <input
-                      type="time"
-                      className={cn(
-                        "input-field",
-                        hours.closed && "opacity-40",
-                      )}
-                      disabled={hours.closed}
-                      value={hours.closed ? "" : (hours.close ?? "22:00")}
-                      onChange={(e) =>
-                        updateDay(day, {
-                          closed: false,
-                          close: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                );
-              })}
-            </div>
+            <WeeklyHoursEditor
+              value={form.hours}
+              onChange={(hours) => setForm((f) => ({ ...f, hours }))}
+            />
           </div>
 
           {!editingId && (

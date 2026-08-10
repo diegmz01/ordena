@@ -422,6 +422,8 @@ export const branchMenuUpdateSchema = z.object({
       z.object({
         productId: z.string().min(1),
         available: z.boolean(),
+        /** Horario semanal del producto en esta sucursal; null = sin restricción. Omitido = no cambia. */
+        schedule: branchHoursSchema.optional().nullable(),
       }),
     )
     .min(1)

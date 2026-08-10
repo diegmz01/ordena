@@ -3,6 +3,7 @@ import {
   listedBranchProductWhere,
   orderableBranchProductWhere,
   restoreExpiredBranchStock,
+  scheduleStatusForBranch,
   unavailableModifierIdsForBranch,
 } from "./branch-menu-stock";
 
@@ -30,6 +31,7 @@ export async function findUnavailableCartLines(
 ): Promise<UnavailableCartLine[]> {
   await restoreExpiredBranchStock(branchId);
   const unavailableMods = await unavailableModifierIdsForBranch(branchId);
+  const scheduleStatus = await scheduleStatusForBranch(branchId);
   const out: UnavailableCartLine[] = [];
 
   for (const item of items) {
@@ -67,6 +69,19 @@ export async function findUnavailableCartLines(
         productName: listed?.name ?? fallbackName,
         modifierIds,
         reason: listed ? "agotado" : "no disponible en esta sucursal",
+      });
+      continue;
+    }
+
+    const schedule = scheduleStatus.get(product.id);
+    if (schedule && !schedule.inSchedule) {
+      out.push({
+        productId: product.id,
+        productName: product.name,
+        modifierIds,
+        reason: schedule.scheduleLabel
+          ? `fuera de horario (disponible ${schedule.scheduleLabel})`
+          : "fuera de horario",
       });
       continue;
     }
@@ -123,7 +138,14 @@ export async function findUnavailableCartLines(
         },
         select: { id: true },
       });
-      if (!product.allowCombo || !secondary) {
+      const secondarySchedule = secondary
+        ? scheduleStatus.get(secondary.id)
+        : undefined;
+      if (
+        !product.allowCombo ||
+        !secondary ||
+        (secondarySchedule && !secondarySchedule.inSchedule)
+      ) {
         out.push({
           productId: product.id,
           productName: product.name,
