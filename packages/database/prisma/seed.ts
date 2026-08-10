@@ -245,6 +245,56 @@ async function main() {
     });
   }
 
+  const faqs = [
+    {
+      question: "¿Cómo hago un pedido para recoger?",
+      answer:
+        "Elige tu sucursal, arma tu pedido desde el menú y paga en línea. Te avisaremos cuando esté listo para recoger.",
+      sortOrder: 1,
+    },
+    {
+      question: "¿Puedo cancelar mi pedido?",
+      answer:
+        "Puedes cancelar mientras el pedido no haya sido aceptado por la sucursal. Una vez aceptado, contacta directamente a la sucursal.",
+      sortOrder: 2,
+    },
+    {
+      question: "¿Qué métodos de pago aceptan?",
+      answer: "Aceptamos tarjetas de crédito y débito a través de Stripe.",
+      sortOrder: 3,
+    },
+  ];
+
+  for (const faq of faqs) {
+    await prisma.faq.upsert({
+      where: { id: `seed-${faq.sortOrder}` },
+      update: { question: faq.question, answer: faq.answer },
+      create: { id: `seed-${faq.sortOrder}`, ...faq },
+    });
+  }
+
+  await prisma.siteContent.upsert({
+    where: { id: "privacidad" },
+    update: {},
+    create: {
+      id: "privacidad",
+      title: "Aviso de Privacidad",
+      content:
+        "Este es un aviso de privacidad de ejemplo. Edítalo desde el panel de administración en la sección Contenido.",
+    },
+  });
+
+  await prisma.siteContent.upsert({
+    where: { id: "terminos" },
+    update: {},
+    create: {
+      id: "terminos",
+      title: "Términos y Condiciones",
+      content:
+        "Estos son los términos y condiciones de ejemplo. Edítalos desde el panel de administración en la sección Contenido.",
+    },
+  });
+
   console.log("Seed OK");
   console.log("  admin@ordena.local /", password);
   console.log("  sucursal@ordena.local /", password);

@@ -7,6 +7,7 @@ import type { AuthUser } from "@ordena/shared";
 import { Home, MapPin, ShoppingBag, UtensilsCrossed, User } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLogo } from "@/components/brand-logo";
+import { SiteFooter } from "@/components/site-footer";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { formatMoney, useCart } from "@/lib/cart";
@@ -184,6 +185,8 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1">{children}</main>
+
+      <SiteFooter />
 
       {itemCount > 0 && !hideStickyCart && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 px-4 md:bottom-6">

@@ -438,3 +438,25 @@ export const smtpSettingsSchema = z.object({
   fromEmail: z.string().email("Correo remitente inválido"),
   fromName: z.string().optional(),
 });
+
+export const faqCreateSchema = z.object({
+  question: z.string().min(1, "Pregunta requerida").max(300),
+  answer: z.string().min(1, "Respuesta requerida").max(5000),
+  isActive: z.boolean().optional(),
+});
+
+export const faqUpdateSchema = faqCreateSchema.partial();
+
+export const faqReorderSchema = z.object({
+  faqIds: z.array(z.string().min(1)).min(1),
+});
+
+/** Slugs válidos de páginas de contenido estático editables desde admin. */
+export const SITE_CONTENT_SLUGS = ["privacidad", "terminos"] as const;
+
+export const siteContentSlugSchema = z.enum(SITE_CONTENT_SLUGS);
+
+export const siteContentUpdateSchema = z.object({
+  title: z.string().min(1, "Título requerido").max(200),
+  content: z.string().min(1, "Contenido requerido").max(20000),
+});
