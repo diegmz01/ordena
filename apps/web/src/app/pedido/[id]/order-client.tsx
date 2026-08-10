@@ -178,6 +178,15 @@ function showsOrderProgress(status: string) {
   return status !== "CANCELLED" && status !== "PENDING_PAYMENT";
 }
 
+function resolveTrackingToken(id: string, viewToken?: string) {
+  if (viewToken) return viewToken;
+  try {
+    return sessionStorage.getItem(`ordena_order_t:${id}`) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function formatCardBrand(brand: string | null) {
   if (!brand) return null;
   const map: Record<string, string> = {
@@ -329,7 +338,31 @@ export default function OrderPageClient({
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const { clear, hydrated } = useCart();
+
+  async function handleCancelConfirm() {
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const t = resolveTrackingToken(id, viewToken);
+      const token = getAuthToken();
+      const qs = t ? `?t=${encodeURIComponent(t)}` : "";
+      await apiFetch(`/orders/${id}/cancel${qs}`, token, { method: "POST" });
+      const res = await apiFetch<{ data: Order }>(`/orders/${id}${qs}`, token);
+      setOrder(res.data);
+      setUpdatedAt(new Date());
+      setCancelModalOpen(false);
+    } catch (err) {
+      setCancelError(
+        err instanceof Error ? err.message : "No se pudo cancelar el pedido",
+      );
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   useEffect(() => {
     if (success && hydrated) clear();
@@ -349,14 +382,7 @@ export default function OrderPageClient({
     let alive = true;
     async function load() {
       try {
-        let t = viewToken;
-        if (!t) {
-          try {
-            t = sessionStorage.getItem(`ordena_order_t:${id}`) ?? undefined;
-          } catch {
-            t = undefined;
-          }
-        }
+        const t = resolveTrackingToken(id, viewToken);
         const token = getAuthToken();
         const qs = t ? `?t=${encodeURIComponent(t)}` : "";
         const res = await apiFetch<{ data: Order }>(
@@ -436,6 +462,37 @@ export default function OrderPageClient({
           </div>
           <div className="min-w-0 flex-1">
             <PushOptIn orderId={id} viewToken={viewToken} embedded />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={cancelModalOpen}
+        onClose={() => !cancelling && setCancelModalOpen(false)}
+        title="Cancelar pedido"
+        description="Se liberará de inmediato el cobro retenido en tu tarjeta. Esta acción no se puede deshacer."
+      >
+        <div className="space-y-4">
+          {cancelError && (
+            <p className="admin-alert-error">{cancelError}</p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+            <button
+              type="button"
+              disabled={cancelling}
+              className="btn-secondary"
+              onClick={() => setCancelModalOpen(false)}
+            >
+              Volver
+            </button>
+            <button
+              type="button"
+              disabled={cancelling}
+              className="btn-red"
+              onClick={() => void handleCancelConfirm()}
+            >
+              {cancelling ? "Cancelando…" : "Sí, cancelar pedido"}
+            </button>
           </div>
         </div>
       </Modal>
@@ -792,6 +849,26 @@ export default function OrderPageClient({
                 </dl>
               </div>
             </div>
+
+            {order.status === "PAID" && (
+              <div className="customer-card p-5">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  ¿Ya no quieres este pedido?
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Puedes cancelarlo gratis mientras la sucursal aún no lo
+                  acepte. El cobro retenido se libera de inmediato.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOpen(true)}
+                  className="btn-secondary mt-3 w-full justify-center py-3 text-red-600 dark:text-red-400"
+                >
+                  <X className="h-4 w-4" />
+                  Cancelar pedido
+                </button>
+              </div>
+            )}
 
             {live && (
               <div className="customer-card flex items-start gap-3 p-4">
