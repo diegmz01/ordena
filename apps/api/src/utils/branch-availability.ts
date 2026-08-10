@@ -92,6 +92,67 @@ function dayHoursLabel(day: BranchDayHours | undefined): string {
   return "Sin horario";
 }
 
+/** Instante UTC que corresponde a year-month-day hour:minute en `timeZone`. */
+function zonedTimeToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): Date {
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(utcGuess);
+  const map: Record<string, string> = {};
+  for (const part of parts) map[part.type] = part.value;
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+  return new Date(utcGuess.getTime() - (asUtc - utcGuess.getTime()));
+}
+
+/**
+ * Medianoche del día siguiente en la zona horaria de la sucursal. Usada como
+ * expiración de un cierre manual (CLOSED), para que al llegar el nuevo día
+ * vuelva a modo AUTO y siga el horario configurado.
+ */
+export function startOfNextBranchDay(
+  now: Date = new Date(),
+  timeZone: string = BRANCH_TZ,
+): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const map: Record<string, string> = {};
+  for (const part of parts) map[part.type] = part.value;
+  return zonedTimeToUtc(
+    Number(map.year),
+    Number(map.month),
+    Number(map.day) + 1,
+    0,
+    0,
+    timeZone,
+  );
+}
+
 /** ¿Está dentro del horario configurado en admin? Sin hours → siempre abierto. */
 export function isWithinBranchHours(
   hoursRaw: unknown,
@@ -187,7 +248,8 @@ function baseEffective(
  * Resuelve estado efectivo:
  * - AUTO → abre/cierra según horario del admin
  * - OPEN → forzar abierta (incluso fuera de horario)
- * - CLOSED → forzar cerrada (incluso en horario)
+ * - CLOSED → forzar cerrada (incluso en horario); si pausedUntil venció (medianoche
+ *   del día siguiente, ver `startOfNextBranchDay`) → trata como AUTO
  * - PAUSED → pausa; si pausedUntil venció → trata como AUTO
  * - Sin heartbeat staff reciente → PAUSED (source offline) si iba a aceptar
  */
@@ -239,18 +301,23 @@ export function effectiveAvailability(
   }
 
   if (mode === "CLOSED") {
-    return baseEffective(
-      {
-        status: "CLOSED",
-        mode: "CLOSED",
-        pausedUntil: null,
-        acceptingOrders: false,
-        withinSchedule: schedule.within,
-        source: "manual",
-        todayHoursLabel: schedule.todayHoursLabel,
-      },
-      branch,
-    );
+    if (pausedUntil && pausedUntil.getTime() <= now.getTime()) {
+      mode = "AUTO";
+      pausedUntil = null;
+    } else {
+      return baseEffective(
+        {
+          status: "CLOSED",
+          mode: "CLOSED",
+          pausedUntil,
+          acceptingOrders: false,
+          withinSchedule: schedule.within,
+          source: "manual",
+          todayHoursLabel: schedule.todayHoursLabel,
+        },
+        branch,
+      );
+    }
   }
 
   // AUTO (y PAUSED vencido)
@@ -287,20 +354,17 @@ export function effectiveAvailability(
   );
 }
 
-/** Mode a persistir tras un PATCH (PAUSED vencido → AUTO). */
+/** Mode a persistir tras un PATCH (PAUSED/CLOSED vencido → AUTO). */
 export function normalizeStoredAvailability(
   availability: BranchAvailability,
   pausedUntil: Date | null,
   now: Date = new Date(),
 ): { availability: BranchAvailability; pausedUntil: Date | null } {
-  if (
-    availability === "PAUSED" &&
-    pausedUntil &&
-    pausedUntil.getTime() <= now.getTime()
-  ) {
+  const expires = availability === "PAUSED" || availability === "CLOSED";
+  if (expires && pausedUntil && pausedUntil.getTime() <= now.getTime()) {
     return { availability: "AUTO", pausedUntil: null };
   }
-  if (availability !== "PAUSED") {
+  if (!expires) {
     return { availability, pausedUntil: null };
   }
   return { availability, pausedUntil };

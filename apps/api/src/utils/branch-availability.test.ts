@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { BranchHours } from "@ordena/shared";
 import {
   effectiveAvailability,
+  startOfNextBranchDay,
   type BranchAvailabilityFields,
 } from "./branch-availability";
 
@@ -116,6 +117,44 @@ describe("effectiveAvailability — overrides manuales", () => {
     expect(result.status).toBe("OPEN");
     expect(result.mode).toBe("AUTO");
     expect(result.pausedUntil).toBeNull();
+  });
+
+  it("CLOSED vigente (aún no llega la medianoche) no acepta pedidos", () => {
+    const result = effectiveAvailability(
+      branch({
+        availability: "CLOSED",
+        pausedUntil: new Date(NOW.getTime() + 60_000),
+        hours: ALWAYS_OPEN_HOURS,
+      }),
+      NOW,
+    );
+    expect(result.status).toBe("CLOSED");
+    expect(result.source).toBe("manual");
+    expect(result.acceptingOrders).toBe(false);
+  });
+
+  it("CLOSED vencido (medianoche ya pasó) vuelve a AUTO y sigue el horario", () => {
+    const result = effectiveAvailability(
+      branch({
+        availability: "CLOSED",
+        pausedUntil: new Date(NOW.getTime() - 60_000),
+        hours: ALWAYS_OPEN_HOURS,
+      }),
+      NOW,
+    );
+    expect(result.status).toBe("OPEN");
+    expect(result.mode).toBe("AUTO");
+    expect(result.source).toBe("schedule");
+    expect(result.pausedUntil).toBeNull();
+  });
+});
+
+describe("startOfNextBranchDay", () => {
+  it("regresa la medianoche del día siguiente en la zona horaria dada", () => {
+    // 15 jun 2026 12:00 UTC = 06:00 America/Mexico_City (UTC-6) → medianoche
+    // del 16 jun en esa zona es 2026-06-16T06:00:00.000Z.
+    const result = startOfNextBranchDay(NOW, "America/Mexico_City");
+    expect(result.toISOString()).toBe("2026-06-16T06:00:00.000Z");
   });
 });
 
