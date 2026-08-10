@@ -76,3 +76,113 @@ jobs:
       # excluye puntualmente en vez de volver esto continue-on-error.
       - name: Audit dependencies
         run: pnpm audit --audit-level=high
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build
+    # Requiere los secrets E2E_STRIPE_SECRET_KEY / E2E_STRIPE_WEBHOOK_SECRET
+    # (claves de test de una cuenta Stripe, Settings → Secrets → Actions).
+    # Sin ellos el job se salta en vez de fallar, para no romper CI en forks
+    # o antes de que alguien los configure — ver e2e/README.md.
+    if: ${{ secrets.E2E_STRIPE_SECRET_KEY != '' }}
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ordena
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:password@localhost:5432/ordena
+      JWT_SECRET: e2e-jwt-secret-not-for-production-use-only-32ch
+      TZ: America/Mexico_City
+      CUSTOMER_URL: http://localhost:3000
+      ADMIN_URL: http://localhost:3001
+      BRANCH_URL: http://localhost:3002
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_CUSTOMER_URL: http://localhost:3000
+      NEXT_PUBLIC_ADMIN_URL: http://localhost:3001
+      NEXT_PUBLIC_BRANCH_URL: http://localhost:3002
+      STRIPE_SECRET_KEY: ${{ secrets.E2E_STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.E2E_STRIPE_WEBHOOK_SECRET }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.E2E_STRIPE_PUBLISHABLE_KEY }}
+      E2E_WEB_URL: http://localhost:3000
+      E2E_BRANCH_URL: http://localhost:3002
+      E2E_API_URL: http://localhost:4000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 9.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright (Chromium)
+        run: pnpm --filter @ordena/e2e exec playwright install --with-deps chromium
+
+      - name: Prisma generate
+        run: pnpm db:generate
+
+      - name: Aplicar migraciones
+        run: pnpm db:migrate:deploy
+
+      - name: Seed (sucursal, staff, producto, cliente demo)
+        run: pnpm db:seed
+
+      # Solo lo que usa el flujo crítico (checkout web + aceptación en
+      # branch); admin no participa en este spec. Vía turbo (no pnpm --filter
+      # directo) para que packages/database y packages/shared se compilen
+      # primero como dependencias, igual que en el job "build" de arriba.
+      - name: Build API, web y branch
+        run: pnpm exec turbo build --filter=@ordena/api --filter=@ordena/web --filter=@ordena/branch
+
+      - name: Levantar API, web y branch, y esperar a que respondan
+        run: |
+          pnpm --filter @ordena/api start &
+          pnpm --filter @ordena/web start &
+          pnpm --filter @ordena/branch start &
+          for url in http://localhost:4000/health http://localhost:3000 http://localhost:3002; do
+            echo "Esperando $url"
+            ok=0
+            for i in $(seq 1 30); do
+              if curl -fsS "$url" >/dev/null 2>&1; then ok=1; break; fi
+              sleep 2
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::$url no respondió a tiempo"
+              exit 1
+            fi
+          done
+
+      - name: Test E2E (Playwright)
+        run: pnpm --filter @ordena/e2e test
+
+      - name: Subir reporte de Playwright
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7

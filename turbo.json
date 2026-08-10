@@ -11,7 +11,8 @@
         "NEXT_PUBLIC_PUSHER_KEY",
         "NEXT_PUBLIC_PUSHER_CLUSTER",
         "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
-        "NEXT_PUBLIC_VAPID_PUBLIC_KEY"
+        "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+        "NEXT_PUBLIC_SENTRY_DSN"
       ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },

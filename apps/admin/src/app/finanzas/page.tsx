@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Wallet } from "lucide-react";
+import { ChevronRight, Download, Wallet } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
+import { downloadCsv, rowsToCsv } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 
 type BranchOption = { id: string; name: string };
@@ -50,6 +51,18 @@ type FinanceSummary = {
     toDeposit: number;
     paidAt: string;
     branchName: string;
+  }[];
+};
+
+type FinanceProducts = {
+  from: string;
+  to: string;
+  branchId: string | null;
+  products: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenueCents: number;
   }[];
 };
 
@@ -127,10 +140,13 @@ export default function FinanzasPage() {
   const [branchId, setBranchId] = useState("");
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [products, setProducts] = useState<FinanceProducts | null>(null);
   const [stripe, setStripe] = useState<StripeFinance | null>(null);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [stripeLoading, setStripeLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [productsError, setProductsError] = useState<string | null>(null);
   const [stripeError, setStripeError] = useState<string | null>(null);
 
   const maxCapturedDay = useMemo(() => {
@@ -175,6 +191,32 @@ export default function FinanzasPage() {
     }
   }, [from, to, branchId]);
 
+  const loadProducts = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    setProductsLoading(true);
+    setProductsError(null);
+    if (from > to) {
+      setProducts(null);
+      setProductsLoading(false);
+      return;
+    }
+    try {
+      const qs = new URLSearchParams({ from, to });
+      if (branchId) qs.set("branchId", branchId);
+      const res = await apiFetch<{ data: FinanceProducts }>(
+        `/finance/products?${qs}`,
+        token,
+      );
+      setProducts(res.data);
+    } catch (err) {
+      setProducts(null);
+      setProductsError(err instanceof Error ? err.message : "No se pudo cargar");
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [from, to, branchId]);
+
   const loadStripe = useCallback(async () => {
     const token = getAuthToken();
     if (!token) return;
@@ -208,6 +250,11 @@ export default function FinanzasPage() {
   }, [loadSummary]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de ventas por producto al montar o cambiar filtros
+    void loadProducts();
+  }, [loadProducts]);
+
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de estado de Stripe al montar o cambiar filtros
     void loadStripe();
   }, [loadStripe]);
@@ -230,6 +277,48 @@ export default function FinanzasPage() {
   }
 
   const t = summary?.totals;
+
+  function exportBranchesCsv() {
+    if (!summary || summary.byBranch.length === 0) return;
+    const csv = rowsToCsv(
+      ["Sucursal", "Cobrado", "A depositar", "Autorizado", "Cancelado", "Pedidos"],
+      summary.byBranch.map((row) => [
+        row.name,
+        (row.captured / 100).toFixed(2),
+        ((row.toDeposit ?? row.captured) / 100).toFixed(2),
+        (row.authorized / 100).toFixed(2),
+        (row.cancelled / 100).toFixed(2),
+        row.orderCount,
+      ]),
+    );
+    downloadCsv(`ordena-finanzas-sucursales_${from}_${to}.csv`, csv);
+  }
+
+  function exportDaysCsv() {
+    if (!summary || summary.byDay.length === 0) return;
+    const csv = rowsToCsv(
+      ["Fecha", "A depositar", "Pedidos"],
+      summary.byDay.map((row) => [
+        row.date,
+        ((row.toDeposit ?? row.captured) / 100).toFixed(2),
+        row.orderCount,
+      ]),
+    );
+    downloadCsv(`ordena-finanzas-dias_${from}_${to}.csv`, csv);
+  }
+
+  function exportProductsCsv() {
+    if (!products || products.products.length === 0) return;
+    const csv = rowsToCsv(
+      ["Producto", "Unidades", "Ingreso"],
+      products.products.map((row) => [
+        row.productName,
+        row.quantity,
+        (row.revenueCents / 100).toFixed(2),
+      ]),
+    );
+    downloadCsv(`ordena-finanzas-productos_${from}_${to}.csv`, csv);
+  }
 
   return (
     <div className="space-y-6">
@@ -361,6 +450,15 @@ export default function FinanzasPage() {
               <h2 className="font-semibold text-gray-800 dark:text-white">
                 Por sucursal
               </h2>
+              <button
+                type="button"
+                onClick={exportBranchesCsv}
+                disabled={summary.byBranch.length === 0}
+                className="btn-secondary btn-compact inline-flex items-center gap-1.5"
+              >
+                <Download className="size-3.5" />
+                Exportar CSV
+              </button>
             </div>
             <div className="admin-panel-table">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -416,8 +514,80 @@ export default function FinanzasPage() {
           <section className="admin-panel">
             <div className="admin-panel-header">
               <h2 className="font-semibold text-gray-800 dark:text-white">
+                Ventas por producto
+              </h2>
+              <button
+                type="button"
+                onClick={exportProductsCsv}
+                disabled={!products || products.products.length === 0}
+                className="btn-secondary btn-compact inline-flex items-center gap-1.5"
+              >
+                <Download className="size-3.5" />
+                Exportar CSV
+              </button>
+            </div>
+            {productsError && (
+              <p className="admin-alert-error !mb-0">{productsError}</p>
+            )}
+            <div className="admin-panel-table">
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500 dark:border-gray-700 dark:bg-gray-800/60">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Producto</th>
+                    <th className="px-4 py-3 font-semibold">Unidades</th>
+                    <th className="px-4 py-3 font-semibold">Ingreso</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {productsLoading && !products ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8">
+                        <div className="skeleton h-6 w-full rounded-lg" />
+                      </td>
+                    </tr>
+                  ) : !products || products.products.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-4 py-8 text-center text-gray-500"
+                      >
+                        Sin ventas en el rango.
+                      </td>
+                    </tr>
+                  ) : (
+                    products.products.map((row) => (
+                      <tr key={row.productId}>
+                        <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">
+                          {row.productName}
+                        </td>
+                        <td className="px-4 py-3 tabular-nums">
+                          {row.quantity}
+                        </td>
+                        <td className="px-4 py-3 tabular-nums">
+                          {formatMoney(row.revenueCents)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="admin-panel">
+            <div className="admin-panel-header">
+              <h2 className="font-semibold text-gray-800 dark:text-white">
                 A depositar por día
               </h2>
+              <button
+                type="button"
+                onClick={exportDaysCsv}
+                disabled={summary.byDay.length === 0}
+                className="btn-secondary btn-compact inline-flex items-center gap-1.5"
+              >
+                <Download className="size-3.5" />
+                Exportar CSV
+              </button>
             </div>
             <div className="admin-panel-body space-y-2">
               {summary.byDay.length === 0 ? (
