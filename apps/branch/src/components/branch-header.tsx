@@ -101,7 +101,7 @@ function badgeMeta(branch: BranchMe, presence: StaffPresenceDetail) {
   }
   return {
     label: "Cerrada",
-    hint: "Cerrada manualmente por el staff",
+    hint: "Cerrada manualmente por el staff · reabre mañana según horario",
     dot: "bg-rose-400",
     pulse: false as const,
   };

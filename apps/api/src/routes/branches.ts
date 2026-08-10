@@ -22,6 +22,7 @@ import {
 import {
   effectiveAvailability,
   isWithinBranchHours,
+  startOfNextBranchDay,
   type EffectiveAvailability,
 } from "../utils/branch-availability";
 import {
@@ -388,6 +389,10 @@ branchesRouter.patch(
         } else {
           pausedUntil = null;
         }
+      } else if (body.availability === "CLOSED") {
+        // Cierre manual: expira a medianoche (zona horaria de la sucursal)
+        // para volver a modo AUTO y reabrir según el horario configurado.
+        pausedUntil = startOfNextBranchDay();
       }
 
       const branch = await prisma.branch.update({
