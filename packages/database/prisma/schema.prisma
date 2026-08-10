@@ -279,6 +279,8 @@ model BranchProduct {
   available        Boolean   @default(true)
   /** Staff: agotado temporal; null = con stock. No cambia `available`. */
   unavailableUntil DateTime?
+  /** Admin: horario semanal en el que el producto aparece disponible (mismo shape que Branch.hours). null = sin restricción. */
+  schedule         Json?
   branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
   product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 

@@ -1,9 +1,16 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Clock } from "lucide-react";
+import type { BranchHours } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
 import { Modal } from "@/components/ui/modal";
+import {
+  WeeklyHoursEditor,
+  defaultWeeklyHours,
+  normalizeWeeklyHours,
+} from "@/components/weekly-hours-editor";
 import { cn } from "@/lib/utils";
 
 type MenuProduct = {
@@ -12,6 +19,7 @@ type MenuProduct = {
   isActive: boolean;
   basePrice: number;
   available: boolean;
+  schedule: BranchHours | null;
 };
 
 type MenuCategory = {
@@ -50,6 +58,7 @@ export function BranchMenuModal({
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [titleName, setTitleName] = useState(branchName ?? "");
+  const [scheduleOpenFor, setScheduleOpenFor] = useState<string | null>(null);
 
   const load = useCallback(async (id: string) => {
     setLoading(true);
@@ -78,6 +87,7 @@ export function BranchMenuModal({
     if (!open) {
       setCategories([]);
       setError(null);
+      setScheduleOpenFor(null);
     }
   }, [open, branchId, load]);
 
@@ -90,6 +100,27 @@ export function BranchMenuModal({
         ),
       })),
     );
+  }
+
+  function setProductSchedule(productId: string, schedule: BranchHours | null) {
+    setCategories((cats) =>
+      cats.map((cat) => ({
+        ...cat,
+        products: cat.products.map((p) =>
+          p.id === productId ? { ...p, schedule } : p,
+        ),
+      })),
+    );
+  }
+
+  function toggleProductSchedule(product: MenuProduct) {
+    if (product.schedule) {
+      setProductSchedule(product.id, null);
+      setScheduleOpenFor(null);
+      return;
+    }
+    setProductSchedule(product.id, defaultWeeklyHours());
+    setScheduleOpenFor(product.id);
   }
 
   function setCategoryAvailable(categoryId: string, available: boolean) {
@@ -125,6 +156,7 @@ export function BranchMenuModal({
         cat.products.map((p) => ({
           productId: p.id,
           available: p.available,
+          schedule: p.schedule,
         })),
       );
       if (items.length === 0) {
@@ -210,32 +242,71 @@ export function BranchMenuModal({
                   ) : (
                     <ul className="divide-y divide-gray-100 dark:divide-gray-700">
                       {cat.products.map((product) => (
-                        <li
-                          key={product.id}
-                          className="flex items-center justify-between gap-3 px-3 py-2.5"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-gray-800 dark:text-white">
-                              {product.name}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatMoney(product.basePrice)}
-                              {!product.isActive && " · inactivo en catálogo"}
-                            </p>
+                        <li key={product.id} className="px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-gray-800 dark:text-white">
+                                {product.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {formatMoney(product.basePrice)}
+                                {!product.isActive && " · inactivo en catálogo"}
+                                {product.schedule && " · con horario limitado"}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-3">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "flex items-center gap-1 text-xs font-medium",
+                                  product.schedule
+                                    ? "text-orange-600 dark:text-orange-400"
+                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400",
+                                )}
+                                onClick={() =>
+                                  setScheduleOpenFor((cur) =>
+                                    cur === product.id ? null : product.id,
+                                  )
+                                }
+                              >
+                                <Clock className="h-3.5 w-3.5" />
+                                Horario
+                              </button>
+                              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                                <input
+                                  type="checkbox"
+                                  checked={product.available}
+                                  onChange={(e) =>
+                                    setProductAvailable(
+                                      product.id,
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                                Habilitado
+                              </label>
+                            </div>
                           </div>
-                          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                            <input
-                              type="checkbox"
-                              checked={product.available}
-                              onChange={(e) =>
-                                setProductAvailable(
-                                  product.id,
-                                  e.target.checked,
-                                )
-                              }
-                            />
-                            Habilitado
-                          </label>
+                          {scheduleOpenFor === product.id && (
+                            <div className="mt-2.5 space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
+                              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-200">
+                                <input
+                                  type="checkbox"
+                                  checked={!!product.schedule}
+                                  onChange={() => toggleProductSchedule(product)}
+                                />
+                                Disponible solo en horario limitado
+                              </label>
+                              {product.schedule && (
+                                <WeeklyHoursEditor
+                                  value={normalizeWeeklyHours(product.schedule)}
+                                  onChange={(schedule) =>
+                                    setProductSchedule(product.id, schedule)
+                                  }
+                                />
+                              )}
+                            </div>
+                          )}
                         </li>
                       ))}
                     </ul>

@@ -22,6 +22,8 @@ export type MenuProduct = {
   imageUrl: string | null;
   basePrice: number;
   inStock?: boolean;
+  inSchedule?: boolean;
+  scheduleLabel?: string | null;
   allowCombo?: boolean;
   category: { id: string; name: string; sortOrder?: number };
   modifiers?: { modifier: MenuModifier }[];
@@ -62,7 +64,8 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
       (p) =>
         p.id !== product.id &&
         p.category.id === product.category.id &&
-        p.inStock !== false,
+        p.inStock !== false &&
+        p.inSchedule !== false,
     );
   }, [product, products]);
 
@@ -78,8 +81,9 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
   }, [comboCandidates, comboSearch]);
 
   const productInStock = product?.inStock !== false;
+  const productInSchedule = product?.inSchedule !== false;
   const requiredOutOfStock = mods.required.some((m) => m.inStock === false);
-  const canAddToCart = productInStock && !requiredOutOfStock;
+  const canAddToCart = productInStock && productInSchedule && !requiredOutOfStock;
 
   useEffect(() => {
     if (!product) return;
@@ -202,6 +206,11 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
               {!productInStock && (
                 <span className="status-badge-inactive">Agotado</span>
               )}
+              {productInStock && !productInSchedule && (
+                <span className="status-badge-inactive">
+                  Disponible más tarde
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-sm font-semibold text-orange-600">
               desde {formatMoney(product.basePrice)}
@@ -229,7 +238,15 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
             </p>
           )}
 
-          {productInStock && requiredOutOfStock && (
+          {productInStock && !productInSchedule && (
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
+              {product.scheduleLabel
+                ? `Este producto solo está disponible en su horario de hoy: ${product.scheduleLabel}.`
+                : "Este producto no está disponible en este horario."}
+            </p>
+          )}
+
+          {productInStock && productInSchedule && requiredOutOfStock && (
             <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300">
               No se puede pedir: un complemento obligatorio está agotado.
             </p>
@@ -480,7 +497,11 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
               className="btn-secondary w-full py-3"
               disabled
             >
-              Agotado
+              {!productInStock
+                ? "Agotado"
+                : !productInSchedule
+                  ? "Disponible más tarde"
+                  : "Agotado"}
             </button>
           )}
         </div>

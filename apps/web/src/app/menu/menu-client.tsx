@@ -112,9 +112,11 @@ export default function MenuPage() {
 
   const filtered = useMemo(() => {
     const inCategory = products.filter((p) => p.category.id === activeCat);
-    // Estable: agota al final sin alterar el orden relativo (categoría/sortOrder/nombre).
+    // Estable: agota/fuera-de-horario al final sin alterar el orden relativo (categoría/sortOrder/nombre).
+    const unavailableRank = (p: MenuProduct) =>
+      Number(p.inStock === false || p.inSchedule === false);
     return [...inCategory].sort(
-      (a, b) => Number(a.inStock === false) - Number(b.inStock === false),
+      (a, b) => unavailableRank(a) - unavailableRank(b),
     );
   }, [products, activeCat]);
 
@@ -253,6 +255,13 @@ export default function MenuPage() {
             <ul className="grid gap-3 sm:grid-cols-2">
               {filtered.map((product) => {
                 const inStock = product.inStock !== false;
+                const inSchedule = product.inSchedule !== false;
+                const orderable = inStock && inSchedule;
+                const badgeLabel = !inStock
+                  ? "Agotado"
+                  : !inSchedule
+                    ? "Disponible más tarde"
+                    : null;
                 return (
                   <li key={product.id}>
                     <button
@@ -260,7 +269,7 @@ export default function MenuPage() {
                       onClick={() => setSelected(product)}
                       className={cn(
                         "customer-card group flex w-full overflow-hidden text-left transition",
-                        inStock
+                        orderable
                           ? "hover:border-orange-300 hover:shadow-md dark:hover:border-orange-700"
                           : "opacity-90",
                       )}
@@ -268,7 +277,7 @@ export default function MenuPage() {
                       <div
                         className={cn(
                           "relative flex size-24 shrink-0 items-center justify-center bg-gradient-to-br from-orange-100 to-amber-50 text-lg font-bold text-orange-600 sm:size-28 dark:from-orange-950/60 dark:to-amber-950/30 dark:text-orange-300",
-                          !inStock && "grayscale",
+                          !orderable && "grayscale",
                         )}
                       >
                         {product.imageUrl ? (
@@ -281,10 +290,10 @@ export default function MenuPage() {
                         ) : (
                           productInitials(product.name)
                         )}
-                        {!inStock && (
+                        {badgeLabel && (
                           <span className="absolute inset-x-1 bottom-1 z-10 flex justify-center">
                             <span className="status-badge-inactive shadow-sm">
-                              Agotado
+                              {badgeLabel}
                             </span>
                           </span>
                         )}
@@ -294,7 +303,7 @@ export default function MenuPage() {
                           <p
                             className={cn(
                               "font-semibold",
-                              inStock
+                              orderable
                                 ? "text-gray-900 dark:text-white"
                                 : "text-gray-500 dark:text-gray-400",
                             )}
@@ -311,14 +320,14 @@ export default function MenuPage() {
                           <span
                             className={cn(
                               "text-base font-bold tabular-nums",
-                              inStock
+                              orderable
                                 ? "text-orange-600"
                                 : "text-gray-400 dark:text-gray-500",
                             )}
                           >
                             {formatMoney(product.basePrice)}
                           </span>
-                          {inStock ? (
+                          {orderable ? (
                             <span
                               className="inline-flex size-9 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm transition group-hover:scale-105 group-hover:bg-orange-600"
                               aria-hidden
@@ -326,7 +335,9 @@ export default function MenuPage() {
                               <Plus className="h-4 w-4" />
                             </span>
                           ) : (
-                            <span className="status-badge-inactive">Agotado</span>
+                            <span className="status-badge-inactive">
+                              {badgeLabel}
+                            </span>
                           )}
                         </div>
                       </div>

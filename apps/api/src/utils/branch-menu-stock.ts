@@ -1,4 +1,5 @@
-import { prisma } from "@ordena/database";
+import { Prisma, prisma } from "@ordena/database";
+import { isWithinBranchHours } from "./branch-availability";
 
 const BRANCH_TZ = process.env.TZ?.trim() || "America/Mexico_City";
 
@@ -98,6 +99,43 @@ export async function restoreExpiredBranchStock(
     },
     data: { available: true },
   });
+}
+
+/** Estado de horario por producto (solo los que tienen `schedule` configurado). */
+export async function scheduleStatusForBranch(
+  branchId: string,
+  now: Date = new Date(),
+): Promise<Map<string, { inSchedule: boolean; scheduleLabel: string | null }>> {
+  const rows = await prisma.branchProduct.findMany({
+    where: {
+      branchId,
+      available: true,
+      schedule: { not: Prisma.JsonNull },
+    },
+    select: { productId: true, schedule: true },
+  });
+  const map = new Map<
+    string,
+    { inSchedule: boolean; scheduleLabel: string | null }
+  >();
+  for (const row of rows) {
+    const { within, todayHoursLabel } = isWithinBranchHours(row.schedule, now);
+    map.set(row.productId, { inSchedule: within, scheduleLabel: todayHoursLabel });
+  }
+  return map;
+}
+
+/** Ids de productos fuera de su horario configurado en este momento. */
+export async function outOfScheduleProductIdsForBranch(
+  branchId: string,
+  now: Date = new Date(),
+): Promise<Set<string>> {
+  const status = await scheduleStatusForBranch(branchId, now);
+  const out = new Set<string>();
+  for (const [productId, { inSchedule }] of status) {
+    if (!inSchedule) out.add(productId);
+  }
+  return out;
 }
 
 /** Ids de modificadores agotados en la sucursal (unavailableUntil futura). */
