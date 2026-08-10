@@ -84,8 +84,8 @@ export const CUSTOMER_CANCELLATION_REASON =
 
 /**
  * Montos a mostrar en cards de pago (admin / staff / cliente).
- * - Autorizado = `subtotal` (lo retenido en Stripe al pagar, antes de
- *   descuentos por agotados).
+ * - Autorizado = `subtotal + serviceFee` (lo retenido en Stripe al pagar,
+ *   antes de descuentos por agotados).
  * - Cobrado = `total − refundedTotal` (o $0 si cancelado).
  * - Si autorizado === cobrado: la UI puede unir ambas en una sola línea.
  */
@@ -93,6 +93,7 @@ export function orderPaymentAmounts(order: {
   status: string;
   subtotal: number;
   total: number;
+  serviceFee?: number | null;
   refundedTotal?: number | null;
 }): {
   authorized: number;
@@ -105,7 +106,7 @@ export function orderPaymentAmounts(order: {
   const cancelled = order.status === "CANCELLED";
   const captured =
     order.status === "READY" || order.status === "COMPLETED";
-  const authorized = order.subtotal;
+  const authorized = order.subtotal + Math.max(0, order.serviceFee ?? 0);
   const charged = cancelled ? 0 : Math.max(0, order.total - refunded);
   const showCharged = cancelled || refunded > 0 || captured;
   return {
@@ -115,6 +116,31 @@ export function orderPaymentAmounts(order: {
     combined: showCharged && authorized === charged,
     refunded,
   };
+}
+
+/** Configuración vigente de tarifa de servicios (respuesta de `GET /settings/service-fee`). */
+export type ServiceFeeSettingsPublic = {
+  type: "FIXED" | "PERCENTAGE";
+  /** Centavos, usado si type = FIXED. */
+  amount: number;
+  /** Basis points (1/100 de 1%), usado si type = PERCENTAGE. */
+  percentage: number;
+  isActive: boolean;
+};
+
+/**
+ * Tarifa de servicios (centavos) a cobrar sobre un subtotal, dada la
+ * configuración vigente. Único lugar donde se calcula: lo usa tanto el
+ * checkout server-side (fuente de verdad) como el frontend para mostrar el
+ * monto antes de pagar.
+ */
+export function computeServiceFee(
+  settings: ServiceFeeSettingsPublic | null | undefined,
+  subtotal: number,
+): number {
+  if (!settings || !settings.isActive) return 0;
+  if (settings.type === "FIXED") return Math.max(0, settings.amount);
+  return Math.max(0, Math.round((subtotal * settings.percentage) / 10_000));
 }
 
 /**

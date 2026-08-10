@@ -12,7 +12,7 @@ import {
   Pencil,
   AlertTriangle,
 } from "lucide-react";
-import { comboProductName } from "@ordena/shared";
+import { comboProductName, computeServiceFee } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import {
   clearUnavailableAlert,
@@ -23,6 +23,7 @@ import {
   writeUnavailableAlert,
   type CartItem,
 } from "@/lib/cart";
+import { useServiceFeeSettings } from "@/lib/service-fee";
 import { validateCartStock } from "@/lib/validate-cart-stock";
 
 export default function CarritoPage() {
@@ -50,6 +51,10 @@ export default function CarritoPage() {
   const [validatingCheckout, setValidatingCheckout] = useState(false);
   const [unavailableAlert, setUnavailableAlert] = useState<string[]>([]);
   const [stockError, setStockError] = useState<string | null>(null);
+
+  const feeSettings = useServiceFeeSettings();
+  const serviceFee = computeServiceFee(feeSettings, subtotal);
+  const total = subtotal + serviceFee;
 
   const menuHref = branchId ? `/menu?branch=${branchId}` : "/sucursales";
   const checkoutHref = branchId
@@ -430,11 +435,27 @@ export default function CarritoPage() {
                     ? ` · ${plates.length} persona${plates.length === 1 ? "" : "s"}`
                     : ""}
                 </span>
-                <span className="text-gray-500">Total a pagar</span>
+                <span className="text-gray-500">Subtotal</span>
               </div>
               <div className="mt-1 flex justify-end">
-                <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
+                <span className="text-sm tabular-nums text-gray-500">
                   {formatMoney(subtotal)}
+                </span>
+              </div>
+              {serviceFee > 0 && (
+                <div className="mt-1 flex justify-between text-sm">
+                  <span className="text-gray-500">Tarifa de servicios</span>
+                  <span className="tabular-nums text-gray-500">
+                    {formatMoney(serviceFee)}
+                  </span>
+                </div>
+              )}
+              <div className="mt-2 flex justify-between border-t border-gray-100 pt-2 dark:border-gray-800">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  Total a pagar
+                </span>
+                <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
+                  {formatMoney(total)}
                 </span>
               </div>
               {splitEnabled && (
@@ -468,7 +489,7 @@ export default function CarritoPage() {
                       ? "Verificando disponibilidad…"
                       : "Ir a pagar"}
                   </span>
-                  <span className="tabular-nums">{formatMoney(subtotal)}</span>
+                  <span className="tabular-nums">{formatMoney(total)}</span>
                 </button>
               ) : (
                 <div className="sticky-order-bar pointer-events-auto cursor-not-allowed opacity-60">
@@ -479,7 +500,7 @@ export default function CarritoPage() {
                         ? "Sucursal no disponible"
                         : "Ir a pagar"}
                   </span>
-                  <span className="tabular-nums">{formatMoney(subtotal)}</span>
+                  <span className="tabular-nums">{formatMoney(total)}</span>
                 </div>
               )}
             </div>

@@ -48,6 +48,7 @@ type Order = {
   status: string;
   subtotal: number;
   discount: number;
+  serviceFee?: number;
   total: number;
   currency?: string;
   refundedTotal?: number;
@@ -744,6 +745,14 @@ export default function OrderPageClient({
                     </span>
                   </div>
                 )}
+                {(order.serviceFee ?? 0) > 0 && (
+                  <div className="flex justify-between text-gray-500">
+                    <span>Tarifa de servicios</span>
+                    <span className="tabular-nums">
+                      {formatMoney(order.serviceFee ?? 0)}
+                    </span>
+                  </div>
+                )}
                 {order.status === "CANCELLED" && (
                   <div className="flex justify-between font-medium text-red-600">
                     <span>Devolución</span>
@@ -809,6 +818,7 @@ export default function OrderPageClient({
                       status: order.status,
                       subtotal: order.subtotal,
                       total: order.total,
+                      serviceFee: order.serviceFee ?? 0,
                       refundedTotal: order.refundedTotal ?? 0,
                     });
                     return (

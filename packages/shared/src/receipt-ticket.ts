@@ -35,6 +35,7 @@ export type ReceiptTicketOrder = {
   notes?: string | null;
   subtotal: number;
   discount?: number;
+  serviceFee?: number;
   total: number;
   currency?: string;
   guestName?: string | null;
@@ -216,6 +217,12 @@ export function buildReceiptTicket(
     lines.push({
       type: "text",
       text: `Descuento  -${formatMoney(order.discount!, currency)}`,
+    });
+  }
+  if ((order.serviceFee ?? 0) > 0) {
+    lines.push({
+      type: "text",
+      text: `Tarifa de servicios  ${formatMoney(order.serviceFee!, currency)}`,
     });
   }
   lines.push({

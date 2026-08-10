@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { comboProductName, type AuthUser } from "@ordena/shared";
+import { comboProductName, computeServiceFee, type AuthUser } from "@ordena/shared";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken, register } from "@/lib/auth";
 import {
@@ -12,6 +12,7 @@ import {
   useCart,
   writeUnavailableAlert,
 } from "@/lib/cart";
+import { useServiceFeeSettings } from "@/lib/service-fee";
 import { cn } from "@/lib/utils";
 import { SocialAuthButtons } from "@/components/social-auth-buttons";
 import {
@@ -62,6 +63,10 @@ export default function CheckoutClient() {
     () => groupCartItemsByPlate(items, plates).filter((g) => g.items.length > 0),
     [items, plates],
   );
+
+  const feeSettings = useServiceFeeSettings();
+  const serviceFee = computeServiceFee(feeSettings, subtotal);
+  const total = subtotal + serviceFee;
 
   useEffect(() => {
     const token = getAuthToken();
@@ -388,11 +393,25 @@ export default function CheckoutClient() {
           </div>
         ))}
         <div className="flex justify-between border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
+          <span className="text-gray-500">Subtotal</span>
+          <span className="tabular-nums text-gray-500">
+            {formatMoney(subtotal)}
+          </span>
+        </div>
+        {serviceFee > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-500">Tarifa de servicios</span>
+            <span className="tabular-nums text-gray-500">
+              {formatMoney(serviceFee)}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
           <span className="font-medium text-gray-700 dark:text-gray-200">
             Total
           </span>
           <span className="text-lg font-bold text-gray-900 dark:text-white">
-            {formatMoney(subtotal)}
+            {formatMoney(total)}
           </span>
         </div>
         {plates.length > 0 && (
@@ -578,7 +597,7 @@ export default function CheckoutClient() {
               : "Redirigiendo a Stripe…"
             : !hasToken && !showAltForm
               ? "Elige cómo continuar arriba"
-              : `Continuar al pago · ${formatMoney(subtotal)}`}
+              : `Continuar al pago · ${formatMoney(total)}`}
         </button>
         <p className="text-center text-xs text-gray-500">
           Autorización segura con Stripe · Se cobra al quedar listo

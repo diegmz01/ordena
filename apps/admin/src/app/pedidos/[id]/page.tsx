@@ -63,6 +63,7 @@ type OrderDetail = {
   status: string;
   subtotal: number;
   discount: number;
+  serviceFee: number;
   total: number;
   refundedTotal: number;
   currency: string;
@@ -779,6 +780,12 @@ export default function AdminOrderDetailPage() {
                     <div className="flex justify-between text-sm font-medium text-red-600">
                       <span>Descuento (agotados)</span>
                       <span>−{formatMoney(order.discount, order.currency)}</span>
+                    </div>
+                  )}
+                  {order.serviceFee > 0 && (
+                    <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
+                      <span>Tarifa de servicios</span>
+                      <span>{formatMoney(order.serviceFee, order.currency)}</span>
                     </div>
                   )}
                   {order.status === "CANCELLED" && (

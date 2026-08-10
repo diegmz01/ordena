@@ -71,6 +71,12 @@ export function chargeableTotal(items: MoneyItem[]) {
   return itemsSubtotal(items) - itemsDiscount(items);
 }
 
+/** `chargeableTotal` más la tarifa de servicios congelada del pedido (no se
+ * pierde al marcar productos agotados antes de aceptar). */
+export function orderTotalWithFee(items: MoneyItem[], serviceFee: number) {
+  return chargeableTotal(items) + Math.max(0, serviceFee);
+}
+
 function assertBranchAccess(
   user: NonNullable<AuthenticatedRequest["authUser"]>,
   orderBranchId: string,
@@ -1162,7 +1168,7 @@ ordersRouter.patch(
       );
       const subtotal = itemsSubtotal(nextItems);
       const discount = itemsDiscount(nextItems);
-      const total = chargeableTotal(nextItems);
+      const total = orderTotalWithFee(nextItems, order.serviceFee);
 
       // Nunca se cancela automáticamente: aunque el total quede en $0 porque
       // todos los productos están agotados, el pedido sigue en PAID y es el
