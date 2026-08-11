@@ -349,6 +349,14 @@ model Order {
   notes                 String?
   /// Motivo obligatorio ingresado por sucursal o admin al cancelar el pedido
   cancellationReason    String?
+  /// True si fue el propio cliente quien canceló (vs. staff/admin/sistema).
+  /// Mientras sea true y `customerCancelAckedAt` sea null, el pedido sigue
+  /// apareciendo en "pedidos en vivo" de sucursal para que el staff no
+  /// continúe preparándolo sin darse cuenta.
+  cancelledByCustomer   Boolean     @default(false)
+  /// Cuándo el staff marcó "Entendido" sobre una cancelación hecha por el
+  /// cliente. Null = todavía debe reconocerla.
+  customerCancelAckedAt DateTime?
   /// Suma de reembolsos parciales de Stripe (centavos); no incluye la
   /// cancelación total del pedido, que se refleja vía `status = CANCELLED`.
   refundedTotal         Int         @default(0)

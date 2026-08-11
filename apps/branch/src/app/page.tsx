@@ -15,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { comboProductName, groupItemsByPlateLabel, orderPaymentAmounts } from "@ordena/shared";
+import { CustomerCancelAlert } from "@/components/customer-cancel-alert";
 import { HistorySummary } from "@/components/history-summary";
 import { NewOrderAlert } from "@/components/new-order-alert";
 import {
@@ -75,6 +76,8 @@ type Order = {
   guestEmail: string | null;
   guestPhone: string | null;
   notes: string | null;
+  cancelledByCustomer: boolean;
+  customerCancelAckedAt: string | null;
   items: OrderItem[];
   user: {
     id: string;
@@ -247,6 +250,12 @@ export default function BranchHomePage() {
   );
   const [nowForAck, setNowForAck] = useState(() => Date.now());
   const [newOrderAlertIds, setNewOrderAlertIds] = useState<string[]>([]);
+  const [customerCancelAlertIds, setCustomerCancelAlertIds] = useState<
+    string[]
+  >([]);
+  const [ackCancelPendingId, setAckCancelPendingId] = useState<string | null>(
+    null,
+  );
   const autoReadyRef = useRef<Set<string>>(new Set());
   const refreshSeqRef = useRef(0);
 
@@ -265,6 +274,15 @@ export default function BranchHomePage() {
         .filter((o): o is Order => Boolean(o))
         .map((o) => ({ label: displayOrderLabel(o), customer: customerName(o) })),
     [newOrderAlertIds, orders],
+  );
+
+  const customerCancelAlertOrders = useMemo(
+    () =>
+      customerCancelAlertIds
+        .map((id) => orders.find((o) => o.id === id))
+        .filter((o): o is Order => Boolean(o))
+        .map((o) => ({ label: displayOrderLabel(o), customer: customerName(o) })),
+    [customerCancelAlertIds, orders],
   );
 
   const refreshOrders = useCallback(async () => {
@@ -403,8 +421,25 @@ export default function BranchHomePage() {
         // Ignora payload inesperado: el reload ya refresca la lista.
       }
     };
+    // Pantalla completa "Cancelado por cliente": mismo mecanismo que arriba,
+    // pero el pedido sigue visible (resaltado) en "en vivo" hasta que el
+    // staff lo reconozca con el botón "Entendido" del propio card.
+    const handleCustomerCancelled = (event: MessageEvent) => {
+      reload();
+      try {
+        const data = JSON.parse(event.data) as { orderId?: string };
+        if (data.orderId) {
+          setCustomerCancelAlertIds((prev) =>
+            prev.includes(data.orderId!) ? prev : [...prev, data.orderId!],
+          );
+        }
+      } catch {
+        // Ignora payload inesperado: el reload ya refresca la lista.
+      }
+    };
     source.addEventListener("order:new", handleNewOrder);
     source.addEventListener("order:updated", reload);
+    source.addEventListener("order:customer_cancelled", handleCustomerCancelled);
 
     return () => {
       source.close();
@@ -459,6 +494,35 @@ export default function BranchHomePage() {
   function dismissNewOrderAlert() {
     setNewOrderAlertIds([]);
     setTab("live");
+  }
+
+  function dismissCustomerCancelAlert() {
+    setCustomerCancelAlertIds([]);
+    setTab("live");
+  }
+
+  /**
+   * Reconoce ("Entendido") una cancelación de cliente: recién ahí el pedido
+   * deja de aparecer en "en vivo" (ver GET /orders/branch en la API).
+   */
+  async function acknowledgeCustomerCancel(orderId: string) {
+    const token = getAuthToken();
+    if (!token) return;
+    setAckCancelPendingId(orderId);
+    try {
+      await apiFetch(`/orders/${orderId}/ack-customer-cancel`, token, {
+        method: "POST",
+      });
+      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setCustomerCancelAlertIds((prev) => prev.filter((id) => id !== orderId));
+      if (selectedId === orderId) setSelectedId(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Error al reconocer el pedido",
+      );
+    } finally {
+      setAckCancelPendingId(null);
+    }
   }
 
   useEffect(() => {
@@ -809,6 +873,13 @@ export default function BranchHomePage() {
           onDismiss={dismissNewOrderAlert}
         />
       )}
+      {newOrderAlertIds.length === 0 && customerCancelAlertIds.length > 0 && (
+        <CustomerCancelAlert
+          count={customerCancelAlertIds.length}
+          orders={customerCancelAlertOrders}
+          onDismiss={dismissCustomerCancelAlert}
+        />
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="page-title">
@@ -929,6 +1000,15 @@ export default function BranchHomePage() {
                         : undefined
                     }
                     acknowledged={isAcknowledged}
+                    cancelledByCustomer={order.cancelledByCustomer}
+                    onAcknowledgeCancel={
+                      order.status === "CANCELLED" &&
+                      order.cancelledByCustomer &&
+                      !order.customerCancelAckedAt
+                        ? () => void acknowledgeCustomerCancel(order.id)
+                        : undefined
+                    }
+                    ackCancelPending={ackCancelPendingId === order.id}
                   />
                 </li>
               );
@@ -964,6 +1044,7 @@ export default function BranchHomePage() {
                   amount={formatMoney(order.total, order.currency)}
                   timeLabel={formatDateTime(order.paidAt ?? order.readyAt)}
                   onClick={() => openOrder(order)}
+                  cancelledByCustomer={order.cancelledByCustomer}
                 />
               </li>
             ))}
@@ -1016,7 +1097,9 @@ export default function BranchHomePage() {
                 STATUS_BADGE[selected.status] ?? STATUS_BADGE.ACCEPTED,
               )}
             >
-              {STATUS_LABEL[selected.status] ?? selected.status}
+              {selected.status === "CANCELLED" && selected.cancelledByCustomer
+                ? "Cancelado por cliente"
+                : (STATUS_LABEL[selected.status] ?? selected.status)}
             </span>
           }
           footer={
@@ -1082,6 +1165,20 @@ export default function BranchHomePage() {
                   Entregar
                 </button>
               )}
+              {selected.status === "CANCELLED" &&
+                selected.cancelledByCustomer &&
+                !selected.customerCancelAckedAt && (
+                  <button
+                    type="button"
+                    disabled={ackCancelPendingId === selected.id}
+                    onClick={() => void acknowledgeCustomerCancel(selected.id)}
+                    className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
+                  >
+                    {ackCancelPendingId === selected.id
+                      ? "Marcando…"
+                      : "Entendido"}
+                  </button>
+                )}
             </div>
           }
         >
@@ -1091,6 +1188,13 @@ export default function BranchHomePage() {
             {selected.status === "PAID" && (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
                 Verifica disponibilidad de cada producto antes de aceptar
+              </p>
+            )}
+
+            {selected.status === "CANCELLED" && selected.cancelledByCustomer && (
+              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-semibold text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200">
+                El cliente canceló este pedido antes de que lo aceptaras. No
+                lo prepares — el cobro ya fue liberado.
               </p>
             )}
 

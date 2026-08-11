@@ -23,7 +23,10 @@ import {
   requireBranchStaff,
   type AuthenticatedRequest,
 } from "../middleware/auth";
-import { notifyBranchOrderUpdated } from "../utils/sse";
+import {
+  notifyBranchOrderUpdated,
+  notifyBranchCustomerCancelledOrder,
+} from "../utils/sse";
 import {
   notifyCustomerOrderStatus,
   notifyCustomerOrderItemsChanged,
@@ -351,7 +354,16 @@ ordersRouter.get(
         prisma.order.findMany({
           where: {
             branchId,
-            status: { in: [...ACTIVE_BRANCH_STATUSES] },
+            OR: [
+              { status: { in: [...ACTIVE_BRANCH_STATUSES] } },
+              // Cancelado por el cliente y aún no reconocido por staff:
+              // sigue en "pedidos en vivo" hasta que marquen "Entendido".
+              {
+                status: "CANCELLED",
+                cancelledByCustomer: true,
+                customerCancelAckedAt: null,
+              },
+            ],
           },
           orderBy: { createdAt: "desc" },
           include: branchOrderInclude,
@@ -605,8 +617,56 @@ ordersRouter.post(
         data: {
           status: "CANCELLED",
           cancellationReason: CUSTOMER_CANCELLATION_REASON,
+          cancelledByCustomer: true,
         },
       });
+
+      await notifyBranchCustomerCancelledOrder(order.branchId, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+      });
+
+      res.json({ data: { id: cancelled.id, status: cancelled.status } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Staff: reconoce ("Entendido") una cancelación hecha por el cliente. Recién
+ * ahí el pedido deja de aparecer en "pedidos en vivo" (GET /orders/branch).
+ */
+ordersRouter.post(
+  "/:id/ack-customer-cancel",
+  authenticate,
+  requireBranchStaff,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const user = req.authUser!;
+      const order = await prisma.order.findUnique({
+        where: { id: String(req.params.id) },
+      });
+      if (!order) {
+        throw new AppError(404, "Pedido no encontrado");
+      }
+
+      assertBranchAccess(user, order.branchId);
+
+      if (order.status !== "CANCELLED" || !order.cancelledByCustomer) {
+        throw new AppError(
+          400,
+          "Este pedido no es una cancelación de cliente pendiente",
+        );
+      }
+
+      const acked =
+        order.customerCancelAckedAt != null
+          ? order
+          : await prisma.order.update({
+              where: { id: order.id },
+              data: { customerCancelAckedAt: new Date() },
+            });
 
       await notifyBranchOrderUpdated(order.branchId, {
         orderId: order.id,
@@ -614,7 +674,7 @@ ordersRouter.post(
         status: "CANCELLED",
       });
 
-      res.json({ data: { id: cancelled.id, status: cancelled.status } });
+      res.json({ data: { id: acked.id, customerCancelAckedAt: acked.customerCancelAckedAt } });
     } catch (error) {
       next(error);
     }
