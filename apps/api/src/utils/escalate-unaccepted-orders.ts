@@ -5,7 +5,7 @@ import { notifyStaffNewOrder } from "./web-push";
  * Cada cuánto se reenvía el push "urgente" a un pedido PAID sin aceptar,
  * mientras siga sin aceptarse. En el cliente, apps/branch/src/app/page.tsx
  * usa ALARM_REARM_MS con el mismo valor para re-armar la sirena tras un
- * "Ya lo vi", así push y sirena quedan aproximadamente sincronizados.
+ * "Visto", así push y sirena quedan aproximadamente sincronizados.
  */
 export const STAFF_ALERT_REPEAT_MS = 60_000;
 

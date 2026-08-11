@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { comboProductName, groupItemsByPlateLabel, orderPaymentAmounts } from "@ordena/shared";
 import { HistorySummary } from "@/components/history-summary";
+import { NewOrderAlert } from "@/components/new-order-alert";
 import {
   OrderCard,
   OrderCardSkeleton,
@@ -33,7 +34,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Espejo de STAFF_ALERT_REPEAT_MS en apps/api/src/utils/escalate-unaccepted-orders.ts
- * (60s) — cuánto dura el silencio de "Ya lo vi" antes de que la sirena
+ * (60s) — cuánto dura el silencio de "Visto" antes de que la sirena
  * vuelva a sonar para ese pedido si sigue sin aceptarse.
  */
 const ALARM_REARM_MS = 60_000;
@@ -245,6 +246,7 @@ export default function BranchHomePage() {
     new Map(),
   );
   const [nowForAck, setNowForAck] = useState(() => Date.now());
+  const [newOrderAlertIds, setNewOrderAlertIds] = useState<string[]>([]);
   const autoReadyRef = useRef<Set<string>>(new Set());
   const refreshSeqRef = useRef(0);
 
@@ -335,7 +337,23 @@ export default function BranchHomePage() {
     const reload = () => {
       refreshOrders().catch(() => undefined);
     };
-    source.addEventListener("order:new", reload);
+    // Pantalla completa "Nuevo pedido": interrumpe al staff hasta que
+    // presione "Entendido", incluso si está en otra pestaña o con un modal
+    // abierto.
+    const handleNewOrder = (event: MessageEvent) => {
+      reload();
+      try {
+        const data = JSON.parse(event.data) as { orderId?: string };
+        if (data.orderId) {
+          setNewOrderAlertIds((prev) =>
+            prev.includes(data.orderId!) ? prev : [...prev, data.orderId!],
+          );
+        }
+      } catch {
+        // Ignora payload inesperado: el reload ya refresca la lista.
+      }
+    };
+    source.addEventListener("order:new", handleNewOrder);
     source.addEventListener("order:updated", reload);
 
     return () => {
@@ -386,6 +404,11 @@ export default function BranchHomePage() {
 
   function acknowledgeOrder(orderId: string) {
     setAcknowledgedAt((prev) => new Map(prev).set(orderId, Date.now()));
+  }
+
+  function dismissNewOrderAlert() {
+    setNewOrderAlertIds([]);
+    setTab("live");
   }
 
   useEffect(() => {
@@ -729,6 +752,12 @@ export default function BranchHomePage() {
 
   return (
     <div className="space-y-5">
+      {newOrderAlertIds.length > 0 && (
+        <NewOrderAlert
+          count={newOrderAlertIds.length}
+          onDismiss={dismissNewOrderAlert}
+        />
+      )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="page-title">

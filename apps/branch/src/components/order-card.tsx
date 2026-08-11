@@ -59,9 +59,11 @@ export function OrderCard({
   onAcknowledge,
   acknowledged,
 }: OrderCardProps) {
-  const badgeClass = STATUS_BADGE[status] ?? STATUS_BADGE.ACCEPTED;
   const accentClass = STATUS_ACCENT[status] ?? STATUS_ACCENT.ACCEPTED;
   const isNew = status === "PAID";
+  const badgeClass = isNew
+    ? "staff-order-card-new-pill"
+    : (STATUS_BADGE[status] ?? STATUS_BADGE.ACCEPTED);
 
   return (
     <div
@@ -76,23 +78,37 @@ export function OrderCard({
       }}
       className={cn(
         "staff-order-card cursor-pointer",
-        accentClass,
+        isNew ? "staff-order-card-new" : accentClass,
         isNew && "staff-order-card-pulse",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">
+          <p
+            className={cn(
+              "text-2xl font-bold tracking-tight tabular-nums",
+              isNew ? "text-white" : "text-slate-900 dark:text-white",
+            )}
+          >
             {label}
           </p>
-          <p className="mt-1 truncate text-sm font-medium text-slate-600 dark:text-slate-300">
+          <p
+            className={cn(
+              "mt-1 truncate text-sm font-medium",
+              isNew ? "text-white/90" : "text-slate-600 dark:text-slate-300",
+            )}
+          >
             {customer}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold">
             {ptvTicket != null && (
               <span
                 className={
-                  status === "COMPLETED" ? "text-emerald-600" : "text-orange-600"
+                  isNew
+                    ? "text-white"
+                    : status === "COMPLETED"
+                      ? "text-emerald-600"
+                      : "text-orange-600"
                 }
               >
                 PTV #{ptvTicket}
@@ -102,16 +118,25 @@ export function OrderCard({
               <span
                 className={cn(
                   "tabular-nums",
-                  status === "COMPLETED"
-                    ? "text-emerald-600"
-                    : "text-orange-600",
+                  isNew
+                    ? "text-white"
+                    : status === "COMPLETED"
+                      ? "text-emerald-600"
+                      : "text-orange-600",
                 )}
               >
                 {amount}
               </span>
             )}
             {timeLabel && (
-              <span className="font-medium text-slate-400">{timeLabel}</span>
+              <span
+                className={cn(
+                  "font-medium",
+                  isNew ? "text-white/70" : "text-slate-400",
+                )}
+              >
+                {timeLabel}
+              </span>
             )}
           </div>
           {isNew && onAcknowledge && (
@@ -123,10 +148,10 @@ export function OrderCard({
               }}
               className={cn(
                 "staff-chip mt-2",
-                acknowledged && "staff-chip-active",
+                acknowledged ? "staff-chip-new-active" : "staff-chip-new",
               )}
             >
-              {acknowledged ? "Visto" : "Ya lo vi"}
+              Visto
             </button>
           )}
         </div>

@@ -417,6 +417,38 @@ button:disabled {
     @apply border-transparent bg-orange-500 text-white hover:border-transparent hover:bg-orange-600 dark:bg-orange-500 dark:text-white dark:hover:bg-orange-600;
   }
 
+  .staff-chip-new {
+    @apply border-transparent bg-white text-orange-700 hover:bg-orange-50 dark:bg-white dark:text-orange-700 dark:hover:bg-orange-50;
+  }
+
+  .staff-chip-new-active {
+    @apply border border-white/40 bg-white/15 text-white hover:bg-white/25 dark:border-white/40 dark:bg-white/15 dark:text-white dark:hover:bg-white/25;
+  }
+
+  /* Card de pedido sin aceptar: fondo naranja sólido para saltar a la vista en la lista */
+  .staff-order-card-new {
+    @apply border-transparent bg-orange-500 text-white shadow-md shadow-orange-500/30 hover:border-transparent hover:bg-orange-600 dark:border-transparent dark:bg-orange-600 dark:hover:border-transparent dark:hover:bg-orange-700;
+  }
+
+  .staff-order-card-new-pill {
+    @apply bg-white/20 text-white;
+  }
+
+  /* Pantalla completa que interrumpe al llegar un pedido nuevo */
+  .staff-new-order-alert {
+    @apply fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-orange-600 px-6 text-center text-white;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .staff-new-order-alert-title {
+    @apply text-4xl font-extrabold tracking-tight sm:text-5xl;
+  }
+
+  .staff-new-order-alert-btn {
+    @apply inline-flex items-center justify-center rounded-xl border-2 border-white px-8 py-3 text-base font-semibold text-white transition hover:bg-white/10 active:scale-[0.98];
+  }
+
   .container-app {
     width: 100%;
     max-width: 32rem;
