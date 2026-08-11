@@ -258,6 +258,15 @@ export default function BranchHomePage() {
     [orders, historyOrders, selectedId],
   );
 
+  const newOrderAlertOrders = useMemo(
+    () =>
+      newOrderAlertIds
+        .map((id) => orders.find((o) => o.id === id))
+        .filter((o): o is Order => Boolean(o))
+        .map((o) => ({ label: displayOrderLabel(o), customer: customerName(o) })),
+    [newOrderAlertIds, orders],
+  );
+
   const refreshOrders = useCallback(async () => {
     const token = getAuthToken();
     if (!token) return;
@@ -317,6 +326,47 @@ export default function BranchHomePage() {
       setError(err.message);
       setLiveLoading(false);
     });
+  }, [refreshOrders]);
+
+  // Deep link desde una notificación push tocada con la app cerrada
+  // (apps/branch/src/sw.ts abre "/?newOrder=<id>"): muestra la pantalla
+  // completa de inmediato en vez de aterrizar en el dashboard normal.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("newOrder");
+    if (!orderId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deep link leído una sola vez al montar
+    setNewOrderAlertIds((prev) =>
+      prev.includes(orderId) ? prev : [...prev, orderId],
+    );
+    params.delete("newOrder");
+    const rest = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      rest ? `${window.location.pathname}?${rest}` : window.location.pathname,
+    );
+  }, []);
+
+  // Notificación push tocada con la app ya abierta (sw.ts hace focus() +
+  // postMessage en vez de navigate(), para no perder el estado en memoria):
+  // agrega el pedido a la cola de la pantalla completa sin recargar.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data as
+        | { type?: string; orderId?: string }
+        | undefined;
+      if (data?.type !== "ordena:new-order" || !data.orderId) return;
+      const orderId = data.orderId;
+      setNewOrderAlertIds((prev) =>
+        prev.includes(orderId) ? prev : [...prev, orderId],
+      );
+      refreshOrders().catch(() => undefined);
+    };
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () =>
+      navigator.serviceWorker.removeEventListener("message", handleMessage);
   }, [refreshOrders]);
 
   useEffect(() => {
@@ -755,6 +805,7 @@ export default function BranchHomePage() {
       {newOrderAlertIds.length > 0 && (
         <NewOrderAlert
           count={newOrderAlertIds.length}
+          orders={newOrderAlertOrders}
           onDismiss={dismissNewOrderAlert}
         />
       )}

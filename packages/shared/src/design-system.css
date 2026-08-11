@@ -436,17 +436,56 @@ button:disabled {
 
   /* Pantalla completa que interrumpe al llegar un pedido nuevo */
   .staff-new-order-alert {
-    @apply fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 bg-orange-600 px-6 text-center text-white;
+    @apply fixed inset-0 z-[100] flex flex-col items-center justify-center gap-7 bg-gradient-to-b from-orange-500 to-orange-600 px-6 text-center text-white;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: staff-new-order-alert-in 0.22s ease-out;
+  }
+
+  @keyframes staff-new-order-alert-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .staff-new-order-alert-icon {
+    @apply flex size-20 items-center justify-center rounded-full bg-white/15 text-white;
+    animation: staff-new-order-alert-icon-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes staff-new-order-alert-icon-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.08);
+    }
   }
 
   .staff-new-order-alert-title {
-    @apply text-4xl font-extrabold tracking-tight sm:text-5xl;
+    @apply text-3xl font-extrabold tracking-tight sm:text-4xl;
+  }
+
+  .staff-new-order-alert-list {
+    @apply flex max-w-sm flex-wrap items-center justify-center gap-2;
+  }
+
+  .staff-new-order-alert-pill {
+    @apply rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-semibold text-white;
   }
 
   .staff-new-order-alert-btn {
-    @apply inline-flex items-center justify-center rounded-xl border-2 border-white px-8 py-3 text-base font-semibold text-white transition hover:bg-white/10 active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-white bg-white/10 px-8 py-3.5 text-base font-semibold text-white shadow-lg backdrop-blur-sm transition hover:bg-white hover:text-orange-600 active:scale-[0.98];
+  }
+
+  .staff-new-order-alert-hint {
+    @apply max-w-xs text-xs font-medium text-white/70;
   }
 
   .container-app {
