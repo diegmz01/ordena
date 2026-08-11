@@ -70,7 +70,7 @@ self.addEventListener("push", (event) => {
     body: payload.body ?? "Tienes un pedido nuevo",
     icon: "/icons/icon-192.png",
     badge: "/icons/icon-192.png",
-    data: { url: payload.url ?? "/" },
+    data: { url: payload.url ?? "/", orderId: payload.orderId },
     tag,
     renotify: Boolean(tag),
     // Persistente: no se autodescarta, solo se quita si el staff la toca
@@ -89,8 +89,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl =
-    (event.notification.data as { url?: string } | undefined)?.url ?? "/";
+  const data = event.notification.data as
+    | { url?: string; orderId?: string }
+    | undefined;
+  const targetUrl = data?.url ?? "/";
+  const orderId = data?.orderId;
 
   event.waitUntil(
     (async () => {
@@ -99,15 +102,28 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
       for (const client of allClients) {
-        if ("focus" in client) {
-          await client.focus();
+        if (!("focus" in client)) continue;
+        await client.focus();
+        // Si la app ya está abierta en el dashboard, no navegamos: un
+        // navigate() recargaría la página y perdería la alerta de pantalla
+        // completa (o cualquier otro estado en memoria). En vez de eso se
+        // avisa por postMessage para que el pedido aparezca sin recargar.
+        const clientPath = new URL(client.url).pathname;
+        if (clientPath !== "/") {
           if ("navigate" in client) {
             await (client as WindowClient).navigate(targetUrl);
           }
-          return;
+        } else if (orderId) {
+          client.postMessage({ type: "ordena:new-order", orderId });
         }
+        return;
       }
-      await self.clients.openWindow(targetUrl);
+      // Sin pestañas abiertas: se abre una nueva ya con el pedido marcado
+      // en la URL para que la alerta de pantalla completa aparezca en
+      // cuanto la app cargue, en vez de aterrizar en el dashboard normal.
+      const openUrl = new URL(targetUrl, self.location.origin);
+      if (orderId) openUrl.searchParams.set("newOrder", orderId);
+      await self.clients.openWindow(openUrl.toString());
     })(),
   );
 });
