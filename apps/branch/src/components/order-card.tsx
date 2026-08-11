@@ -45,6 +45,11 @@ type OrderCardProps = {
   onClick: () => void;
   onAcknowledge?: () => void;
   acknowledged?: boolean;
+  /** True si fue el cliente (no staff/admin) quien canceló este pedido. */
+  cancelledByCustomer?: boolean;
+  /** Presente solo mientras la cancelación del cliente no ha sido reconocida. */
+  onAcknowledgeCancel?: () => void;
+  ackCancelPending?: boolean;
 };
 
 export function OrderCard({
@@ -58,12 +63,24 @@ export function OrderCard({
   onClick,
   onAcknowledge,
   acknowledged,
+  cancelledByCustomer,
+  onAcknowledgeCancel,
+  ackCancelPending,
 }: OrderCardProps) {
   const accentClass = STATUS_ACCENT[status] ?? STATUS_ACCENT.ACCEPTED;
   const isNew = status === "PAID";
+  const isPendingCustomerCancel =
+    status === "CANCELLED" && !!cancelledByCustomer && !!onAcknowledgeCancel;
+  const highlighted = isNew || isPendingCustomerCancel;
+  const statusLabel =
+    status === "CANCELLED" && cancelledByCustomer
+      ? "Cancelado por cliente"
+      : (STATUS_LABEL[status] ?? status);
   const badgeClass = isNew
     ? "staff-order-card-new-pill"
-    : (STATUS_BADGE[status] ?? STATUS_BADGE.ACCEPTED);
+    : isPendingCustomerCancel
+      ? "staff-order-card-cancelled-pending-pill"
+      : (STATUS_BADGE[status] ?? STATUS_BADGE.ACCEPTED);
 
   return (
     <div
@@ -78,8 +95,12 @@ export function OrderCard({
       }}
       className={cn(
         "staff-order-card cursor-pointer",
-        isNew ? "staff-order-card-new" : accentClass,
-        isNew && "staff-order-card-pulse",
+        isNew
+          ? "staff-order-card-new"
+          : isPendingCustomerCancel
+            ? "staff-order-card-cancelled-pending"
+            : accentClass,
+        highlighted && "staff-order-card-pulse",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -87,7 +108,7 @@ export function OrderCard({
           <p
             className={cn(
               "text-2xl font-bold tracking-tight tabular-nums",
-              isNew ? "text-white" : "text-slate-900 dark:text-white",
+              highlighted ? "text-white" : "text-slate-900 dark:text-white",
             )}
           >
             {label}
@@ -95,7 +116,9 @@ export function OrderCard({
           <p
             className={cn(
               "mt-1 truncate text-sm font-medium",
-              isNew ? "text-white/90" : "text-slate-600 dark:text-slate-300",
+              highlighted
+                ? "text-white/90"
+                : "text-slate-600 dark:text-slate-300",
             )}
           >
             {customer}
@@ -104,7 +127,7 @@ export function OrderCard({
             {ptvTicket != null && (
               <span
                 className={
-                  isNew
+                  highlighted
                     ? "text-white"
                     : status === "COMPLETED"
                       ? "text-emerald-600"
@@ -118,7 +141,7 @@ export function OrderCard({
               <span
                 className={cn(
                   "tabular-nums",
-                  isNew
+                  highlighted
                     ? "text-white"
                     : status === "COMPLETED"
                       ? "text-emerald-600"
@@ -132,7 +155,7 @@ export function OrderCard({
               <span
                 className={cn(
                   "font-medium",
-                  isNew ? "text-white/70" : "text-slate-400",
+                  highlighted ? "text-white/70" : "text-slate-400",
                 )}
               >
                 {timeLabel}
@@ -154,16 +177,29 @@ export function OrderCard({
               Visto
             </button>
           )}
+          {isPendingCustomerCancel && onAcknowledgeCancel && (
+            <button
+              type="button"
+              disabled={ackCancelPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                onAcknowledgeCancel();
+              }}
+              className="staff-chip staff-chip-new-active mt-2"
+            >
+              {ackCancelPending ? "Marcando…" : "Entendido"}
+            </button>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <span
             className={cn(
               "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold",
               badgeClass,
-              isNew && "status-pulse",
+              highlighted && "status-pulse",
             )}
           >
-            {STATUS_LABEL[status] ?? status}
+            {statusLabel}
           </span>
           {countdown != null && (
             <span className="staff-countdown">{countdown}</span>

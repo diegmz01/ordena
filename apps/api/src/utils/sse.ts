@@ -66,3 +66,16 @@ export function notifyBranchOrderUpdated(
 ) {
   broadcast(branchId, "order:updated", payload);
 }
+
+/**
+ * El cliente canceló su propio pedido: interrumpe al staff con una alerta
+ * a pantalla completa (además del reload normal), ya que no debe seguir
+ * preparándolo. Distinto de `order:updated` para no confundirse con el
+ * resto de transiciones de estado.
+ */
+export function notifyBranchCustomerCancelledOrder(
+  branchId: string,
+  payload: { orderId: string; orderNumber: string },
+) {
+  broadcast(branchId, "order:customer_cancelled", payload);
+}

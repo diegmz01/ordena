@@ -488,6 +488,24 @@ button:disabled {
     @apply max-w-xs text-xs font-medium text-white/70;
   }
 
+  /* Variante rosa de staff-new-order-alert: cancelación de cliente (pantalla completa) */
+  .staff-new-order-alert-cancel {
+    @apply from-rose-600 to-rose-700;
+  }
+
+  .staff-new-order-alert-subtitle {
+    @apply -mt-4 max-w-sm text-sm font-medium text-white/85;
+  }
+
+  /* Cancelado por el cliente y pendiente de "Entendido": fondo rosa sólido para no pasarlo por alto */
+  .staff-order-card-cancelled-pending {
+    @apply border-transparent bg-rose-600 text-white shadow-md shadow-rose-600/30 hover:border-transparent hover:bg-rose-700 dark:border-transparent dark:bg-rose-700 dark:hover:border-transparent dark:hover:bg-rose-800;
+  }
+
+  .staff-order-card-cancelled-pending-pill {
+    @apply bg-white/20 text-white;
+  }
+
   .container-app {
     width: 100%;
     max-width: 32rem;

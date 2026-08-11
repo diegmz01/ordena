@@ -53,6 +53,7 @@ type Order = {
   currency?: string;
   refundedTotal?: number;
   notes: string | null;
+  cancelledByCustomer?: boolean;
   prepMinutes: number | null;
   readyAt: string | null;
   paidAt: string | null;
@@ -410,10 +411,18 @@ export default function OrderPageClient({
   }, [id, viewToken]);
 
   const meta = order
-    ? STATUS_META[order.status] ?? {
-        title: order.status,
-        description: "",
-        icon: ShoppingBag,
+    ? {
+        ...(STATUS_META[order.status] ?? {
+          title: order.status,
+          description: "",
+          icon: ShoppingBag,
+        }),
+        ...(order.status === "CANCELLED" && order.cancelledByCustomer
+          ? {
+              description:
+                "Pedido cancelado por ti, la sucursal no realizará este pedido y el cargo a tu tarjeta ha sido liberado, no se cobró nada.",
+            }
+          : {}),
       }
     : null;
 
