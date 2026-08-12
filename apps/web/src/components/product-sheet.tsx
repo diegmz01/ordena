@@ -393,7 +393,9 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
                       {comboProductName(product.name, comboProduct.name)}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      Se cobra el precio del producto más caro.
+                      {comboProduct.basePrice > product.basePrice
+                        ? `Esta combinación incrementa +${formatMoney(comboProduct.basePrice - product.basePrice)}`
+                        : "Esta combinación no incrementa el precio"}
                     </p>
                   </div>
                   <button
