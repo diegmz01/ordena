@@ -393,9 +393,16 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
                       {comboProductName(product.name, comboProduct.name)}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      {comboProduct.basePrice > product.basePrice
-                        ? `Esta combinación incrementa +${formatMoney(comboProduct.basePrice - product.basePrice)}`
-                        : "Esta combinación no incrementa el precio"}
+                      {comboProduct.basePrice > product.basePrice ? (
+                        <>
+                          Esta combinación incrementa{" "}
+                          <span className="text-orange-600">
+                            +{formatMoney(comboProduct.basePrice - product.basePrice)}
+                          </span>
+                        </>
+                      ) : (
+                        "Esta combinación no incrementa el precio"
+                      )}
                     </p>
                   </div>
                   <button
