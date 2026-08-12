@@ -1150,9 +1150,8 @@ export default function AdminMenuPage() {
                   }))
                 }
               />
-              Permitir combinar (el cliente puede combinarlo con otro
-              producto de la misma categoría; el precio final es el del
-              producto más caro)
+              Permitir combinar este producto con otros productos de su
+              categoría.
             </label>
           </div>
 
