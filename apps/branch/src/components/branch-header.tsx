@@ -218,6 +218,15 @@ export function BranchHeader() {
 
   const meta = branch ? badgeMeta(branch, presence) : null;
   const resumeAt = formatPausedUntil(branch?.pausedUntil ?? null);
+  // Pausas con preset (15/30/60/120 min) resuelven a una hora arbitraria; una
+  // pausa indefinida siempre expira justo a medianoche (startOfNextBranchDay
+  // en la API), así que esa hora exacta es la señal de que fue indefinida.
+  const pausedUntilDate = branch?.pausedUntil ? new Date(branch.pausedUntil) : null;
+  const isIndefinitePause =
+    branch?.availability === "PAUSED" &&
+    pausedUntilDate !== null &&
+    pausedUntilDate.getHours() === 0 &&
+    pausedUntilDate.getMinutes() === 0;
   const acceptingOrders = Boolean(branch?.acceptingOrders && presence.ok);
   const showFollowSchedule = branch && branch.mode !== "AUTO";
   const showForceOpen = branch && !acceptingOrders;
@@ -342,15 +351,13 @@ export function BranchHeader() {
                 </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   {meta.hint}
-                  {branch.source !== "offline" &&
-                  branch.availability === "PAUSED" &&
-                  resumeAt
-                    ? ` · reabre ~${resumeAt}`
-                    : branch.source !== "offline" &&
-                        branch.availability === "PAUSED" &&
-                        !resumeAt
-                      ? " · hasta que reapertas"
-                      : ""}
+                  {branch.source !== "offline" && branch.availability === "PAUSED"
+                    ? isIndefinitePause
+                      ? " · reabre mañana según horario"
+                      : resumeAt
+                        ? ` · reabre ~${resumeAt}`
+                        : ""
+                    : ""}
                 </p>
                 {branch.todayHoursLabel && (
                   <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
