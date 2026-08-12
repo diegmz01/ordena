@@ -270,10 +270,12 @@ ordersRouter.get(
         let secondaryProduct: { id: string; name: string; basePrice: number } | null =
           null;
         if (group.secondaryProductId) {
+          if (!product.allowCombo) continue;
           secondaryProduct = await prisma.product.findFirst({
             where: {
               id: group.secondaryProductId,
               isActive: true,
+              allowCombo: true,
               ...(branchId
                 ? { branches: { some: listedBranchProductWhere(branchId) } }
                 : {}),

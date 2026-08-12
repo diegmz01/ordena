@@ -60,9 +60,11 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
 
   const comboCandidates = useMemo(() => {
     if (!product || !product.allowCombo) return [] as MenuProduct[];
+    // Solo productos que también tienen "Permitir combinar" activo.
     return products.filter(
       (p) =>
         p.id !== product.id &&
+        p.allowCombo === true &&
         p.category.id === product.category.id &&
         p.inStock !== false &&
         p.inSchedule !== false,
@@ -552,12 +554,14 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
                 Sin resultados
               </li>
             )}
-            {filteredComboCandidates.map((c) => (
+            {filteredComboCandidates.map((c) => {
+              const priceDelta = c.basePrice - product.basePrice;
+              return (
               <li key={c.id}>
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                    "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
                     comboProductId === c.id
                       ? "border-orange-400 bg-orange-50 dark:border-orange-600 dark:bg-orange-950/30"
                       : "border-gray-200 hover:border-orange-300 dark:border-gray-700",
@@ -567,12 +571,15 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
                   <span className="font-medium text-gray-800 dark:text-white">
                     {c.name}
                   </span>
-                  <span className="shrink-0 text-orange-600">
-                    desde {formatMoney(c.basePrice)}
-                  </span>
+                  {priceDelta > 0 ? (
+                    <span className="shrink-0 text-orange-600">
+                      +{formatMoney(priceDelta)}
+                    </span>
+                  ) : null}
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       </div>
