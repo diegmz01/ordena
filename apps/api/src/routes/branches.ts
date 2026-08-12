@@ -387,7 +387,10 @@ branchesRouter.patch(
         if (body.pauseMinutes) {
           pausedUntil = new Date(Date.now() + body.pauseMinutes * 60_000);
         } else {
-          pausedUntil = null;
+          // Pausa indefinida: expira a medianoche (zona horaria de la
+          // sucursal), igual que el cierre manual, para volver a modo AUTO
+          // y reabrir según el horario configurado al día siguiente.
+          pausedUntil = startOfNextBranchDay();
         }
       } else if (body.availability === "CLOSED") {
         // Cierre manual: expira a medianoche (zona horaria de la sucursal)
