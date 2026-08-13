@@ -19,7 +19,8 @@ export const metadata: Metadata = {
   applicationName: "Ordena Sucursal",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    // Mismo criterio que apps/web: header naranja continuo bajo reloj/batería.
+    statusBarStyle: "black-translucent",
     title: "Ordena Sucursal",
   },
   manifest: "/manifest.webmanifest",
@@ -34,6 +35,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

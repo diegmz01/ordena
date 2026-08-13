@@ -236,8 +236,8 @@ export function BranchHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-[0_8px_24px_-12px_rgba(194,65,12,0.55)]">
-        <div className="mx-auto flex h-[4.25rem] max-w-3xl items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-[0_8px_24px_-12px_rgba(194,65,12,0.55)] pt-[env(safe-area-inset-top,0px)]">
+        <div className="mx-auto flex h-[4.25rem] max-w-3xl items-center justify-between gap-3 px-4">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <Link
               href="/"

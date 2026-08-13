@@ -65,6 +65,18 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             : "site-header",
         )}
       >
+        {/*
+          Con apple-mobile-web-app-status-bar-style=black-translucent el webview
+          llega hasta el borde superior: esta franja queda detrás del reloj/batería.
+          En inicio el header ya es naranja (el hueco hereda ese fondo). En el resto
+          de rutas el header es blanco y pintamos naranja aquí para que los iconos
+          claros del sistema sigan legibles.
+        */}
+        <div
+          className={cn(!isHome && "bg-orange-500")}
+          style={{ height: "env(safe-area-inset-top, 0px)" }}
+          aria-hidden
+        />
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <Link href="/" className="shrink-0" aria-label="Ordena inicio">
