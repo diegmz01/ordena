@@ -30,7 +30,9 @@ export const metadata: Metadata = {
   applicationName: "Ordena",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    // black-translucent: el contenido (header naranja) se dibuja detrás del
+    // reloj/batería; con "default" iOS reserva una franja blanca opaca encima.
+    statusBarStyle: "black-translucent",
     title: "Ordena",
   },
   icons: {
@@ -71,6 +73,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Necesario para que env(safe-area-inset-*) sea > 0 y el header cubra el notch.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
