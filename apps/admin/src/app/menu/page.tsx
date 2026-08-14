@@ -182,15 +182,23 @@ export default function AdminMenuPage() {
     void load();
   }, [load]);
 
-  const sortedProducts = useMemo(
-    () =>
-      [...products].sort(
-        (a, b) =>
-          a.category.name.localeCompare(b.category.name) ||
-          a.name.localeCompare(b.name),
-      ),
-    [products],
-  );
+  const sortedProducts = useMemo(() => {
+    const categoryById = new Map(categories.map((c) => [c.id, c]));
+    return [...products].sort((a, b) => {
+      const catA = categoryById.get(a.categoryId);
+      const catB = categoryById.get(b.categoryId);
+      const catDiff =
+        (catA?.sortOrder ?? 0) - (catB?.sortOrder ?? 0) ||
+        (catA?.name ?? a.category.name).localeCompare(
+          catB?.name ?? b.category.name,
+        );
+      return (
+        catDiff ||
+        a.sortOrder - b.sortOrder ||
+        a.name.localeCompare(b.name)
+      );
+    });
+  }, [products, categories]);
 
   const sortedCategories = useMemo(
     () =>
@@ -1142,9 +1150,8 @@ export default function AdminMenuPage() {
                   }))
                 }
               />
-              Permitir combinar (el cliente puede combinarlo con otro
-              producto de la misma categoría; el precio final es el del
-              producto más caro)
+              Permitir combinar este producto con otros productos de su
+              categoría.
             </label>
           </div>
 

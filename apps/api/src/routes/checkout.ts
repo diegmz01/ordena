@@ -223,6 +223,7 @@ checkoutRouter.post(
           where: {
             id: item.secondaryProductId,
             isActive: true,
+            allowCombo: true,
             categoryId: product.categoryId,
             branches: {
               some: orderableBranchProductWhere(branch.id),

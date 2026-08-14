@@ -131,12 +131,13 @@ export async function findUnavailableCartLines(
         where: {
           id: item.secondaryProductId,
           isActive: true,
+          allowCombo: true,
           categoryId: product.categoryId,
           branches: {
             some: orderableBranchProductWhere(branchId),
           },
         },
-        select: { id: true },
+        select: { id: true, allowCombo: true },
       });
       const secondarySchedule = secondary
         ? scheduleStatus.get(secondary.id)
@@ -144,6 +145,7 @@ export async function findUnavailableCartLines(
       if (
         !product.allowCombo ||
         !secondary ||
+        !secondary.allowCombo ||
         (secondarySchedule && !secondarySchedule.inSchedule)
       ) {
         out.push({
