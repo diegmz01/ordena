@@ -120,11 +120,19 @@ export function StaffPresence() {
     const onPageHide = () => {
       signalAppClosed();
     };
+    // Chrome ignora el texto custom y muestra su propio diálogo genérico;
+    // preventDefault + returnValue es lo mínimo que exige el navegador para
+    // disparar la confirmación nativa de "¿Salir del sitio?".
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
 
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
 
     return () => {
       window.clearInterval(id);
@@ -132,6 +140,7 @@ export function StaffPresence() {
       window.removeEventListener("offline", onOffline);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
     };
   }, [isLogin, sendHeartbeat]);
 
