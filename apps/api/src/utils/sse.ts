@@ -1,14 +1,39 @@
 import type { Response } from "express";
+import { prisma } from "@ordena/database";
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
 
 const branchClients = new Map<string, Set<Response>>();
 let heartbeatTimer: NodeJS.Timeout | null = null;
 
+/**
+ * Marca presencia de staff a partir de una conexión SSE viva. A diferencia
+ * del heartbeat por POST de la PWA (staff-presence.tsx), esto corre en el
+ * servidor: no depende de que el `setInterval` del navegador siga corriendo
+ * a tiempo, así que no le afecta el throttling de timers de Chrome para
+ * pestañas/ventanas en segundo plano (el navegador sigue recibiendo datos
+ * de una conexión SSE abierta aunque estrangule los callbacks de JS de la
+ * página). Mientras el stream siga conectado, la sucursal se sigue viendo
+ * "presente" sin importar si la PWA está en foreground o no.
+ */
+function markBranchesPresent(branchIds: Iterable<string>) {
+  const ids = [...branchIds];
+  if (ids.length === 0) return;
+  void prisma.branch
+    .updateMany({
+      where: { id: { in: ids } },
+      data: { staffLastSeenAt: new Date(), staffAwayReason: null },
+    })
+    .catch(() => undefined);
+}
+
 function ensureHeartbeat() {
   if (heartbeatTimer) return;
   heartbeatTimer = setInterval(() => {
-    for (const clients of branchClients.values()) {
+    const connectedBranchIds: string[] = [];
+    for (const [branchId, clients] of branchClients) {
+      if (clients.size === 0) continue;
+      connectedBranchIds.push(branchId);
       for (const res of clients) {
         try {
           res.write(": ping\n\n");
@@ -17,6 +42,7 @@ function ensureHeartbeat() {
         }
       }
     }
+    markBranchesPresent(connectedBranchIds);
   }, HEARTBEAT_INTERVAL_MS);
   heartbeatTimer.unref();
 }
@@ -33,6 +59,7 @@ export function registerBranchClient(
   }
   clients.add(res);
   ensureHeartbeat();
+  markBranchesPresent([branchId]);
 
   return () => {
     clients?.delete(res);
