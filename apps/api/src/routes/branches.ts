@@ -1052,7 +1052,7 @@ branchesRouter.get(
       });
       if (!branch) throw new AppError(404, "Sucursal no encontrada");
 
-      const [categories, links] = await Promise.all([
+      const [categories, links, categoryLinks] = await Promise.all([
         prisma.category.findMany({
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           include: {
@@ -1071,10 +1071,17 @@ branchesRouter.get(
           where: { branchId: branch.id },
           select: { productId: true, available: true, schedule: true },
         }),
+        prisma.branchCategory.findMany({
+          where: { branchId: branch.id },
+          select: { categoryId: true, schedule: true },
+        }),
       ]);
 
       const linksByProduct = new Map(
         links.map((l) => [l.productId, l]),
+      );
+      const scheduleByCategory = new Map(
+        categoryLinks.map((c) => [c.categoryId, c.schedule]),
       );
 
       res.json({
@@ -1084,6 +1091,7 @@ branchesRouter.get(
           categories: categories.map((cat) => ({
             id: cat.id,
             name: cat.name,
+            schedule: scheduleByCategory.get(cat.id) ?? null,
             products: cat.products.map((p) => ({
               id: p.id,
               name: p.name,
@@ -1117,15 +1125,66 @@ branchesRouter.put(
       const productIds = [...new Set(body.items.map((i) => i.productId))];
       const found = await prisma.product.findMany({
         where: { id: { in: productIds } },
-        select: { id: true },
+        select: { id: true, categoryId: true },
       });
       if (found.length !== productIds.length) {
         throw new AppError(400, "Uno o más productos no son válidos");
       }
+      const categoryIdByProduct = new Map(
+        found.map((p) => [p.id, p.categoryId]),
+      );
 
-      await prisma.$transaction(
-        body.items.map((item) =>
-          prisma.branchProduct.upsert({
+      const categoryItems = body.categories ?? [];
+      if (categoryItems.length > 0) {
+        const categoryIds = [...new Set(categoryItems.map((c) => c.categoryId))];
+        const foundCategories = await prisma.category.count({
+          where: { id: { in: categoryIds } },
+        });
+        if (foundCategories !== categoryIds.length) {
+          throw new AppError(400, "Una o más categorías no son válidas");
+        }
+      }
+
+      // Horario efectivo por categoría tras este guardado: lo que llega en el
+      // body pisa lo ya guardado; lo no incluido conserva su valor actual.
+      const existingCategorySchedules = await prisma.branchCategory.findMany({
+        where: { branchId: branch.id },
+        select: { categoryId: true, schedule: true },
+      });
+      const effectiveCategorySchedule = new Map<string, unknown>(
+        existingCategorySchedules.map((c) => [c.categoryId, c.schedule]),
+      );
+      for (const c of categoryItems) {
+        effectiveCategorySchedule.set(c.categoryId, c.schedule ?? null);
+      }
+
+      await prisma.$transaction([
+        ...categoryItems.map((c) =>
+          prisma.branchCategory.upsert({
+            where: {
+              branchId_categoryId: {
+                branchId: branch.id,
+                categoryId: c.categoryId,
+              },
+            },
+            create: {
+              branchId: branch.id,
+              categoryId: c.categoryId,
+              schedule: c.schedule ?? undefined,
+            },
+            update: {
+              schedule: c.schedule ?? Prisma.JsonNull,
+            },
+          }),
+        ),
+        ...body.items.map((item) => {
+          const categoryId = categoryIdByProduct.get(item.productId);
+          // Si la categoría del producto tiene horario propio, este manda: se
+          // ignora cualquier horario individual enviado para el producto.
+          const lockedByCategory =
+            !!categoryId && !!effectiveCategorySchedule.get(categoryId);
+          const schedule = lockedByCategory ? null : item.schedule;
+          return prisma.branchProduct.upsert({
             where: {
               branchId_productId: {
                 branchId: branch.id,
@@ -1137,20 +1196,20 @@ branchesRouter.put(
               productId: item.productId,
               available: item.available,
               unavailableUntil: null,
-              schedule: item.schedule ?? undefined,
+              schedule: schedule ?? undefined,
             },
             update: {
               available: item.available,
               ...(item.available === false
                 ? { unavailableUntil: null }
                 : {}),
-              ...(item.schedule !== undefined
-                ? { schedule: item.schedule ?? Prisma.JsonNull }
+              ...(schedule !== undefined
+                ? { schedule: schedule ?? Prisma.JsonNull }
                 : {}),
             },
-          }),
-        ),
-      );
+          });
+        }),
+      ]);
 
       res.json({ data: { ok: true, updated: body.items.length } });
     } catch (error) {

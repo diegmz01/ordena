@@ -148,6 +148,7 @@ model Branch {
   hours           Json?
   staff        User[]
   products     BranchProduct[]
+  categories   BranchCategory[]
   modifiers    BranchModifier[]
   orders       Order[]
   pushSubscriptions PushSubscription[]
@@ -186,6 +187,7 @@ model Category {
   sortOrder Int       @default(0)
   isActive  Boolean   @default(true)
   products  Product[]
+  branches  BranchCategory[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
@@ -285,6 +287,22 @@ model BranchProduct {
   product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, productId])
+}
+
+/** Admin: horario semanal aplicado a todos los productos de una categoría en una
+  * sucursal (mismo shape que Branch.hours). Si está definido, tiene prioridad
+  * sobre `BranchProduct.schedule` y bloquea la edición de horario por producto
+  * dentro de esa categoría. null = sin horario de categoría (cada producto
+  * conserva su propio horario, si tiene). */
+model BranchCategory {
+  id         String   @id @default(cuid())
+  branchId   String
+  categoryId String
+  schedule   Json?
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, categoryId])
 }
 
 /** Staff: agotado temporal de un modificador en una sucursal. Sin fila = con stock. */
