@@ -475,7 +475,7 @@ export default function CarritoPage() {
         )}
 
         {items.length > 0 && (
-          <div className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 px-4 md:bottom-6">
+          <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 px-4 md:bottom-6">
             <div className="pointer-events-auto mx-auto max-w-xl">
               {canCheckout ? (
                 <button
