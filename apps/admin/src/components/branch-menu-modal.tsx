@@ -25,6 +25,7 @@ type MenuProduct = {
 type MenuCategory = {
   id: string;
   name: string;
+  schedule: BranchHours | null;
   products: MenuProduct[];
 };
 
@@ -59,6 +60,9 @@ export function BranchMenuModal({
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [titleName, setTitleName] = useState(branchName ?? "");
   const [scheduleOpenFor, setScheduleOpenFor] = useState<string | null>(null);
+  const [categoryScheduleOpenFor, setCategoryScheduleOpenFor] = useState<
+    string | null
+  >(null);
 
   const load = useCallback(async (id: string) => {
     setLoading(true);
@@ -88,6 +92,7 @@ export function BranchMenuModal({
       setCategories([]);
       setError(null);
       setScheduleOpenFor(null);
+      setCategoryScheduleOpenFor(null);
     }
   }, [open, branchId, load]);
 
@@ -123,6 +128,23 @@ export function BranchMenuModal({
     setScheduleOpenFor(product.id);
   }
 
+  function setCategorySchedule(categoryId: string, schedule: BranchHours | null) {
+    setCategories((cats) =>
+      cats.map((cat) => (cat.id === categoryId ? { ...cat, schedule } : cat)),
+    );
+  }
+
+  function toggleCategorySchedule(cat: MenuCategory) {
+    if (cat.schedule) {
+      setCategorySchedule(cat.id, null);
+      setCategoryScheduleOpenFor(null);
+      return;
+    }
+    setCategorySchedule(cat.id, defaultWeeklyHours());
+    setCategoryScheduleOpenFor(cat.id);
+    setScheduleOpenFor(null);
+  }
+
   function setCategoryAvailable(categoryId: string, available: boolean) {
     setCategories((cats) =>
       cats.map((cat) =>
@@ -156,15 +178,19 @@ export function BranchMenuModal({
         cat.products.map((p) => ({
           productId: p.id,
           available: p.available,
-          schedule: p.schedule,
+          schedule: cat.schedule ? null : p.schedule,
         })),
       );
       if (items.length === 0) {
         throw new Error("No hay productos para configurar");
       }
+      const categoriesPayload = categories.map((cat) => ({
+        categoryId: cat.id,
+        schedule: cat.schedule,
+      }));
       await apiFetch(`/branches/admin/${branchId}/menu`, token, {
         method: "PUT",
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ items, categories: categoriesPayload }),
       });
       onSaved();
       onClose();
@@ -213,28 +239,72 @@ export function BranchMenuModal({
                       <p className="text-xs text-gray-500">
                         {cat.products.filter((p) => p.available).length}/
                         {cat.products.length} habilitados
+                        {cat.schedule && " · con horario limitado"}
                       </p>
                     </div>
-                    <label
-                      className={cn(
-                        "flex cursor-pointer items-center gap-2 text-sm",
-                        cat.products.length === 0 && "opacity-40",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={state === "all"}
-                        ref={(el) => {
-                          if (el) el.indeterminate = state === "some";
-                        }}
-                        disabled={cat.products.length === 0}
-                        onChange={(e) =>
-                          setCategoryAvailable(cat.id, e.target.checked)
+                    <div className="flex shrink-0 items-center gap-3">
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex items-center gap-1 text-xs font-medium",
+                          cat.schedule
+                            ? "text-orange-600 dark:text-orange-400"
+                            : "text-gray-500 hover:text-gray-700 dark:text-gray-400",
+                        )}
+                        onClick={() =>
+                          setCategoryScheduleOpenFor((cur) =>
+                            cur === cat.id ? null : cat.id,
+                          )
                         }
-                      />
-                      Toda la categoría
-                    </label>
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        Horario
+                      </button>
+                      <label
+                        className={cn(
+                          "flex cursor-pointer items-center gap-2 text-sm",
+                          cat.products.length === 0 && "opacity-40",
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={state === "all"}
+                          ref={(el) => {
+                            if (el) el.indeterminate = state === "some";
+                          }}
+                          disabled={cat.products.length === 0}
+                          onChange={(e) =>
+                            setCategoryAvailable(cat.id, e.target.checked)
+                          }
+                        />
+                        Toda la categoría
+                      </label>
+                    </div>
                   </div>
+                  {categoryScheduleOpenFor === cat.id && (
+                    <div className="space-y-2 border-b border-gray-100 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/50">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-200">
+                        <input
+                          type="checkbox"
+                          checked={!!cat.schedule}
+                          onChange={() => toggleCategorySchedule(cat)}
+                        />
+                        Disponible solo en horario limitado
+                      </label>
+                      <p className="text-xs text-gray-500">
+                        Aplica a todos los productos de esta categoría y
+                        reemplaza el horario individual de cada uno.
+                      </p>
+                      {cat.schedule && (
+                        <WeeklyHoursEditor
+                          value={normalizeWeeklyHours(cat.schedule)}
+                          onChange={(schedule) =>
+                            setCategorySchedule(cat.id, schedule)
+                          }
+                        />
+                      )}
+                    </div>
+                  )}
                   {cat.products.length === 0 ? (
                     <p className="px-3 py-3 text-sm text-gray-500">
                       Sin productos en esta categoría.
@@ -251,17 +321,28 @@ export function BranchMenuModal({
                               <p className="text-xs text-gray-500">
                                 {formatMoney(product.basePrice)}
                                 {!product.isActive && " · inactivo en catálogo"}
-                                {product.schedule && " · con horario limitado"}
+                                {cat.schedule
+                                  ? " · sigue el horario de la categoría"
+                                  : product.schedule &&
+                                    " · con horario limitado"}
                               </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-3">
                               <button
                                 type="button"
+                                disabled={!!cat.schedule}
+                                title={
+                                  cat.schedule
+                                    ? "Esta categoría ya tiene un horario asignado"
+                                    : undefined
+                                }
                                 className={cn(
                                   "flex items-center gap-1 text-xs font-medium",
-                                  product.schedule
-                                    ? "text-orange-600 dark:text-orange-400"
-                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400",
+                                  cat.schedule
+                                    ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                                    : product.schedule
+                                      ? "text-orange-600 dark:text-orange-400"
+                                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400",
                                 )}
                                 onClick={() =>
                                   setScheduleOpenFor((cur) =>
@@ -287,7 +368,7 @@ export function BranchMenuModal({
                               </label>
                             </div>
                           </div>
-                          {scheduleOpenFor === product.id && (
+                          {!cat.schedule && scheduleOpenFor === product.id && (
                             <div className="mt-2.5 space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
                               <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-200">
                                 <input
