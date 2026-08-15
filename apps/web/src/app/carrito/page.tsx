@@ -25,6 +25,7 @@ import {
 import { useBranchStatus } from "@/lib/use-branch-status";
 import { useServiceFeeSettings } from "@/lib/service-fee";
 import { validateCartStock } from "@/lib/validate-cart-stock";
+import { cn } from "@/lib/utils";
 
 export default function CarritoPage() {
   const router = useRouter();
@@ -197,26 +198,31 @@ export default function CarritoPage() {
           </p>
         </div>
         {splitEnabled && (
-          <div className="mt-3">
-            <label className="sr-only" htmlFor={`plate-${item.lineKey}`}>
-              Asignar a persona
-            </label>
-            <select
-              id={`plate-${item.lineKey}`}
-              className="input-field h-9 text-xs"
-              value={
-                item.plateId && plates.some((p) => p.id === item.plateId)
-                  ? item.plateId
-                  : (plates[0]?.id ?? "")
-              }
-              onChange={(e) => setItemPlate(item.lineKey, e.target.value)}
-            >
-              {plates.map((p) => (
-                <option key={p.id} value={p.id}>
+          <div
+            className="mt-3 flex flex-wrap gap-1.5"
+            role="group"
+            aria-label={`Asignar ${item.name} a persona`}
+          >
+            {plates.map((p) => {
+              const active =
+                item.plateId && plates.some((pl) => pl.id === item.plateId)
+                  ? item.plateId === p.id
+                  : plates[0]?.id === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={active}
+                  className={cn(
+                    "customer-plate-chip",
+                    active && "customer-plate-chip-active",
+                  )}
+                  onClick={() => setItemPlate(item.lineKey, p.id)}
+                >
                   {p.name}
-                </option>
-              ))}
-            </select>
+                </button>
+              );
+            })}
           </div>
         )}
       </li>
