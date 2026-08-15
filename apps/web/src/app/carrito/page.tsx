@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +13,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { comboProductName, computeServiceFee } from "@ordena/shared";
-import { apiFetch } from "@/lib/api";
 import {
   clearUnavailableAlert,
   formatMoney,
@@ -23,6 +22,7 @@ import {
   writeUnavailableAlert,
   type CartItem,
 } from "@/lib/cart";
+import { useBranchStatus } from "@/lib/use-branch-status";
 import { useServiceFeeSettings } from "@/lib/service-fee";
 import { validateCartStock } from "@/lib/validate-cart-stock";
 
@@ -46,11 +46,16 @@ export default function CarritoPage() {
 
   const [editingPlateId, setEditingPlateId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [branchOpen, setBranchOpen] = useState<boolean | null>(null);
-  const [checkingBranch, setCheckingBranch] = useState(false);
   const [validatingCheckout, setValidatingCheckout] = useState(false);
   const [unavailableAlert, setUnavailableAlert] = useState<string[]>([]);
   const [stockError, setStockError] = useState<string | null>(null);
+
+  const branchStatus = useBranchStatus(branchId);
+  const checkingBranch = !!branchId && branchStatus === undefined;
+  const branchOpen =
+    !branchId || branchStatus === undefined
+      ? null
+      : branchStatus?.acceptingOrders === true;
 
   const feeSettings = useServiceFeeSettings();
   const serviceFee = computeServiceFee(feeSettings, subtotal);
@@ -69,36 +74,6 @@ export default function CarritoPage() {
 
   const splitEnabled = plates.length > 0;
   const canCheckout = items.length > 0 && branchOpen === true;
-
-  const checkBranch = useCallback(async () => {
-    if (!branchId) {
-      setBranchOpen(null);
-      return;
-    }
-    setCheckingBranch(true);
-    try {
-      const res = await apiFetch<{ data: { id: string }[] }>("/branches");
-      setBranchOpen(res.data.some((b) => b.id === branchId));
-    } catch {
-      setBranchOpen(false);
-    } finally {
-      setCheckingBranch(false);
-    }
-  }, [branchId]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch de disponibilidad de sucursal al montar y en poll periódico
-    void checkBranch();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void checkBranch();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    const id = window.setInterval(() => void checkBranch(), 30_000);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.clearInterval(id);
-    };
-  }, [checkBranch]);
 
   useEffect(() => {
     const names = readUnavailableAlert();
