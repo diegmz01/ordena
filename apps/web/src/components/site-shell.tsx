@@ -201,7 +201,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <SiteFooter />
 
       {itemCount > 0 && !hideStickyCart && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[4.75rem] z-30 px-4 md:bottom-6">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 px-4 md:bottom-6">
           <div className="pointer-events-auto mx-auto max-w-lg">
             <Link href="/carrito" className="sticky-order-bar">
               <span className="flex items-center gap-2">
