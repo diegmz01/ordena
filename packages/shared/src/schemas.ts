@@ -422,12 +422,22 @@ export const branchMenuUpdateSchema = z.object({
       z.object({
         productId: z.string().min(1),
         available: z.boolean(),
-        /** Horario semanal del producto en esta sucursal; null = sin restricción. Omitido = no cambia. */
+        /** Horario semanal del producto en esta sucursal; null = sin restricción. Omitido = no cambia. Ignorado si la categoría del producto tiene horario propio. */
         schedule: branchHoursSchema.optional().nullable(),
       }),
     )
     .min(1)
     .max(1000, "Demasiados productos en una sola actualización"),
+  /** Horario semanal por categoría; null = sin horario de categoría (cada producto conserva el suyo). */
+  categories: z
+    .array(
+      z.object({
+        categoryId: z.string().min(1),
+        schedule: branchHoursSchema.optional().nullable(),
+      }),
+    )
+    .max(200, "Demasiadas categorías en una sola actualización")
+    .optional(),
 });
 
 /** `password` vacío u omitido = conservar la contraseña SMTP ya guardada. */

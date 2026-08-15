@@ -101,25 +101,40 @@ export async function restoreExpiredBranchStock(
   });
 }
 
-/** Estado de horario por producto (solo los que tienen `schedule` configurado). */
+/**
+ * Estado de horario por producto (solo los que tienen `schedule` configurado,
+ * ya sea en su propio `BranchProduct.schedule` o heredado de un horario de
+ * categoría en `BranchCategory.schedule`, que tiene prioridad si existe).
+ */
 export async function scheduleStatusForBranch(
   branchId: string,
   now: Date = new Date(),
 ): Promise<Map<string, { inSchedule: boolean; scheduleLabel: string | null }>> {
-  const rows = await prisma.branchProduct.findMany({
-    where: {
-      branchId,
-      available: true,
-      schedule: { not: Prisma.JsonNull },
-    },
-    select: { productId: true, schedule: true },
-  });
+  const [categoryRows, productRows] = await Promise.all([
+    prisma.branchCategory.findMany({
+      where: { branchId, schedule: { not: Prisma.JsonNull } },
+      select: { categoryId: true, schedule: true },
+    }),
+    prisma.branchProduct.findMany({
+      where: { branchId, available: true },
+      select: {
+        productId: true,
+        schedule: true,
+        product: { select: { categoryId: true } },
+      },
+    }),
+  ]);
+  const scheduleByCategory = new Map(
+    categoryRows.map((c) => [c.categoryId, c.schedule]),
+  );
   const map = new Map<
     string,
     { inSchedule: boolean; scheduleLabel: string | null }
   >();
-  for (const row of rows) {
-    const { within, todayHoursLabel } = isWithinBranchHours(row.schedule, now);
+  for (const row of productRows) {
+    const schedule = scheduleByCategory.get(row.product.categoryId) ?? row.schedule;
+    if (!schedule) continue;
+    const { within, todayHoursLabel } = isWithinBranchHours(schedule, now);
     map.set(row.productId, { inSchedule: within, scheduleLabel: todayHoursLabel });
   }
   return map;
