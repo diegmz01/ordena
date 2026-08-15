@@ -363,6 +363,17 @@ model Order {
   items                 OrderItem[]
   refunds               Refund[]
   paidAt                DateTime?
+  /// Momento en que el pedido pasó a ACCEPTED (o directo a PREPARING vía
+  /// /accept, que salta ACCEPTED por transitorio; en ese caso coincide con
+  /// preparingAt). Usado para medir tiempos entre pasos del flujo.
+  acceptedAt            DateTime?
+  /// Momento en que el pedido pasó a PREPARING.
+  preparingAt           DateTime?
+  /// Momento en que el pedido realmente pasó a READY (no confundir con
+  /// `readyAt`, que es el momento programado en que debe pasar a READY).
+  readyReachedAt        DateTime?
+  /// Momento en que el pedido pasó a COMPLETED.
+  completedAt           DateTime?
   /// Última vez que se envió un push de "pedido nuevo/urgente" a staff
   /// (creación + reenvíos de escalamiento). Se usa para calcular cuándo
   /// toca el próximo reenvío (ver escalate-unaccepted-orders.ts).
