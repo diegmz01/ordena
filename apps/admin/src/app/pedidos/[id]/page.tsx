@@ -70,6 +70,7 @@ type OrderDetail = {
   notes: string | null;
   cancellationReason: string | null;
   ptvTicket: number | null;
+  pickupCode: string | null;
   guestName: string | null;
   guestEmail: string | null;
   guestPhone: string | null;
@@ -81,6 +82,10 @@ type OrderDetail = {
   createdAt: string;
   updatedAt: string;
   paidAt: string | null;
+  acceptedAt: string | null;
+  preparingAt: string | null;
+  readyReachedAt: string | null;
+  completedAt: string | null;
   branch: {
     id: string;
     name: string;
@@ -166,6 +171,36 @@ function formatWaitLabel(elapsedMs: number) {
   const minutes = Math.floor(elapsedMs / 60_000);
   return `Esperando ${minutes} min`;
 }
+
+function formatTime(iso: string | null) {
+  if (!iso) return null;
+  try {
+    return new Intl.DateTimeFormat("es-MX", { timeStyle: "short" }).format(
+      new Date(iso),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function formatStepDuration(fromIso: string, toIso: string) {
+  const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const totalMinutes = Math.round(ms / 60_000);
+  if (totalMinutes < 1) return "<1 min";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `+${hours}h ${minutes}min` : `+${minutes} min`;
+}
+
+const STEP_TIMESTAMP_FIELD = {
+  PENDING_PAYMENT: "createdAt",
+  PAID: "paidAt",
+  ACCEPTED: "acceptedAt",
+  PREPARING: "preparingAt",
+  READY: "readyReachedAt",
+  COMPLETED: "completedAt",
+} as const satisfies Record<(typeof FLOW)[number], keyof OrderDetail>;
 
 function paymentStatus(order: OrderDetail) {
   if (order.status === "CANCELLED") {
@@ -666,6 +701,17 @@ export default function AdminOrderDetailPage() {
                   {FLOW.map((step, index) => {
                     const done = flowIndex > index;
                     const current = flowIndex === index;
+                    const timestamp = order[STEP_TIMESTAMP_FIELD[step]] as
+                      | string
+                      | null;
+                    const previousTimestamp = FLOW.slice(0, index)
+                      .reverse()
+                      .map((s) => order[STEP_TIMESTAMP_FIELD[s]] as string | null)
+                      .find((ts) => ts != null);
+                    const duration =
+                      timestamp && previousTimestamp
+                        ? formatStepDuration(previousTimestamp, timestamp)
+                        : null;
                     return (
                       <li
                         key={step}
@@ -687,6 +733,16 @@ export default function AdminOrderDetailPage() {
                         <p className="text-[10px] font-semibold leading-tight sm:text-[11px]">
                           {STATUS_LABEL[step]}
                         </p>
+                        {timestamp && (
+                          <p className="mt-0.5 text-[9px] font-medium leading-tight opacity-80 sm:text-[10px]">
+                            {formatTime(timestamp)}
+                          </p>
+                        )}
+                        {duration && (
+                          <p className="text-[9px] leading-tight opacity-70 sm:text-[10px]">
+                            {duration}
+                          </p>
+                        )}
                       </li>
                     );
                   })}
@@ -990,6 +1046,14 @@ export default function AdminOrderDetailPage() {
                         {formatDate(order.paidAt)}
                       </dd>
                     </div>
+                    {order.pickupCode && (
+                      <div className="flex items-center justify-between gap-2">
+                        <dt className="text-gray-500">Código de entrega</dt>
+                        <dd className="font-mono text-base font-bold tracking-[0.2em] text-gray-900 dark:text-white">
+                          {order.pickupCode}
+                        </dd>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <dt className="text-gray-500">Moneda</dt>
                       <dd className="font-medium uppercase text-gray-800 dark:text-gray-100">

@@ -767,7 +767,11 @@ ordersRouter.patch(
         where: { id: order.id },
         data: {
           status,
-          ...(status === "READY" ? { pickupCode: generatePickupCode() } : {}),
+          ...(status === "ACCEPTED" ? { acceptedAt: new Date() } : {}),
+          ...(status === "READY"
+            ? { pickupCode: generatePickupCode(), readyReachedAt: new Date() }
+            : {}),
+          ...(status === "COMPLETED" ? { completedAt: new Date() } : {}),
           ...(status === "CANCELLED" ? { cancellationReason } : {}),
         },
         include: branchOrderInclude,
@@ -1081,7 +1085,8 @@ ordersRouter.patch(
         throw new AppError(400, "Solo se pueden aceptar pedidos nuevos");
       }
 
-      const readyAt = new Date(Date.now() + prepMinutes * 60_000);
+      const now = new Date();
+      const readyAt = new Date(now.getTime() + prepMinutes * 60_000);
       const updated = await prisma.order.update({
         where: { id: order.id },
         data: {
@@ -1089,6 +1094,8 @@ ordersRouter.patch(
           ptvTicket,
           prepMinutes,
           readyAt,
+          acceptedAt: now,
+          preparingAt: now,
         },
         include: branchOrderInclude,
       });
@@ -1160,6 +1167,7 @@ ordersRouter.patch(
           status: "PREPARING",
           prepMinutes,
           readyAt,
+          preparingAt: new Date(),
         },
         include: branchOrderInclude,
       });

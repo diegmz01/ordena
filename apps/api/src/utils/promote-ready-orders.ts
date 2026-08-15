@@ -64,7 +64,11 @@ export async function promoteDuePreparingOrders(branchId?: string) {
 
       const updated = await prisma.order.update({
         where: { id: order.id },
-        data: { status: "READY", pickupCode: generatePickupCode() },
+        data: {
+          status: "READY",
+          pickupCode: generatePickupCode(),
+          readyReachedAt: new Date(),
+        },
         include: branchOrderInclude,
       });
 
