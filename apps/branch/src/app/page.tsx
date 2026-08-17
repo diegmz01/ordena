@@ -249,6 +249,9 @@ export default function BranchHomePage() {
     new Map(),
   );
   const [nowForAck, setNowForAck] = useState(() => Date.now());
+  const [printedOrderIds, setPrintedOrderIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [newOrderAlertIds, setNewOrderAlertIds] = useState<string[]>([]);
   const [customerCancelAlertIds, setCustomerCancelAlertIds] = useState<
     string[]
@@ -463,6 +466,17 @@ export default function BranchHomePage() {
       return next.size === prev.size ? prev : next;
     });
   }, [unacceptedOrders]);
+
+  // Limpia el registro de "ya se imprimió" de pedidos que dejaron de estar
+  // en vivo, para que el Set no crezca sin límite durante el turno.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deriva ids vigentes de la lista de pedidos, no de un evento externo
+    setPrintedOrderIds((prev) => {
+      const liveIds = new Set(orders.map((o) => o.id));
+      const next = new Set([...prev].filter((id) => liveIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [orders]);
 
   // Reevalúa cada segundo si algún ack ya venció (ALARM_REARM_MS) para
   // re-armar la sirena de ese pedido si sigue sin aceptarse.
@@ -785,6 +799,9 @@ export default function BranchHomePage() {
     setError(null);
     try {
       await runPrint(order);
+      setPrintedOrderIds((prev) =>
+        prev.has(order.id) ? prev : new Set(prev).add(order.id),
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo imprimir el ticket",
@@ -1102,85 +1119,111 @@ export default function BranchHomePage() {
                 : (STATUS_LABEL[selected.status] ?? selected.status)}
             </span>
           }
-          footer={
-            <div className="mx-auto flex w-full max-w-xl flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:justify-end">
-              <button
-                type="button"
-                disabled={!!busyKey}
-                onClick={() => void reprintOrder(selected)}
-                className="btn-secondary inline-flex w-full items-center justify-center gap-2 py-3.5 text-base sm:order-0 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
-              >
-                <Printer className="size-4 shrink-0" />
-                Imprimir
-              </button>
-              {selected.status === "PAID" && (
-                <>
-                  <button
-                    type="button"
-                    disabled={!!busyKey}
-                    onClick={() => openCancel()}
-                    className="btn-red w-full py-3.5 text-base sm:order-1 sm:w-auto sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!busyKey}
-                    onClick={() => beginAccept(selected)}
-                    className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
-                  >
-                    Aceptar pedido
-                  </button>
-                </>
-              )}
-              {selected.status === "ACCEPTED" && (
-                <button
-                  type="button"
-                  disabled={!!busyKey}
-                  onClick={() => beginAccept(selected)}
-                  className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
-                >
-                  {selected.ptvTicket == null
-                    ? "Asignar ticket e iniciar"
-                    : "Iniciar preparación"}
-                </button>
-              )}
-              {selected.status === "PREPARING" && (
-                <button
-                  type="button"
-                  disabled={busyKey === `${selected.id}:status:READY`}
-                  onClick={() => void updateStatus(selected.id, "READY")}
-                  className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
-                >
-                  Listo para recoger · cobrar
-                </button>
-              )}
-              {selected.status === "READY" && (
-                <button
-                  type="button"
-                  disabled={busyKey === `${selected.id}:status:COMPLETED`}
-                  onClick={() => openPickupCode()}
-                  className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
-                >
-                  Entregar
-                </button>
-              )}
-              {selected.status === "CANCELLED" &&
-                selected.cancelledByCustomer &&
-                !selected.customerCancelAckedAt && (
-                  <button
-                    type="button"
-                    disabled={ackCancelPendingId === selected.id}
-                    onClick={() => void acknowledgeCustomerCancel(selected.id)}
-                    className="btn-primary w-full py-3.5 text-base sm:order-2 sm:flex-1 sm:py-3 sm:text-sm"
-                  >
-                    {ackCancelPendingId === selected.id
-                      ? "Marcando…"
-                      : "Entendido"}
-                  </button>
-                )}
-            </div>
-          }
+          footer={(() => {
+            // Paso 1 del flujo (PAID sin imprimir aún): el botón anaranjado
+            // ES "Imprimir" y todavía no existe el botón gris de reimpresión.
+            const needsFirstPrint =
+              selected.status === "PAID" &&
+              !printedOrderIds.has(selected.id);
+            return (
+              <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex w-full gap-2.5 sm:w-auto">
+                  {!needsFirstPrint && (
+                    <button
+                      type="button"
+                      disabled={!!busyKey}
+                      onClick={() => void reprintOrder(selected)}
+                      className="btn-secondary inline-flex flex-1 items-center justify-center gap-2 py-3.5 text-base sm:flex-none sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
+                    >
+                      <Printer className="size-4 shrink-0" />
+                      Imprimir
+                    </button>
+                  )}
+                  {selected.status === "PAID" && (
+                    <button
+                      type="button"
+                      disabled={!!busyKey}
+                      onClick={() => openCancel()}
+                      className="btn-red flex-1 py-3.5 text-base sm:flex-none sm:min-w-[8.5rem] sm:py-3 sm:text-sm"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+                <div className="w-full sm:w-auto sm:min-w-[18rem]">
+                  {selected.status === "PAID" &&
+                    (needsFirstPrint ? (
+                      <button
+                        type="button"
+                        disabled={!!busyKey}
+                        onClick={() => void reprintOrder(selected)}
+                        className="btn-primary inline-flex w-full items-center justify-center gap-2 py-4 text-base"
+                      >
+                        <Printer className="size-4 shrink-0" />
+                        Imprimir
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!!busyKey}
+                        onClick={() => beginAccept(selected)}
+                        className="btn-primary w-full py-4 text-base"
+                      >
+                        Aceptar pedido
+                      </button>
+                    ))}
+                  {selected.status === "ACCEPTED" && (
+                    <button
+                      type="button"
+                      disabled={!!busyKey}
+                      onClick={() => beginAccept(selected)}
+                      className="btn-primary w-full py-4 text-base"
+                    >
+                      {selected.ptvTicket == null
+                        ? "Asignar ticket e iniciar"
+                        : "Iniciar preparación"}
+                    </button>
+                  )}
+                  {selected.status === "PREPARING" && (
+                    <button
+                      type="button"
+                      disabled={busyKey === `${selected.id}:status:READY`}
+                      onClick={() => void updateStatus(selected.id, "READY")}
+                      className="btn-primary w-full py-4 text-base"
+                    >
+                      Listo para recoger · cobrar
+                    </button>
+                  )}
+                  {selected.status === "READY" && (
+                    <button
+                      type="button"
+                      disabled={busyKey === `${selected.id}:status:COMPLETED`}
+                      onClick={() => openPickupCode()}
+                      className="btn-primary w-full py-4 text-base"
+                    >
+                      Entregar
+                    </button>
+                  )}
+                  {selected.status === "CANCELLED" &&
+                    selected.cancelledByCustomer &&
+                    !selected.customerCancelAckedAt && (
+                      <button
+                        type="button"
+                        disabled={ackCancelPendingId === selected.id}
+                        onClick={() =>
+                          void acknowledgeCustomerCancel(selected.id)
+                        }
+                        className="btn-primary w-full py-4 text-base"
+                      >
+                        {ackCancelPendingId === selected.id
+                          ? "Marcando…"
+                          : "Entendido"}
+                      </button>
+                    )}
+                </div>
+              </div>
+            );
+          })()}
         >
           <div className="space-y-4">
             {error && <p className="admin-alert-error">{error}</p>}
