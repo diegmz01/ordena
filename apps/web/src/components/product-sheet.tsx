@@ -421,7 +421,7 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
             <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/40">
               <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
                 <UserRoundPlus className="h-4 w-4" />
-                Persona
+                {plates.length > 1 ? "Asignar a:" : "Persona"}
               </span>
               {plates.length === 0 ? (
                 <button

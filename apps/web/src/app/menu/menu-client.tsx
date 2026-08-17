@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, UserRoundPlus } from "lucide-react";
+import { Plus, UserRoundPlus, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { formatMoney, useCart } from "@/lib/cart";
 import {
@@ -42,8 +42,16 @@ function productInitials(name: string) {
 export default function MenuPage() {
   const searchParams = useSearchParams();
   const branchParam = searchParams.get("branch");
-  const { branchId, branchName, setBranch, plates, addPlate, items, setItemPlate } =
-    useCart();
+  const {
+    branchId,
+    branchName,
+    setBranch,
+    plates,
+    addPlate,
+    removePlate,
+    items,
+    setItemPlate,
+  } = useCart();
   const [products, setProducts] = useState<MenuProduct[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -181,18 +189,36 @@ export default function MenuPage() {
                   Asignar por persona
                 </button>
               ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                    Asignado a {plates.length} persona
-                    {plates.length === 1 ? "" : "s"}
-                  </p>
+                <div
+                  className="flex flex-wrap items-center gap-1.5"
+                  role="group"
+                  aria-label="Personas asignadas"
+                >
+                  {plates.map((p) => (
+                    <span
+                      key={p.id}
+                      className="flex items-center gap-1 rounded-full border border-gray-200 bg-white py-1 pl-2.5 pr-1 text-xs font-semibold text-gray-600 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+                    >
+                      {p.name}
+                      <button
+                        type="button"
+                        onClick={() => removePlate(p.id)}
+                        className="flex size-4 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                        aria-label={`Quitar a ${p.name}`}
+                        title={`Quitar a ${p.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
                   <button
                     type="button"
-                    className="btn-secondary btn-compact"
+                    className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-500 transition hover:border-orange-400 hover:text-orange-600 dark:border-gray-600 dark:text-gray-400"
                     onClick={() => addPlate()}
+                    aria-label="Asignar nueva persona"
+                    title="Asignar nueva persona"
                   >
-                    <UserRoundPlus className="h-3.5 w-3.5" />
-                    Asignar nueva persona
+                    <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
               )}
