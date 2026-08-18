@@ -1,13 +1,12 @@
 import Image from "next/image";
 import {
   Bell,
-  CreditCard,
   MapPin,
   ShieldCheck,
   UtensilsCrossed,
   Zap,
 } from "lucide-react";
-import { SiApplepay, SiGooglepay } from "react-icons/si";
+import { SiApplepay, SiGooglepay, SiVisa } from "react-icons/si";
 import { HomeHeroCta } from "@/components/home-hero-cta";
 import { InstallPwaCard } from "@/components/pwa/install-pwa-card";
 
@@ -35,23 +34,25 @@ const steps = [
 const paymentMethods = [
   {
     icon: SiApplepay,
-    title: "Apple Pay",
+    iconClass: "bg-black text-white",
     text: "Paga en un toque desde tu iPhone.",
   },
   {
     icon: SiGooglepay,
-    title: "Google Pay",
+    iconClass:
+      "border border-gray-200 bg-white text-gray-900 dark:border-gray-700",
     text: "Rápido y seguro en Android.",
   },
   {
-    icon: CreditCard,
-    title: "Tarjetas de crédito y débito",
-    text: "Visa, Mastercard y más.",
+    icon: SiVisa,
+    iconClass:
+      "border border-gray-200 bg-white text-[#1a1f71] dark:border-gray-700",
+    text: "Visa, Mastercard y American Express.",
   },
   {
     icon: ShieldCheck,
-    title: "Pago 100% seguro",
-    text: "Procesado por Stripe, se cobra al recoger.",
+    iconClass: "bg-transparent text-gray-500 dark:text-gray-400",
+    text: "Pago 100% seguro, con la tecnología de Stripe.",
   },
 ];
 
@@ -215,18 +216,13 @@ export default function HomePage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {paymentMethods.map((method) => (
-            <div key={method.title} className="payment-method-chip">
-              <span className="customer-feature-icon mb-0 shrink-0">
+            <div key={method.text} className="payment-method-chip">
+              <span className={`payment-brand-icon ${method.iconClass}`}>
                 <method.icon className="size-5" />
               </span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {method.title}
-                </p>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {method.text}
-                </p>
-              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                {method.text}
+              </p>
             </div>
           ))}
         </div>
