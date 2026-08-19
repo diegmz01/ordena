@@ -2,7 +2,10 @@ import { Router } from "express";
 import express from "express";
 import { fetchStripeCardSummary, getStripe } from "../utils/stripe";
 import { notifyBranchNewOrder } from "../utils/sse";
-import { notifyStaffNewOrder } from "../utils/web-push";
+import {
+  notifyCustomerOrderStatus,
+  notifyStaffNewOrder,
+} from "../utils/web-push";
 import { nextBranchDayNumber } from "../utils/branch-day-number";
 import { prisma } from "@ordena/database";
 
@@ -114,6 +117,36 @@ stripeWebhookRouter.post(
               id: order.id,
               orderNumber: order.orderNumber,
             });
+          } catch (pushError) {
+            console.error("[stripe.webhook] web-push", pushError);
+          }
+        }
+      }
+    }
+
+    // Sesión de Checkout expirada (24h por default) sin completar el pago:
+    // el cliente abandonó el flujo. El PaymentIntent no confirmado ya fue
+    // cancelado automáticamente por Stripe, así que no hay nada que liberar.
+    if (event.type === "checkout.session.expired") {
+      const session = event.data.object;
+      const order = await prisma.order.findUnique({
+        where: { stripeSessionId: session.id },
+      });
+
+      if (order && order.status === "PENDING_PAYMENT") {
+        const result = await prisma.order.updateMany({
+          where: { id: order.id, status: "PENDING_PAYMENT" },
+          data: {
+            status: "CANCELLED",
+            cancellationReason:
+              "El cliente no completó el pago a tiempo (sesión de Stripe expirada)",
+            cancelledByCustomer: false,
+          },
+        });
+
+        if (result.count > 0) {
+          try {
+            await notifyCustomerOrderStatus({ ...order, status: "CANCELLED" });
           } catch (pushError) {
             console.error("[stripe.webhook] web-push", pushError);
           }
