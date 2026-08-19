@@ -305,7 +305,7 @@ export function ProductSheet({ product, products = [], open, onClose }: Props) {
             </div>
           )}
 
-          {mods.optional.length > 0 && (
+          {productInStock && productInSchedule && mods.optional.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Extras opcionales
