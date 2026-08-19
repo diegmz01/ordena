@@ -336,6 +336,8 @@ checkoutRouter.post(
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      // Mínimo permitido por Stripe; pasado esto el webhook cancela el pedido.
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       // Autoriza (congela) fondos; el cobro real ocurre al entregar (COMPLETED).
       payment_intent_data: {
         capture_method: "manual",
