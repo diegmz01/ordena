@@ -286,7 +286,7 @@ export default function MenuPage() {
                 const badgeLabel = !inStock
                   ? "Agotado"
                   : !inSchedule
-                    ? "Disponible más tarde"
+                    ? "No Disponible"
                     : null;
                 return (
                   <li key={product.id}>
@@ -302,7 +302,7 @@ export default function MenuPage() {
                     >
                       <div
                         className={cn(
-                          "relative flex size-24 shrink-0 items-center justify-center bg-gradient-to-br from-orange-100 to-amber-50 text-lg font-bold text-orange-600 sm:size-28 dark:from-orange-950/60 dark:to-amber-950/30 dark:text-orange-300",
+                          "relative flex w-24 shrink-0 items-center justify-center self-stretch bg-gradient-to-br from-orange-100 to-amber-50 text-lg font-bold text-orange-600 sm:w-28 dark:from-orange-950/60 dark:to-amber-950/30 dark:text-orange-300",
                           !orderable && "grayscale",
                         )}
                       >
@@ -315,13 +315,6 @@ export default function MenuPage() {
                           />
                         ) : (
                           productInitials(product.name)
-                        )}
-                        {badgeLabel && (
-                          <span className="absolute inset-x-1 bottom-1 z-10 flex justify-center">
-                            <span className="status-badge-inactive shadow-sm">
-                              {badgeLabel}
-                            </span>
-                          </span>
                         )}
                       </div>
                       <div className="flex min-w-0 flex-1 flex-col justify-between p-3.5 sm:p-4">
@@ -337,7 +330,7 @@ export default function MenuPage() {
                             {product.name}
                           </p>
                           {product.description && (
-                            <p className="mt-1 line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
+                            <p className="mt-1 line-clamp-1 text-sm text-gray-500 dark:text-gray-400">
                               {product.description}
                             </p>
                           )}
