@@ -762,7 +762,7 @@ export default function OrderPageClient({
                     </span>
                   </div>
                 )}
-                {order.status === "CANCELLED" && (
+                {order.status === "CANCELLED" && order.paidAt != null && (
                   <div className="flex justify-between font-medium text-red-600">
                     <span>Devolución</span>
                     <span className="tabular-nums">
