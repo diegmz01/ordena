@@ -57,6 +57,23 @@ const ACTIVE_BRANCH_STATUSES = [
 
 const HISTORY_BRANCH_STATUSES = ["COMPLETED", "CANCELLED"] as const;
 
+/**
+ * Include usado por endpoints que devuelven el pedido al detalle de admin
+ * (`apps/admin/pedidos/[id]`), que reemplaza el `order` local vía
+ * `setOrder(res.data)` — debe traer `refunds` siempre, o el cálculo de
+ * `refundedQtyByItem` en el frontend truena con "refunds is not iterable".
+ */
+const adminOrderDetailInclude = {
+  ...branchOrderInclude,
+  branch: {
+    select: { id: true, name: true, address: true, phone: true },
+  },
+  refunds: {
+    orderBy: { createdAt: "desc" as const },
+    include: { items: true },
+  },
+};
+
 export type MoneyItem = { unavailable: boolean; lineTotal: number };
 
 /** Exportadas (no solo usadas acá) para poder testearlas directamente. */
@@ -812,12 +829,7 @@ ordersRouter.post(
 
       const order = await prisma.order.findUnique({
         where: { id: String(req.params.id) },
-        include: {
-          ...branchOrderInclude,
-          branch: {
-            select: { id: true, name: true, address: true, phone: true },
-          },
-        },
+        include: adminOrderDetailInclude,
       });
       if (!order) {
         throw new AppError(404, "Pedido no encontrado");
@@ -841,12 +853,7 @@ ordersRouter.post(
       const cancelled = await prisma.order.update({
         where: { id: order.id },
         data: { status: "CANCELLED", cancellationReason },
-        include: {
-          ...branchOrderInclude,
-          branch: {
-            select: { id: true, name: true, address: true, phone: true },
-          },
-        },
+        include: adminOrderDetailInclude,
       });
 
       await recordAdminAction({
@@ -899,12 +906,7 @@ ordersRouter.post(
     try {
       const order = await prisma.order.findUnique({
         where: { id: String(req.params.id) },
-        include: {
-          ...branchOrderInclude,
-          branch: {
-            select: { id: true, name: true, address: true, phone: true },
-          },
-        },
+        include: adminOrderDetailInclude,
       });
       if (!order) {
         throw new AppError(404, "Pedido no encontrado");
@@ -955,12 +957,7 @@ ordersRouter.post(
         await sleep(1000);
         const refreshed = await prisma.order.findUnique({
           where: { id: order.id },
-          include: {
-            ...branchOrderInclude,
-            branch: {
-              select: { id: true, name: true, address: true, phone: true },
-            },
-          },
+          include: adminOrderDetailInclude,
         });
         if (refreshed) latest = refreshed;
       }
@@ -1403,7 +1400,7 @@ ordersRouter.patch(
       const updated = await prisma.order.update({
         where: { id: order.id },
         data: { ptvTicket },
-        include: branchOrderInclude,
+        include: adminOrderDetailInclude,
       });
 
       await notifyBranchOrderUpdated(order.branchId, {
