@@ -95,6 +95,30 @@ function formatMoney(cents: number, currency = "mxn") {
   }
 }
 
+const EMAIL_FONT = "font-family:Arial,Helvetica,sans-serif;";
+
+/** Envoltorio de tabla estilo "recibo" — mismo esqueleto para los 3 correos de pedido. */
+function emailLayout(innerHtml: string) {
+  return (
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f2;padding:24px 0;"><tr><td align="center">` +
+    `<table role="presentation" width="100%" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #eeeeee;" cellpadding="0" cellspacing="0">` +
+    `<tr><td style="background-color:#ea5e1f;padding:18px 32px;border-radius:12px 12px 0 0;"><span style="${EMAIL_FONT}font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:0.02em;">${RESTAURANT_NAME}</span></td></tr>` +
+    `<tr><td style="padding:32px;${EMAIL_FONT}font-size:14px;line-height:1.6;color:#1f2937;">${innerHtml}</td></tr>` +
+    `<tr><td style="padding:16px 32px;background-color:#fafaf9;border-top:1px solid #eeeeee;border-radius:0 0 12px 12px;${EMAIL_FONT}font-size:12px;color:#9ca3af;">Este es un correo automático de ${RESTAURANT_NAME} — no respondas a este mensaje.</td></tr>` +
+    `</table></td></tr></table>`
+  );
+}
+
+/** Etiqueta tipo "status-badge-brand" del design system, adaptada a estilos inline para correo. */
+function emailEyebrow(label: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;"><tr><td style="background-color:#fff7ed;border:1px solid #fed7aa;border-radius:999px;padding:4px 12px;${EMAIL_FONT}font-size:11px;font-weight:bold;letter-spacing:0.04em;color:#ea5e1f;text-transform:uppercase;">${label}</td></tr></table>`;
+}
+
+/** Callout gris para el motivo de cancelación/reembolso. */
+function emailReasonBlock(reason: string) {
+  return `<p style="margin:0 0 16px;padding:12px 14px;background-color:#f9fafb;border-left:3px solid #d1d5db;border-radius:4px;color:#4b5563;">Motivo: ${reason}</p>`;
+}
+
 export async function sendOrderConfirmationEmail(params: {
   to: string;
   name?: string | null;
@@ -122,12 +146,26 @@ export async function sendOrderConfirmationEmail(params: {
   );
   const totalFormatted = formatMoney(params.total, params.currency);
 
+  const itemRows = params.items
+    .map(
+      (item) =>
+        `<tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">${item.quantity}x ${item.productName}${item.variantName ? ` (${item.variantName})` : ""}</td><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;">${formatMoney(item.lineTotal, params.currency)}</td></tr>`,
+    )
+    .join("");
+  const html = emailLayout(
+    `${emailEyebrow("Pedido confirmado")}` +
+      `<p style="margin:0 0 16px;">${greeting}</p>` +
+      `<p style="margin:0 0 20px;">Tu pago fue confirmado. Este es el resumen de tu pedido <strong>${params.orderNumber}</strong> en ${params.branchName}:</p>` +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">${itemRows}<tr><td style="padding:12px 0 0;font-weight:bold;border-top:2px solid #1f2937;">Total</td><td style="padding:12px 0 0;font-weight:bold;text-align:right;border-top:2px solid #1f2937;">${totalFormatted}</td></tr></table>` +
+      `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background-color:#ea5e1f;"><a href="${trackingUrl}" style="display:inline-block;padding:12px 24px;${EMAIL_FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver el estado de tu pedido</a></td></tr></table>`,
+  );
+
   await transport.sendMail({
     from,
     to: params.to,
     subject: `Confirmación de tu pedido ${params.orderNumber} — ${RESTAURANT_NAME}`,
     text: `${greeting}\n\nTu pago fue confirmado. Este es el resumen de tu pedido ${params.orderNumber} en ${params.branchName}:\n\n${itemLines.map((line) => `- ${line}`).join("\n")}\n\nTotal: ${totalFormatted}\n\nSigue el estado de tu pedido aquí:\n${trackingUrl}`,
-    html: `<p>${greeting}</p><p>Tu pago fue confirmado. Este es el resumen de tu pedido <strong>${params.orderNumber}</strong> en ${params.branchName}:</p><ul>${itemLines.map((line) => `<li>${line}</li>`).join("")}</ul><p><strong>Total: ${totalFormatted}</strong></p><p><a href="${trackingUrl}" style="color:#ea5e1f;font-weight:bold;">Ver el estado de tu pedido</a></p>`,
+    html,
   });
 }
 
@@ -143,12 +181,20 @@ export async function sendOrderCancelledEmail(params: {
   const greeting = params.name ? `Hola ${params.name},` : "Hola,";
   const totalFormatted = formatMoney(params.total, params.currency);
 
+  const html = emailLayout(
+    `${emailEyebrow("Pedido cancelado")}` +
+      `<p style="margin:0 0 16px;">${greeting}</p>` +
+      `<p style="margin:0 0 16px;">Tu pedido <strong>${params.orderNumber}</strong> fue cancelado.</p>` +
+      `${params.cancellationReason ? emailReasonBlock(params.cancellationReason) : ""}` +
+      `<p style="margin:0;">El monto de <strong>${totalFormatted}</strong> será reembolsado a tu método de pago original en los próximos días hábiles.</p>`,
+  );
+
   await transport.sendMail({
     from,
     to: params.to,
     subject: `Tu pedido ${params.orderNumber} fue cancelado — ${RESTAURANT_NAME}`,
     text: `${greeting}\n\nTu pedido ${params.orderNumber} fue cancelado.\n\n${params.cancellationReason ? `Motivo: ${params.cancellationReason}\n\n` : ""}El monto de ${totalFormatted} será reembolsado a tu método de pago original en los próximos días hábiles.`,
-    html: `<p>${greeting}</p><p>Tu pedido <strong>${params.orderNumber}</strong> fue cancelado.</p>${params.cancellationReason ? `<p>Motivo: ${params.cancellationReason}</p>` : ""}<p>El monto de <strong>${totalFormatted}</strong> será reembolsado a tu método de pago original en los próximos días hábiles.</p>`,
+    html,
   });
 }
 
@@ -168,12 +214,20 @@ export async function sendOrderRefundEmail(params: {
     ? " Este reembolso cubre el total de tu pedido."
     : "";
 
+  const html = emailLayout(
+    `${emailEyebrow(params.isFullRefund ? "Reembolso total" : "Reembolso parcial")}` +
+      `<p style="margin:0 0 16px;">${greeting}</p>` +
+      `<p style="margin:0 0 16px;">Se procesó un reembolso de <strong>${amountFormatted}</strong> sobre tu pedido <strong>${params.orderNumber}</strong>.${scopeNote}</p>` +
+      `${emailReasonBlock(params.reason)}` +
+      `<p style="margin:0;">El monto será acreditado a tu método de pago original en los próximos días hábiles.</p>`,
+  );
+
   await transport.sendMail({
     from,
     to: params.to,
     subject: `Reembolso de tu pedido ${params.orderNumber} — ${RESTAURANT_NAME}`,
     text: `${greeting}\n\nSe procesó un reembolso de ${amountFormatted} sobre tu pedido ${params.orderNumber}.${scopeNote}\n\nMotivo: ${params.reason}\n\nEl monto será acreditado a tu método de pago original en los próximos días hábiles.`,
-    html: `<p>${greeting}</p><p>Se procesó un reembolso de <strong>${amountFormatted}</strong> sobre tu pedido <strong>${params.orderNumber}</strong>.${scopeNote}</p><p>Motivo: ${params.reason}</p><p>El monto será acreditado a tu método de pago original en los próximos días hábiles.</p>`,
+    html,
   });
 }
 
