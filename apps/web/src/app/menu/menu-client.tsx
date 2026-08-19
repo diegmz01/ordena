@@ -250,7 +250,7 @@ export default function MenuPage() {
           {!loading && <SuggestedProducts branchId={effectiveBranch} />}
 
           {categories.length > 0 && (
-            <div className="sticky top-14 z-20 -mx-4 mb-5 border-b border-gray-100 bg-background/95 px-4 py-2 backdrop-blur dark:border-gray-800">
+            <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 -mx-4 mb-5 border-b border-gray-100 bg-background/95 px-4 py-2 backdrop-blur dark:border-gray-800">
               <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {categories.map((cat) => (
                   <button
