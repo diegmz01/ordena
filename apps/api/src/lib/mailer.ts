@@ -84,6 +84,99 @@ export async function sendOAuthOnlyAccountEmail(
   });
 }
 
+function formatMoney(cents: number, currency = "mxn") {
+  try {
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(cents / 100);
+  } catch {
+    return `$${(cents / 100).toFixed(2)}`;
+  }
+}
+
+export async function sendOrderConfirmationEmail(params: {
+  to: string;
+  name?: string | null;
+  orderId: string;
+  orderNumber: string;
+  viewToken: string;
+  branchName: string;
+  items: {
+    productName: string;
+    variantName?: string | null;
+    quantity: number;
+    lineTotal: number;
+  }[];
+  total: number;
+  currency: string;
+}) {
+  const { transport, from } = await getSmtpTransport();
+  const greeting = params.name ? `Hola ${params.name},` : "Hola,";
+  const customerUrl = process.env.CUSTOMER_URL ?? "http://localhost:3000";
+  const trackingUrl = `${customerUrl}/pedido/${params.orderId}?t=${encodeURIComponent(params.viewToken)}`;
+
+  const itemLines = params.items.map(
+    (item) =>
+      `${item.quantity}x ${item.productName}${item.variantName ? ` (${item.variantName})` : ""} — ${formatMoney(item.lineTotal, params.currency)}`,
+  );
+  const totalFormatted = formatMoney(params.total, params.currency);
+
+  await transport.sendMail({
+    from,
+    to: params.to,
+    subject: `Confirmación de tu pedido ${params.orderNumber} — ${RESTAURANT_NAME}`,
+    text: `${greeting}\n\nTu pago fue confirmado. Este es el resumen de tu pedido ${params.orderNumber} en ${params.branchName}:\n\n${itemLines.map((line) => `- ${line}`).join("\n")}\n\nTotal: ${totalFormatted}\n\nSigue el estado de tu pedido aquí:\n${trackingUrl}`,
+    html: `<p>${greeting}</p><p>Tu pago fue confirmado. Este es el resumen de tu pedido <strong>${params.orderNumber}</strong> en ${params.branchName}:</p><ul>${itemLines.map((line) => `<li>${line}</li>`).join("")}</ul><p><strong>Total: ${totalFormatted}</strong></p><p><a href="${trackingUrl}" style="color:#ea5e1f;font-weight:bold;">Ver el estado de tu pedido</a></p>`,
+  });
+}
+
+export async function sendOrderCancelledEmail(params: {
+  to: string;
+  name?: string | null;
+  orderNumber: string;
+  cancellationReason?: string | null;
+  total: number;
+  currency: string;
+}) {
+  const { transport, from } = await getSmtpTransport();
+  const greeting = params.name ? `Hola ${params.name},` : "Hola,";
+  const totalFormatted = formatMoney(params.total, params.currency);
+
+  await transport.sendMail({
+    from,
+    to: params.to,
+    subject: `Tu pedido ${params.orderNumber} fue cancelado — ${RESTAURANT_NAME}`,
+    text: `${greeting}\n\nTu pedido ${params.orderNumber} fue cancelado.\n\n${params.cancellationReason ? `Motivo: ${params.cancellationReason}\n\n` : ""}El monto de ${totalFormatted} será reembolsado a tu método de pago original en los próximos días hábiles.`,
+    html: `<p>${greeting}</p><p>Tu pedido <strong>${params.orderNumber}</strong> fue cancelado.</p>${params.cancellationReason ? `<p>Motivo: ${params.cancellationReason}</p>` : ""}<p>El monto de <strong>${totalFormatted}</strong> será reembolsado a tu método de pago original en los próximos días hábiles.</p>`,
+  });
+}
+
+export async function sendOrderRefundEmail(params: {
+  to: string;
+  name?: string | null;
+  orderNumber: string;
+  reason: string;
+  amount: number;
+  isFullRefund: boolean;
+  currency: string;
+}) {
+  const { transport, from } = await getSmtpTransport();
+  const greeting = params.name ? `Hola ${params.name},` : "Hola,";
+  const amountFormatted = formatMoney(params.amount, params.currency);
+  const scopeNote = params.isFullRefund
+    ? " Este reembolso cubre el total de tu pedido."
+    : "";
+
+  await transport.sendMail({
+    from,
+    to: params.to,
+    subject: `Reembolso de tu pedido ${params.orderNumber} — ${RESTAURANT_NAME}`,
+    text: `${greeting}\n\nSe procesó un reembolso de ${amountFormatted} sobre tu pedido ${params.orderNumber}.${scopeNote}\n\nMotivo: ${params.reason}\n\nEl monto será acreditado a tu método de pago original en los próximos días hábiles.`,
+    html: `<p>${greeting}</p><p>Se procesó un reembolso de <strong>${amountFormatted}</strong> sobre tu pedido <strong>${params.orderNumber}</strong>.${scopeNote}</p><p>Motivo: ${params.reason}</p><p>El monto será acreditado a tu método de pago original en los próximos días hábiles.</p>`,
+  });
+}
+
 export async function sendTestEmail(to: string) {
   const { transport, from } = await getSmtpTransport();
   await transport.sendMail({
