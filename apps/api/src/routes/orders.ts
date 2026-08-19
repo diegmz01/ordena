@@ -31,6 +31,11 @@ import {
   notifyCustomerOrderStatus,
   notifyCustomerOrderItemsChanged,
 } from "../utils/web-push";
+import {
+  sendOrderCancelledEmail,
+  sendOrderConfirmationEmail,
+  sendOrderRefundEmail,
+} from "../lib/mailer";
 import { settleStripePayment, getStripe } from "../utils/stripe";
 import { getBusinessDate } from "../utils/branch-day-number";
 import { recordAdminAction } from "../utils/audit-log";
@@ -112,6 +117,54 @@ function assertStatusTransition(from: OrderStatus, to: OrderStatus) {
     400,
     `Transición inválida: no se puede pasar de ${from} a ${to}`,
   );
+}
+
+/**
+ * Correo de confirmación: se envía cuando la sucursal acepta el pedido e
+ * inicia su preparación (no antes, para no duplicar aviso si se cancela
+ * entre el pago y la aceptación) — llamado desde /:id/accept y /:id/start-prep.
+ */
+async function sendOrderConfirmationEmailForOrder(order: {
+  id: string;
+  orderNumber: string;
+  viewToken: string;
+  branchId: string;
+  total: number;
+  currency: string;
+  pickupCode: string | null;
+  guestEmail: string | null;
+  guestName: string | null;
+  user: { email: string; name: string | null } | null;
+  items: {
+    productName: string;
+    variantName: string | null;
+    quantity: number;
+    lineTotal: number;
+  }[];
+}) {
+  const to = order.user?.email ?? order.guestEmail;
+  if (!to) return;
+
+  const branch = await prisma.branch.findUnique({
+    where: { id: order.branchId },
+    select: { name: true, address: true, phone: true },
+  });
+  if (!branch) return;
+
+  await sendOrderConfirmationEmail({
+    to,
+    name: order.user?.name ?? order.guestName,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    viewToken: order.viewToken,
+    branchName: branch.name,
+    branchAddress: branch.address,
+    branchPhone: branch.phone,
+    pickupCode: order.pickupCode,
+    items: order.items,
+    total: order.total,
+    currency: order.currency,
+  });
 }
 
 ordersRouter.get(
@@ -880,6 +933,22 @@ ordersRouter.post(
         console.error("[orders.admin-cancel] web-push", pushError);
       }
 
+      try {
+        const to = cancelled.user?.email ?? cancelled.guestEmail;
+        if (to) {
+          await sendOrderCancelledEmail({
+            to,
+            name: cancelled.user?.name ?? cancelled.guestName,
+            orderNumber: cancelled.orderNumber,
+            cancellationReason: cancelled.cancellationReason,
+            total: cancelled.total,
+            currency: cancelled.currency,
+          });
+        }
+      } catch (mailError) {
+        console.error("[orders.admin-cancel] mailer", mailError);
+      }
+
       res.json({ data: cancelled });
     } catch (error) {
       next(error);
@@ -1144,6 +1213,23 @@ ordersRouter.post(
         console.error("[orders.refund] web-push", pushError);
       }
 
+      try {
+        const to = updatedOrder.user?.email ?? updatedOrder.guestEmail;
+        if (to) {
+          await sendOrderRefundEmail({
+            to,
+            name: updatedOrder.user?.name ?? updatedOrder.guestName,
+            orderNumber: updatedOrder.orderNumber,
+            reason,
+            amount,
+            isFullRefund: updatedOrder.refundedTotal >= updatedOrder.total,
+            currency: updatedOrder.currency,
+          });
+        }
+      } catch (mailError) {
+        console.error("[orders.refund] mailer", mailError);
+      }
+
       res.json({ data: updatedOrder });
     } catch (error) {
       next(error);
@@ -1214,6 +1300,12 @@ ordersRouter.patch(
         console.error("[orders.accept] web-push", pushError);
       }
 
+      try {
+        await sendOrderConfirmationEmailForOrder(updated);
+      } catch (mailError) {
+        console.error("[orders.accept] mailer", mailError);
+      }
+
       res.json({ data: updated });
     } catch (error) {
       next(error);
@@ -1282,6 +1374,12 @@ ordersRouter.patch(
         }
       } catch (pushError) {
         console.error("[orders.start-prep] web-push", pushError);
+      }
+
+      try {
+        await sendOrderConfirmationEmailForOrder(updated);
+      } catch (mailError) {
+        console.error("[orders.start-prep] mailer", mailError);
       }
 
       res.json({ data: updated });
