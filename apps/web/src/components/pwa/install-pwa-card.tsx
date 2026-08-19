@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Share, Smartphone } from "lucide-react";
+import { Download, Share, User } from "lucide-react";
 import { isIOS, isStandalonePwa } from "@/lib/device";
 
 type BeforeInstallPromptEvent = Event & {
@@ -61,8 +61,8 @@ export function InstallPwaCard() {
   return (
     <div className="customer-feature-card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
-        <span className="customer-feature-icon mb-0 shrink-0">
-          <Smartphone className="size-5" />
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm">
+          <User className="size-5" />
         </span>
         <div>
           <p className="font-semibold text-gray-900 dark:text-white">

@@ -117,7 +117,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       <main className="container-admin flex-1">{children}</main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur md:hidden dark:border-gray-700 dark:bg-gray-900/95">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur [transform:translateZ(0)] [-webkit-transform:translateZ(0)] will-change-transform md:hidden dark:border-gray-700 dark:bg-gray-900/95">
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 py-2">
           {navItems.map((item) => {
             const Icon = item.icon;

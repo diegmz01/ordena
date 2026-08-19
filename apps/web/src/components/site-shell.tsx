@@ -215,7 +215,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       )}
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-gray-700 dark:bg-gray-900/95"
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur [transform:translateZ(0)] [-webkit-transform:translateZ(0)] will-change-transform md:hidden dark:border-gray-700 dark:bg-gray-900/95"
         aria-label="Navegación principal"
       >
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">

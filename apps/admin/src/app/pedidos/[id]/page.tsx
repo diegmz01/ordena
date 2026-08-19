@@ -288,6 +288,10 @@ export default function AdminOrderDetailPage() {
   const [refundSelection, setRefundSelection] = useState<
     Record<string, number>
   >({});
+  const [expireModalOpen, setExpireModalOpen] = useState(false);
+  const [expirePending, setExpirePending] = useState(false);
+  const [expireError, setExpireError] = useState<string | null>(null);
+  const [expireNotice, setExpireNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -422,6 +426,53 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  function openExpireModal() {
+    setExpireError(null);
+    setExpireNotice(null);
+    setExpireModalOpen(true);
+  }
+
+  function closeExpireModal() {
+    if (expirePending) return;
+    setExpireModalOpen(false);
+    setExpireError(null);
+  }
+
+  async function confirmExpireCheckout() {
+    if (!order) return;
+    const token = getAuthToken();
+    if (!token) {
+      setExpireError("Sesión no válida");
+      return;
+    }
+
+    setExpirePending(true);
+    setExpireError(null);
+    setExpireNotice(null);
+    try {
+      const res = await apiFetch<{
+        data: OrderDetail;
+        pendingWebhook: boolean;
+      }>(`/orders/${order.id}/expire-checkout-session`, token, {
+        method: "POST",
+      });
+      setOrder(res.data);
+      if (res.pendingWebhook) {
+        setExpireNotice(
+          "Stripe confirmó la expiración; la cancelación puede tardar unos segundos más en reflejarse. Recarga la página en un momento.",
+        );
+      } else {
+        setExpireModalOpen(false);
+      }
+    } catch (err) {
+      setExpireError(
+        err instanceof Error ? err.message : "Error al expirar la sesión",
+      );
+    } finally {
+      setExpirePending(false);
+    }
+  }
+
   const refundedQtyByItem = useMemo(() => {
     const map = new Map<string, number>();
     if (!order) return map;
@@ -552,6 +603,11 @@ export default function AdminOrderDetailPage() {
 
   const canCancel =
     order != null && canAdminCancelOrder(order.status as OrderStatus);
+
+  const canExpireCheckout =
+    order != null &&
+    order.status === "PENDING_PAYMENT" &&
+    order.stripeSessionId != null;
 
   if (!id) {
     return (
@@ -844,7 +900,7 @@ export default function AdminOrderDetailPage() {
                       <span>{formatMoney(order.serviceFee, order.currency)}</span>
                     </div>
                   )}
-                  {order.status === "CANCELLED" && (
+                  {order.status === "CANCELLED" && order.paidAt != null && (
                     <div className="flex justify-between text-sm font-medium text-red-600">
                       <span>Devolución</span>
                       <span>−{formatMoney(order.total, order.currency)}</span>
@@ -1155,6 +1211,17 @@ export default function AdminOrderDetailPage() {
                       Cancelar y devolver
                     </button>
                   )}
+
+                  {canExpireCheckout && (
+                    <button
+                      type="button"
+                      onClick={openExpireModal}
+                      className="btn-red inline-flex w-full items-center justify-center gap-2"
+                    >
+                      <Clock3 className="h-4 w-4" />
+                      Expirar sesión de pago
+                    </button>
+                  )}
                 </div>
               </section>
             </aside>
@@ -1282,6 +1349,50 @@ export default function AdminOrderDetailPage() {
                 >
                   {cancelPending ? "Cancelando…" : "Confirmar cancelación"}
                 </button>
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            open={expireModalOpen}
+            onClose={closeExpireModal}
+            title="Expirar sesión de pago"
+            description="Esto va a marcar la sesión de pago como expirada en Stripe y el pedido se cancelará. No se puede deshacer."
+          >
+            <div className="space-y-4">
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                Pedido{" "}
+                <span className="font-semibold">{order.orderNumber}</span> ·{" "}
+                {formatMoney(order.total, order.currency)}. El cliente nunca
+                completó el pago en Stripe.
+              </p>
+              {expireNotice && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                  {expireNotice}
+                </p>
+              )}
+              {expireError && (
+                <p className="text-sm text-red-600">{expireError}</p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-700">
+                <button
+                  type="button"
+                  disabled={expirePending}
+                  className="btn-secondary"
+                  onClick={closeExpireModal}
+                >
+                  {expireNotice ? "Cerrar" : "Volver"}
+                </button>
+                {!expireNotice && (
+                  <button
+                    type="button"
+                    disabled={expirePending}
+                    className="btn-red"
+                    onClick={() => void confirmExpireCheckout()}
+                  >
+                    {expirePending ? "Expirando…" : "Confirmar expiración"}
+                  </button>
+                )}
               </div>
             </div>
           </Modal>
