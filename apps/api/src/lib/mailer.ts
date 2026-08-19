@@ -2,8 +2,9 @@ import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "@ordena/database";
 import { AppError } from "../middleware/error-handler";
 import { decryptSecret } from "../utils/crypto-secrets";
+import { LOGO_WHITE_DATA_URI } from "./email-assets";
 
-const RESTAURANT_NAME = "Ordena";
+const RESTAURANT_NAME = "El Bajito";
 
 async function loadSmtpSettings() {
   const settings = await prisma.smtpSettings.findUnique({
@@ -102,7 +103,7 @@ function emailLayout(innerHtml: string) {
   return (
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f2;padding:24px 0;"><tr><td align="center">` +
     `<table role="presentation" width="100%" style="max-width:560px;background-color:#ffffff;border-radius:12px;border:1px solid #eeeeee;" cellpadding="0" cellspacing="0">` +
-    `<tr><td style="background-color:#ea5e1f;padding:18px 32px;border-radius:12px 12px 0 0;"><span style="${EMAIL_FONT}font-size:18px;font-weight:bold;color:#ffffff;letter-spacing:0.02em;">${RESTAURANT_NAME}</span></td></tr>` +
+    `<tr><td style="background-color:#ea5e1f;padding:18px 32px;border-radius:12px 12px 0 0;"><img src="${LOGO_WHITE_DATA_URI}" width="150" height="56" alt="${RESTAURANT_NAME}" style="display:block;border:0;outline:none;"></td></tr>` +
     `<tr><td style="padding:32px;${EMAIL_FONT}font-size:14px;line-height:1.6;color:#1f2937;">${innerHtml}</td></tr>` +
     `<tr><td style="padding:16px 32px;background-color:#fafaf9;border-top:1px solid #eeeeee;border-radius:0 0 12px 12px;${EMAIL_FONT}font-size:12px;color:#9ca3af;">Este es un correo automático de ${RESTAURANT_NAME} — no respondas a este mensaje.</td></tr>` +
     `</table></td></tr></table>`
@@ -126,6 +127,9 @@ export async function sendOrderConfirmationEmail(params: {
   orderNumber: string;
   viewToken: string;
   branchName: string;
+  branchAddress: string;
+  branchPhone?: string | null;
+  pickupCode?: string | null;
   items: {
     productName: string;
     variantName?: string | null;
@@ -152,11 +156,30 @@ export async function sendOrderConfirmationEmail(params: {
         `<tr><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;">${item.quantity}x ${item.productName}${item.variantName ? ` (${item.variantName})` : ""}</td><td style="padding:8px 0;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;">${formatMoney(item.lineTotal, params.currency)}</td></tr>`,
     )
     .join("");
+
+  const pickupLinesText = [
+    `Recoger en: ${params.branchName}`,
+    params.branchAddress,
+    params.branchPhone ? `Tel: ${params.branchPhone}` : null,
+    params.pickupCode ? `Código de entrega: ${params.pickupCode}` : null,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+
+  const pickupBlockHtml =
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;background-color:#f9fafb;border-radius:8px;"><tr><td style="padding:14px 16px;">` +
+    `<p style="margin:0 0 4px;font-weight:bold;">Recoger en: ${params.branchName}</p>` +
+    `<p style="margin:0;color:#4b5563;">${params.branchAddress}</p>` +
+    `${params.branchPhone ? `<p style="margin:2px 0 0;color:#4b5563;">Tel: ${params.branchPhone}</p>` : ""}` +
+    `${params.pickupCode ? `<p style="margin:12px 0 0;">Código de entrega: <strong style="font-size:16px;letter-spacing:0.05em;">${params.pickupCode}</strong></p>` : ""}` +
+    `</td></tr></table>`;
+
   const html = emailLayout(
     `${emailEyebrow("Pedido confirmado")}` +
       `<p style="margin:0 0 16px;">${greeting}</p>` +
-      `<p style="margin:0 0 20px;">Tu pago fue confirmado. Este es el resumen de tu pedido <strong>${params.orderNumber}</strong> en ${params.branchName}:</p>` +
+      `<p style="margin:0 0 20px;">Tu pago fue confirmado. Este es el resumen de tu pedido <strong>${params.orderNumber}</strong>:</p>` +
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">${itemRows}<tr><td style="padding:12px 0 0;font-weight:bold;border-top:2px solid #1f2937;">Total</td><td style="padding:12px 0 0;font-weight:bold;text-align:right;border-top:2px solid #1f2937;">${totalFormatted}</td></tr></table>` +
+      pickupBlockHtml +
       `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background-color:#ea5e1f;"><a href="${trackingUrl}" style="display:inline-block;padding:12px 24px;${EMAIL_FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver el estado de tu pedido</a></td></tr></table>`,
   );
 
@@ -164,7 +187,7 @@ export async function sendOrderConfirmationEmail(params: {
     from,
     to: params.to,
     subject: `Confirmación de tu pedido ${params.orderNumber} — ${RESTAURANT_NAME}`,
-    text: `${greeting}\n\nTu pago fue confirmado. Este es el resumen de tu pedido ${params.orderNumber} en ${params.branchName}:\n\n${itemLines.map((line) => `- ${line}`).join("\n")}\n\nTotal: ${totalFormatted}\n\nSigue el estado de tu pedido aquí:\n${trackingUrl}`,
+    text: `${greeting}\n\nTu pago fue confirmado. Este es el resumen de tu pedido ${params.orderNumber}:\n\n${itemLines.map((line) => `- ${line}`).join("\n")}\n\nTotal: ${totalFormatted}\n\n${pickupLinesText}\n\nSigue el estado de tu pedido aquí:\n${trackingUrl}`,
     html,
   });
 }
@@ -237,7 +260,7 @@ export async function sendTestEmail(to: string) {
     from,
     to,
     subject: `Correo de prueba — ${RESTAURANT_NAME}`,
-    text: "Este es un correo de prueba de la configuración SMTP de Ordena. Si lo recibiste, la configuración funciona correctamente.",
-    html: "<p>Este es un correo de prueba de la configuración SMTP de Ordena. Si lo recibiste, la configuración funciona correctamente.</p>",
+    text: `Este es un correo de prueba de la configuración SMTP de ${RESTAURANT_NAME}. Si lo recibiste, la configuración funciona correctamente.`,
+    html: `<p>Este es un correo de prueba de la configuración SMTP de ${RESTAURANT_NAME}. Si lo recibiste, la configuración funciona correctamente.</p>`,
   });
 }

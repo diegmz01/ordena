@@ -131,6 +131,7 @@ async function sendOrderConfirmationEmailForOrder(order: {
   branchId: string;
   total: number;
   currency: string;
+  pickupCode: string | null;
   guestEmail: string | null;
   guestName: string | null;
   user: { email: string; name: string | null } | null;
@@ -146,8 +147,9 @@ async function sendOrderConfirmationEmailForOrder(order: {
 
   const branch = await prisma.branch.findUnique({
     where: { id: order.branchId },
-    select: { name: true },
+    select: { name: true, address: true, phone: true },
   });
+  if (!branch) return;
 
   await sendOrderConfirmationEmail({
     to,
@@ -155,7 +157,10 @@ async function sendOrderConfirmationEmailForOrder(order: {
     orderId: order.id,
     orderNumber: order.orderNumber,
     viewToken: order.viewToken,
-    branchName: branch?.name ?? "",
+    branchName: branch.name,
+    branchAddress: branch.address,
+    branchPhone: branch.phone,
+    pickupCode: order.pickupCode,
     items: order.items,
     total: order.total,
     currency: order.currency,
