@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-import path from "path";
+import "./env";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -25,9 +24,6 @@ import { startEscalateUnacceptedOrdersJob } from "./jobs/escalate-unaccepted-ord
 import { startBranchStatusSnapshotJob } from "./jobs/branch-status-snapshot-job";
 import { startHandleStalePaidOrdersJob } from "./jobs/handle-stale-paid-orders-job";
 import { initSentry } from "./utils/sentry";
-
-dotenv.config({ path: path.resolve(__dirname, "../../../.env"), override: true });
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true });
 
 initSentry();
 assertProductionEnv();
