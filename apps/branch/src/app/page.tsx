@@ -400,10 +400,10 @@ export default function BranchHomePage() {
   useEffect(() => {
     if (!branchId) return;
 
-    const source = new EventSource(`${API_URL}/branches/me/stream`);
-
-    source.onopen = () => setConnected(true);
-    source.onerror = () => setConnected(false);
+    let source: EventSource;
+    // Última vez que llegó cualquier señal del servidor (evento real o
+    // "ping" de heartbeat cada 20s, ver apps/api/src/utils/sse.ts).
+    let lastActivity = Date.now();
 
     const reload = () => {
       refreshOrders().catch(() => undefined);
@@ -440,12 +440,66 @@ export default function BranchHomePage() {
         // Ignora payload inesperado: el reload ya refresca la lista.
       }
     };
-    source.addEventListener("order:new", handleNewOrder);
-    source.addEventListener("order:updated", reload);
-    source.addEventListener("order:customer_cancelled", handleCustomerCancelled);
+
+    // Crea (o recrea) la conexión SSE. El navegador reintenta solo cuando
+    // detecta un `error`, pero tras suspender el equipo o cambiar de red
+    // a veces el socket queda "zombie" sin que el navegador lo note, y la
+    // pantalla se queda en "Conectando…" indefinidamente. El watchdog de
+    // abajo, más los listeners de visibilidad/red, fuerzan reconectar en
+    // esos casos en lugar de depender solo del reintento nativo.
+    const connect = () => {
+      source = new EventSource(`${API_URL}/branches/me/stream`);
+
+      const markActivity = () => {
+        lastActivity = Date.now();
+      };
+
+      source.onopen = () => {
+        setConnected(true);
+        markActivity();
+      };
+      source.onerror = () => setConnected(false);
+
+      source.addEventListener("ping", markActivity);
+      source.addEventListener("order:new", (event) => {
+        markActivity();
+        handleNewOrder(event as MessageEvent);
+      });
+      source.addEventListener("order:updated", () => {
+        markActivity();
+        reload();
+      });
+      source.addEventListener("order:customer_cancelled", (event) => {
+        markActivity();
+        handleCustomerCancelled(event as MessageEvent);
+      });
+    };
+
+    const reconnect = () => {
+      source?.close();
+      connect();
+    };
+
+    connect();
+
+    // El servidor manda un ping cada 20s; si pasa mucho más que eso sin
+    // ninguna señal, asumimos que la conexión quedó zombie y reconectamos.
+    const STALE_MS = 60_000;
+    const watchdogId = window.setInterval(() => {
+      if (Date.now() - lastActivity > STALE_MS) reconnect();
+    }, 15_000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") reconnect();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", reconnect);
 
     return () => {
-      source.close();
+      window.clearInterval(watchdogId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", reconnect);
+      source?.close();
     };
   }, [branchId, refreshOrders]);
 
