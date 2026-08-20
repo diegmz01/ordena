@@ -70,7 +70,7 @@ The API issues JWTs for three roles (`CUSTOMER`, `ADMIN`, `BRANCH_STAFF` — `Ro
 - `AUTH_COOKIE_BRANCH` = `ordena_branch_token` (branch)
 - `AUTH_PRESENCE_COOKIE` = `ordena_auth` — a non-HttpOnly cookie used only so client-side `middleware.ts` can cheaply detect "probably logged in" without reading the HttpOnly token
 
-All defined in `packages/shared/src/constants.ts`. `apps/admin/src/middleware.ts` and `apps/branch/src/middleware.ts` gate every route except `/login` behind presence of their cookie (redirecting to `/login?next=...`); `apps/web` has no such middleware (guest checkout is allowed).
+All defined in `packages/shared/src/constants.ts`. `apps/admin/src/middleware.ts` and `apps/branch/src/middleware.ts` gate every route except `/login` behind presence of their cookie (redirecting to `/login?next=...`); `apps/web` has no auth-gating middleware (guest checkout is allowed) — its `middleware.ts` only sets security headers (CSP, `frame-ancestors`, etc.), see below.
 
 API-side: `apps/api/src/middleware/auth.ts` exposes `authenticate` (required), `optionalAuth` (used for guest checkout), and `requireRole(...)` → `requireAdmin` / `requireBranchStaff`. Social login (Google/Facebook) goes through `apps/api/src/lib/oauth.ts` + `routes/auth.ts` using `arctic`, landing back on `apps/web` via a one-time code (`OAuthOneTimeCode`) exchanged for the session.
 
@@ -92,6 +92,8 @@ READY           → COMPLETED
 Post-accept cancellation (with Stripe refund) is a separate endpoint, `POST /orders/:id/admin-cancel`, gated by `canAdminCancelOrder()`.
 
 Payment uses Stripe Checkout in **embedded** mode (`ui_mode: "embedded"`) — the API returns the Session's `client_secret` (not a redirect URL) and `apps/web` mounts it inline on `/checkout` via `<EmbeddedCheckout>`, so the customer never leaves the PWA. Apple Pay / Google Pay appear automatically but **require registering the web app's domain** under Stripe's payment-method domains (unlike hosted Checkout) — see `docs/DEPLOY.md`. Manual capture applies: `payment_intent_data.capture_method = "manual"`. Funds are authorized at checkout and captured when the order becomes `READY` (pickup-ready) — either staff mark it ready manually or the prep-time timer promotes it automatically (`promoteDuePreparingOrders`). Marking `COMPLETED` (pickup/delivery) no longer touches Stripe; it just verifies the pickup code. There is a single platform Stripe account (`STRIPE_SECRET_KEY`) — every branch's orders capture into the same account/bank account; there is no per-branch Stripe Connect split.
+
+Card entry itself is isolated in a cross-origin Stripe iframe (our JS never sees card numbers), but `apps/web/src/middleware.ts` adds a `Content-Security-Policy` (+ `frame-ancestors`/`X-Frame-Options`) on top of that so an XSS bug elsewhere on the site can't inject a phishing overlay on `/checkout` or an external `<script src>`, and so the checkout page can't be framed by another site (clickjacking). It's a static allowlist (Stripe/Turnstile/Sentry hosts), not nonce-based — a nonce-based CSP would force every page in the app into per-request dynamic rendering (Next.js only propagates a CSP nonce to its own scripts on dynamically-rendered pages), which isn't worth trading away static generation for.
 
 ### Branch availability
 
