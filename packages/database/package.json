@@ -17,7 +17,7 @@
     "build": "prisma generate && tsc"
   },
   "dependencies": {
-    "@prisma/client": "^6.9.0",
+    "@prisma/client": "^7.9.1",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2"
   },
