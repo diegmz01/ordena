@@ -36,7 +36,10 @@ function ensureHeartbeat() {
       connectedBranchIds.push(branchId);
       for (const res of clients) {
         try {
-          res.write(": ping\n\n");
+          // Evento nombrado (no comentario SSE) para que el cliente pueda
+          // escucharlo y detectar conexiones "zombie" que el navegador no
+          // marcó como caídas (ver watchdog en apps/branch/src/app/page.tsx).
+          res.write("event: ping\ndata: {}\n\n");
         } catch {
           clients.delete(res);
         }
