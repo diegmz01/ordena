@@ -35,7 +35,7 @@
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",
     "@types/web-push": "^3.6.4",
     "typescript": "^5.8.3",
