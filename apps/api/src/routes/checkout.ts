@@ -79,10 +79,18 @@ async function existingOrderCheckoutResponse(orderId: string) {
   const session = await getStripe().checkout.sessions.retrieve(
     existing.stripeSessionId,
   );
+  // Sesión ya completada o expirada: Stripe deja de exponer el client_secret
+  // y el formulario embebido no puede montarse con él.
+  if (!session.client_secret) {
+    throw new AppError(
+      409,
+      "Este intento de pago ya no está activo. Recarga la página e intenta de nuevo.",
+    );
+  }
   return {
     orderId: existing.id,
     viewToken: existing.viewToken,
-    checkoutUrl: session.url,
+    clientSecret: session.client_secret,
     sessionId: session.id,
   };
 }
@@ -336,6 +344,11 @@ checkoutRouter.post(
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      // Embebido dentro de /checkout en vez de redirigir a la página hospedada
+      // de Stripe. Apple Pay / Google Pay se muestran solos, pero a diferencia
+      // del checkout hospedado exigen registrar el dominio de apps/web en
+      // Stripe (Dominios de métodos de pago) — ver docs/DEPLOY.md.
+      ui_mode: "embedded",
       // Mínimo permitido por Stripe; pasado esto el webhook cancela el pedido.
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       // Autoriza (congela) fondos; el cobro real ocurre al entregar (COMPLETED).
@@ -379,8 +392,9 @@ checkoutRouter.post(
         orderNumber: order.orderNumber,
         branchId: branch.id,
       },
-      success_url: `${appUrl}/pedido/${order.id}?success=1&t=${encodeURIComponent(viewToken)}`,
-      cancel_url: `${appUrl}/checkout?canceled=1&branch=${branch.id}`,
+      // En ui_mode embedded no hay cancel_url: si el cliente abandona, el
+      // pedido queda PENDING_PAYMENT y lo cancela el webhook al expirar.
+      return_url: `${appUrl}/pedido/${order.id}?success=1&t=${encodeURIComponent(viewToken)}`,
     }, parsed.idempotencyKey ? { idempotencyKey: parsed.idempotencyKey } : undefined);
 
     await prisma.order.update({
@@ -391,7 +405,7 @@ checkoutRouter.post(
     res.json({
       orderId: order.id,
       viewToken,
-      checkoutUrl: session.url,
+      clientSecret: session.client_secret,
       sessionId: session.id,
     });
   } catch (error) {

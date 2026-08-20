@@ -27,6 +27,14 @@ const serwist = new Serwist({
       matcher: ({ url }) => url.pathname.startsWith("/api-backend/"),
       handler: new NetworkOnly(),
     },
+    // Stripe.js y las llamadas del checkout embebido nunca deben servirse de
+    // caché: el catch-all cross-origin de defaultCache serviría un Stripe.js
+    // viejo y rompería la detección de Apple Pay / Google Pay.
+    {
+      matcher: ({ url }) =>
+        url.hostname === "stripe.com" || url.hostname.endsWith(".stripe.com"),
+      handler: new NetworkOnly(),
+    },
     ...defaultCache,
   ],
 });

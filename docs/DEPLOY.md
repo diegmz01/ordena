@@ -72,6 +72,17 @@ En production la API **falla al arrancar** si faltan secretos críticos (`assert
 3. Copiar signing secret → `STRIPE_WEBHOOK_SECRET`.
 4. Una sola `STRIPE_SECRET_KEY` de la cuenta de la plataforma; todos los pedidos de todas las sucursales cobran ahí — no hay cuentas separadas por sucursal.
 
+### Checkout embebido: Apple Pay / Google Pay
+
+El checkout usa `ui_mode: "embedded"`: el formulario de pago se monta dentro de `apps/web` (`/checkout`) en vez de redirigir a la página hospedada de Stripe. A diferencia del checkout hospedado, el embebido **exige registrar el dominio** para que aparezcan los botones de wallet:
+
+1. Dashboard → **Configuración → Pagos → Dominios de métodos de pago** → agregar el dominio público de `apps/web` (el exacto, incluyendo subdominio: `pedidos.tudominio.com` no cubre `www.tudominio.com`). Hay que hacerlo tanto en test como en live.
+2. Dashboard → **Configuración → Métodos de pago**: Apple Pay y Google Pay activados para la cuenta.
+3. El dominio debe servirse por HTTPS. En local usa un túnel (ngrok o similar) y registra ese host — sobre `http://localhost` los wallets no aparecen.
+4. Apple Pay dentro del checkout embebido requiere **Safari 17+** (el formulario vive en un iframe de otro dominio). En versiones anteriores el resto de métodos sigue funcionando; solo se oculta el botón de Apple Pay.
+
+Si el dominio no está registrado, el pago con tarjeta funciona igual pero los botones de wallet simplemente no se muestran.
+
 ### Captura manual → cuenta principal
 
 - El checkout crea el pago con `capture_method: manual`: al pagar solo se autorizan (congelan) los fondos.
