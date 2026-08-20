@@ -83,9 +83,8 @@ test("flujo crítico: pedido de cliente hasta entrega en sucursal", async ({
     orderId = body.orderId;
     viewToken = body.viewToken;
 
-    // Evita seguir la redirección real a la página hospedada de Stripe:
-    // en vez de "pagar" ahí, se simula la confirmación vía webhook (ver
-    // e2e/lib/stripe-webhook.ts).
+    // Evita pagar de verdad en el formulario embebido de Stripe: en vez de
+    // eso se simula la confirmación vía webhook (ver e2e/lib/stripe-webhook.ts).
     await completeCheckoutSessionViaWebhook(API_URL, body.sessionId);
   });
 

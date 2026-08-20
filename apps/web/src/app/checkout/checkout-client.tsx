@@ -15,6 +15,7 @@ import {
 import { useServiceFeeSettings } from "@/lib/service-fee";
 import { cn } from "@/lib/utils";
 import { SocialAuthButtons } from "@/components/social-auth-buttons";
+import { StripeEmbeddedCheckout } from "@/components/stripe-embedded-checkout";
 import {
   isTurnstileConfigured,
   TurnstileWidget,
@@ -45,6 +46,9 @@ export default function CheckoutClient() {
   const [showAltForm, setShowAltForm] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  // Con el client_secret montamos el formulario de Stripe embebido en esta
+  // misma página (incluye Apple Pay / Google Pay) en vez de redirigir.
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
   // Misma key en todos los submits de este intento de checkout: si el usuario
   // reenvía (doble clic, retry de red), la API reusa el pedido/Stripe Session
   // en vez de duplicarlos. Se renueva solo al volver a montar la página.
@@ -137,7 +141,7 @@ export default function CheckoutClient() {
       );
     }
 
-    const result = await apiFetch<{ checkoutUrl: string | null }>(
+    const result = await apiFetch<{ clientSecret: string | null }>(
       "/checkout",
       token,
       {
@@ -178,11 +182,11 @@ export default function CheckoutClient() {
       },
     );
 
-    if (result.checkoutUrl) {
-      window.location.href = result.checkoutUrl;
+    if (result.clientSecret) {
+      setClientSecret(result.clientSecret);
       return;
     }
-    throw new Error("Stripe no devolvió URL de checkout (revisa claves)");
+    throw new Error("Stripe no devolvió la sesión de pago (revisa claves)");
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -421,188 +425,203 @@ export default function CheckoutClient() {
         )}
       </div>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
-        {!hasToken && (
-          <div className="customer-card space-y-4 p-4">
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-white">
-                Entra para pagar más rápido
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Un toque con redes y el pedido queda en tu cuenta
-              </p>
-            </div>
-
-            <SocialAuthButtons next={returnPath} variant="primary" />
-
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
-              <span className="text-xs text-gray-500">otras opciones</span>
-              <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
-            </div>
-
-            {!showAltForm ? (
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  className="rounded-xl border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:border-orange-300 hover:text-orange-700 dark:border-gray-600 dark:text-gray-300"
-                  onClick={() => {
-                    setMode("guest");
-                    setShowAltForm(true);
-                  }}
-                >
-                  Continuar como invitado
-                </button>
-                <button
-                  type="button"
-                  className="rounded-xl border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:border-orange-300 hover:text-orange-700 dark:border-gray-600 dark:text-gray-300"
-                  onClick={() => {
-                    setMode("register");
-                    setShowAltForm(true);
-                  }}
-                >
-                  Registro con email
-                </button>
+      {clientSecret ? (
+        <div className="mt-6 space-y-4">
+          <StripeEmbeddedCheckout clientSecret={clientSecret} />
+          <div className="text-center">
+            <button
+              type="button"
+              className="link-action"
+              onClick={() => setClientSecret(null)}
+            >
+              Volver al resumen
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+          {!hasToken && (
+            <div className="customer-card space-y-4 p-4">
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-white">
+                  Entra para pagar más rápido
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Un toque con redes y el pedido queda en tu cuenta
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
+  
+              <SocialAuthButtons next={returnPath} variant="primary" />
+  
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+                <span className="text-xs text-gray-500">otras opciones</span>
+                <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+              </div>
+  
+              {!showAltForm ? (
+                <div className="grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
-                    className={cn(
-                      "admin-tab-pill",
-                      mode === "guest" && "admin-tab-pill-active",
-                    )}
-                    onClick={() => setMode("guest")}
+                    className="rounded-xl border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:border-orange-300 hover:text-orange-700 dark:border-gray-600 dark:text-gray-300"
+                    onClick={() => {
+                      setMode("guest");
+                      setShowAltForm(true);
+                    }}
                   >
-                    Invitado
+                    Continuar como invitado
                   </button>
                   <button
                     type="button"
-                    className={cn(
-                      "admin-tab-pill",
-                      mode === "register" && "admin-tab-pill-active",
-                    )}
-                    onClick={() => setMode("register")}
+                    className="rounded-xl border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:border-orange-300 hover:text-orange-700 dark:border-gray-600 dark:text-gray-300"
+                    onClick={() => {
+                      setMode("register");
+                      setShowAltForm(true);
+                    }}
                   >
-                    Crear cuenta
-                  </button>
-                  <button
-                    type="button"
-                    className="ml-auto text-xs text-gray-500 underline"
-                    onClick={() => setShowAltForm(false)}
-                  >
-                    Volver
+                    Registro con email
                   </button>
                 </div>
-
-                {mode === "guest" ? (
-                  <div className="space-y-3">
-                    <p className="text-xs text-gray-500">
-                      Pedirás sin registrarte. Solo usamos estos datos para el
-                      pedido.
-                    </p>
-                    <input
-                      name="guestName"
-                      placeholder="Nombre"
-                      required
-                      minLength={2}
-                      className="input-field"
-                    />
-                    <input
-                      name="guestEmail"
-                      type="email"
-                      placeholder="Email"
-                      required
-                      className="input-field"
-                    />
-                    <input
-                      name="guestPhone"
-                      placeholder="Teléfono"
-                      required
-                      minLength={8}
-                      className="input-field"
-                    />
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className={cn(
+                        "admin-tab-pill",
+                        mode === "guest" && "admin-tab-pill-active",
+                      )}
+                      onClick={() => setMode("guest")}
+                    >
+                      Invitado
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "admin-tab-pill",
+                        mode === "register" && "admin-tab-pill-active",
+                      )}
+                      onClick={() => setMode("register")}
+                    >
+                      Crear cuenta
+                    </button>
+                    <button
+                      type="button"
+                      className="ml-auto text-xs text-gray-500 underline"
+                      onClick={() => setShowAltForm(false)}
+                    >
+                      Volver
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-xs text-gray-500">
-                      Crea tu cuenta y paga en el mismo paso.
-                    </p>
-                    <input
-                      name="regName"
-                      placeholder="Nombre"
-                      required
-                      minLength={2}
-                      className="input-field"
-                    />
-                    <input
-                      name="regEmail"
-                      type="email"
-                      placeholder="Email"
-                      required
-                      className="input-field"
-                    />
-                    <input
-                      name="regPhone"
-                      placeholder="Teléfono (opcional)"
-                      className="input-field"
-                    />
-                    <input
-                      name="regPassword"
-                      type="password"
-                      placeholder="Contraseña (mín. 10)"
-                      required
-                      minLength={10}
-                      className="input-field"
-                      autoComplete="new-password"
-                    />
-                  </div>
-                )}
-
-                <TurnstileWidget
-                  key={turnstileResetKey}
-                  onVerify={setTurnstileToken}
-                  onExpire={() => setTurnstileToken(null)}
-                />
-              </div>
-            )}
-
-            <p className="text-center text-xs text-gray-500">
-              ¿Ya tienes cuenta?{" "}
-              <Link
-                href={`/login?next=${encodeURIComponent(returnPath)}`}
-                className="text-orange-600 underline"
-              >
-                Inicia sesión
-              </Link>
-            </p>
-          </div>
-        )}
-
-        <textarea
-          name="notes"
-          placeholder="Notas para la cocina (opcional)"
-          className="input-field min-h-20 py-2"
-        />
-        {error && <p className="admin-alert-error">{error}</p>}
-        <button
-          type="submit"
-          disabled={pending || (!hasToken && !showAltForm)}
-          className="btn-primary w-full py-3.5 text-base"
-        >
-          {pending
-            ? mode === "register" && !hasToken
-              ? "Creando cuenta y pagando…"
-              : "Redirigiendo a Stripe…"
-            : !hasToken && !showAltForm
-              ? "Elige cómo continuar arriba"
-              : `Continuar al pago · ${formatMoney(total)}`}
-        </button>
-        <p className="text-center text-xs text-gray-500">
-          Autorización segura con Stripe · Se cobra al quedar listo
-        </p>
-      </form>
+  
+                  {mode === "guest" ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-gray-500">
+                        Pedirás sin registrarte. Solo usamos estos datos para el
+                        pedido.
+                      </p>
+                      <input
+                        name="guestName"
+                        placeholder="Nombre"
+                        required
+                        minLength={2}
+                        className="input-field"
+                      />
+                      <input
+                        name="guestEmail"
+                        type="email"
+                        placeholder="Email"
+                        required
+                        className="input-field"
+                      />
+                      <input
+                        name="guestPhone"
+                        placeholder="Teléfono"
+                        required
+                        minLength={8}
+                        className="input-field"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-gray-500">
+                        Crea tu cuenta y paga en el mismo paso.
+                      </p>
+                      <input
+                        name="regName"
+                        placeholder="Nombre"
+                        required
+                        minLength={2}
+                        className="input-field"
+                      />
+                      <input
+                        name="regEmail"
+                        type="email"
+                        placeholder="Email"
+                        required
+                        className="input-field"
+                      />
+                      <input
+                        name="regPhone"
+                        placeholder="Teléfono (opcional)"
+                        className="input-field"
+                      />
+                      <input
+                        name="regPassword"
+                        type="password"
+                        placeholder="Contraseña (mín. 10)"
+                        required
+                        minLength={10}
+                        className="input-field"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  )}
+  
+                  <TurnstileWidget
+                    key={turnstileResetKey}
+                    onVerify={setTurnstileToken}
+                    onExpire={() => setTurnstileToken(null)}
+                  />
+                </div>
+              )}
+  
+              <p className="text-center text-xs text-gray-500">
+                ¿Ya tienes cuenta?{" "}
+                <Link
+                  href={`/login?next=${encodeURIComponent(returnPath)}`}
+                  className="text-orange-600 underline"
+                >
+                  Inicia sesión
+                </Link>
+              </p>
+            </div>
+          )}
+  
+          <textarea
+            name="notes"
+            placeholder="Notas para la cocina (opcional)"
+            className="input-field min-h-20 py-2"
+          />
+          {error && <p className="admin-alert-error">{error}</p>}
+          <button
+            type="submit"
+            disabled={pending || (!hasToken && !showAltForm)}
+            className="btn-primary w-full py-3.5 text-base"
+          >
+            {pending
+              ? mode === "register" && !hasToken
+                ? "Creando cuenta y pagando…"
+                : "Preparando el pago…"
+              : !hasToken && !showAltForm
+                ? "Elige cómo continuar arriba"
+                : `Continuar al pago · ${formatMoney(total)}`}
+          </button>
+          <p className="text-center text-xs text-gray-500">
+            Autorización segura con Stripe · Se cobra al quedar listo
+          </p>
+        </form>
+      )}
     </div>
   );
 }
