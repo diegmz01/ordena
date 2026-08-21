@@ -4,10 +4,11 @@ import {
   AUTH_COOKIE_BRANCH,
   AUTH_COOKIE_CUSTOMER,
 } from "@ordena/shared";
+import { SESSION_TTL_SEC } from "./session-token";
 
 export type AuthAudience = "customer" | "admin" | "branch";
 
-const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const SESSION_MAX_AGE_MS = SESSION_TTL_SEC * 1000;
 
 export function cookieNameForAudience(audience: AuthAudience): string {
   if (audience === "admin") return AUTH_COOKIE_ADMIN;

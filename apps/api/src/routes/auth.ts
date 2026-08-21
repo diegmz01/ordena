@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { prisma } from "@ordena/database";
 import {
   forgotPasswordSchema,
@@ -17,7 +16,7 @@ import {
   authenticate,
   type AuthenticatedRequest,
 } from "../middleware/auth";
-import { getJwtSecret } from "../utils/jwt";
+import { signSessionToken } from "../utils/session-token";
 import {
   OAUTH_COOKIE,
   buildAuthorizationUrl,
@@ -54,8 +53,6 @@ function hashResetToken(token: string): string {
 
 export const authRouter = Router();
 
-const SESSION_TTL = "7d";
-
 function toAuthUser(user: {
   id: string;
   email: string;
@@ -88,16 +85,7 @@ function issueToken(user: {
   name: string | null;
   phone?: string | null;
 }): LoginResponse {
-  const access_token = jwt.sign(
-    {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      branchId: user.branchId,
-    },
-    getJwtSecret(),
-    { expiresIn: SESSION_TTL },
-  );
+  const access_token = signSessionToken(user);
   return { access_token, user: toAuthUser(user) };
 }
 
