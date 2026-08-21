@@ -348,7 +348,9 @@ checkoutRouter.post(
       // de Stripe. Apple Pay / Google Pay se muestran solos, pero a diferencia
       // del checkout hospedado exigen registrar el dominio de apps/web en
       // Stripe (Dominios de métodos de pago) — ver docs/DEPLOY.md.
-      ui_mode: "embedded",
+      // Stripe renombró este valor: "embedded" fue reemplazado por
+      // "embedded_page" (el modo anterior dejó de estar soportado).
+      ui_mode: "embedded_page",
       // Mínimo permitido por Stripe; pasado esto el webhook cancela el pedido.
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       // Autoriza (congela) fondos; el cobro real ocurre al entregar (COMPLETED).
