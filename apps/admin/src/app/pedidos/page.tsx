@@ -251,14 +251,11 @@ export default function AdminOrdersPage() {
     const active = orders.filter((o) =>
       ["PAID", "ACCEPTED", "PREPARING", "READY"].includes(o.status),
     ).length;
-    const pendingPay = orders.filter(
-      (o) => o.status === "PENDING_PAYMENT",
-    ).length;
     const withTicket = orders.filter((o) => o.ptvTicket != null).length;
     const stuck = orders.filter(
       (o) => getPaidOrderWaitStatus(o.status, o.paidAt, now) != null,
     ).length;
-    return { active, pendingPay, withTicket, stuck, total: orders.length };
+    return { active, withTicket, stuck, total: orders.length };
   }, [orders, now]);
 
   const filtered = useMemo(() => {
@@ -308,7 +305,7 @@ export default function AdminOrdersPage() {
 
       {error && <p className="admin-alert-error">{error}</p>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           {
             label: "Total",
@@ -321,12 +318,6 @@ export default function AdminOrdersPage() {
             value: summary.active,
             hint: "Pagado → listo",
             tone: "text-orange-600",
-          },
-          {
-            label: "Sin pagar",
-            value: summary.pendingPay,
-            hint: "Esperando Stripe",
-            tone: "text-amber-600",
           },
           {
             label: "Con PTV",

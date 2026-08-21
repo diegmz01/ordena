@@ -2,14 +2,24 @@ import { Router } from "express";
 import express from "express";
 import { fetchStripeCardSummary, getStripe } from "../utils/stripe";
 import { notifyBranchNewOrder } from "../utils/sse";
-import {
-  notifyCustomerOrderStatus,
-  notifyStaffNewOrder,
-} from "../utils/web-push";
+import { notifyStaffNewOrder } from "../utils/web-push";
 import { nextBranchDayNumber } from "../utils/branch-day-number";
 import { prisma } from "@ordena/database";
 
 export const stripeWebhookRouter = Router();
+
+/** Snapshot guardado en PendingCheckout.itemsJson — misma forma que espera items.create. */
+type PendingItemSnapshot = {
+  productId: string;
+  productName: string;
+  variantName?: string;
+  secondaryProductId?: string;
+  secondaryProductName?: string;
+  plateLabel: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+};
 
 stripeWebhookRouter.post(
   "/",
@@ -36,122 +46,125 @@ stripeWebhookRouter.post(
 
     // Con capture_method: manual, session completed = fondos autorizados
     // (congelados), no cobrados aún. El cobro ocurre al marcar COMPLETED.
+    // El pedido no existe todavía en este punto (ver PendingCheckout en
+    // checkout.ts) — acá es donde se crea de verdad, ya con el pago
+    // confirmado. Antes de esto solo hay un PendingCheckout, que no es un
+    // Order ni aparece en el admin.
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      const order = await prisma.order.findUnique({
-        where: { stripeSessionId: session.id },
-      });
+      const paymentIntentId =
+        typeof session.payment_intent === "string"
+          ? session.payment_intent
+          : session.payment_intent?.id;
 
-      if (!order) {
-        console.error(
-          "[stripe.webhook] order not found for session",
-          session.id,
-        );
-      } else if (order.status !== "PENDING_PAYMENT") {
-        console.error(
-          "[stripe.webhook] order already past PENDING_PAYMENT, skipping",
-          order.id,
-          order.status,
-        );
-      }
+      const paidAt = new Date();
+      const card = await fetchStripeCardSummary(paymentIntentId);
 
-      if (order && order.status === "PENDING_PAYMENT") {
-        const paymentIntentId =
-          typeof session.payment_intent === "string"
-            ? session.payment_intent
-            : session.payment_intent?.id;
+      // Claim atómico: si Stripe reentrega/duplica este evento, solo la
+      // primera entrega que todavía encuentra el PendingCheckout gana la
+      // carrera (delete lo consume) y notifica; las demás ven pc === null
+      // (ya sea porque otra entrega ganó, o porque la sesión es desconocida)
+      // y no hacen nada.
+      let order = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          order = await prisma.$transaction(async (tx) => {
+            const pc = await tx.pendingCheckout
+              .delete({ where: { stripeSessionId: session.id } })
+              .catch((err) => {
+                const code =
+                  err && typeof err === "object" && "code" in err
+                    ? String((err as { code?: string }).code)
+                    : "";
+                if (code === "P2025") return null;
+                throw err;
+              });
+            if (!pc) return null;
 
-        const paidAt = new Date();
-        let dayMeta = await nextBranchDayNumber(
-          prisma,
-          order.branchId,
-          paidAt,
-        );
-        const card = await fetchStripeCardSummary(paymentIntentId);
+            const dayMeta = await nextBranchDayNumber(tx, pc.branchId, paidAt);
 
-        // Claim atómico por estado: si Stripe reentrega/duplica este evento,
-        // solo la primera entrega que sigue viendo PENDING_PAYMENT gana la
-        // carrera y notifica; las demás se detectan vía count === 0 y salen.
-        let claimed = false;
-        for (let attempt = 0; attempt < 5; attempt++) {
-          try {
-            const result = await prisma.order.updateMany({
-              where: { id: order.id, status: "PENDING_PAYMENT" },
+            return tx.order.create({
               data: {
+                id: pc.id,
+                orderNumber: pc.orderNumber,
+                viewToken: pc.viewToken,
+                idempotencyKey: pc.idempotencyKey,
                 status: "PAID",
+                branchId: pc.branchId,
+                userId: pc.userId,
+                guestName: pc.guestName,
+                guestEmail: pc.guestEmail,
+                guestPhone: pc.guestPhone,
+                subtotal: pc.subtotal,
+                serviceFee: pc.serviceFee,
+                total: pc.total,
+                notes: pc.notes,
+                stripeSessionId: session.id,
+                stripePaymentIntentId: paymentIntentId ?? null,
                 paidAt,
                 lastStaffAlertAt: paidAt,
-                stripePaymentIntentId: paymentIntentId ?? null,
                 dayNumber: dayMeta.dayNumber,
                 businessDate: dayMeta.businessDate,
                 paymentBrand: card.paymentBrand,
                 paymentFunding: card.paymentFunding,
                 paymentLast4: card.paymentLast4,
+                items: {
+                  create: pc.itemsJson as unknown as PendingItemSnapshot[],
+                },
               },
             });
-            claimed = result.count > 0;
-            break;
-          } catch (err) {
-            const code =
-              err && typeof err === "object" && "code" in err
-                ? String((err as { code?: string }).code)
-                : "";
-            if (code !== "P2002" || attempt === 4) throw err;
-            dayMeta = await nextBranchDayNumber(prisma, order.branchId, paidAt);
-          }
+          });
+          break;
+        } catch (err) {
+          const code =
+            err && typeof err === "object" && "code" in err
+              ? String((err as { code?: string }).code)
+              : "";
+          // Choque en (branchId, businessDate, dayNumber): toda la tx hizo
+          // rollback (incluido el delete), así que el PendingCheckout sigue
+          // ahí y reintentar desde cero es seguro.
+          if (code !== "P2002" || attempt === 4) throw err;
+        }
+      }
+
+      if (order) {
+        try {
+          await notifyBranchNewOrder(order.branchId, {
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+          });
+        } catch (sseError) {
+          console.error("[stripe.webhook] sse", sseError);
         }
 
-        if (claimed) {
-          try {
-            await notifyBranchNewOrder(order.branchId, {
-              orderId: order.id,
-              orderNumber: order.orderNumber,
-            });
-          } catch (sseError) {
-            console.error("[stripe.webhook] sse", sseError);
-          }
-
-          try {
-            await notifyStaffNewOrder({
-              branchId: order.branchId,
-              id: order.id,
-              orderNumber: order.orderNumber,
-            });
-          } catch (pushError) {
-            console.error("[stripe.webhook] web-push", pushError);
-          }
+        try {
+          await notifyStaffNewOrder({
+            branchId: order.branchId,
+            id: order.id,
+            orderNumber: order.orderNumber,
+          });
+        } catch (pushError) {
+          console.error("[stripe.webhook] web-push", pushError);
         }
+      } else {
+        console.error(
+          "[stripe.webhook] pending checkout not found for session (ya convertido, o sesión desconocida)",
+          session.id,
+        );
       }
     }
 
-    // Sesión de Checkout expirada (24h por default) sin completar el pago:
-    // el cliente abandonó el flujo. El PaymentIntent no confirmado ya fue
-    // cancelado automáticamente por Stripe, así que no hay nada que liberar.
+    // Sesión de Checkout expirada sin completar el pago: el cliente
+    // abandonó el flujo. No hay pedido que cancelar — nunca se creó ninguno,
+    // así que basta con borrar el intento pendiente. El PaymentIntent no
+    // confirmado ya fue cancelado automáticamente por Stripe.
     if (event.type === "checkout.session.expired") {
       const session = event.data.object;
-      const order = await prisma.order.findUnique({
+      // count === 0 es normal si ya se había convertido en Order (otra
+      // entrega del webhook .completed ganó la carrera) — no-op.
+      await prisma.pendingCheckout.deleteMany({
         where: { stripeSessionId: session.id },
       });
-
-      if (order && order.status === "PENDING_PAYMENT") {
-        const result = await prisma.order.updateMany({
-          where: { id: order.id, status: "PENDING_PAYMENT" },
-          data: {
-            status: "CANCELLED",
-            cancellationReason:
-              "El cliente no completó el pago a tiempo (sesión de Stripe expirada)",
-            cancelledByCustomer: false,
-          },
-        });
-
-        if (result.count > 0) {
-          try {
-            await notifyCustomerOrderStatus({ ...order, status: "CANCELLED" });
-          } catch (pushError) {
-            console.error("[stripe.webhook] web-push", pushError);
-          }
-        }
-      }
     }
 
     return res.json({ received: true });
