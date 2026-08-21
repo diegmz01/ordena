@@ -65,7 +65,20 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         !isFocusedPayment && "pb-20 md:pb-0",
       )}
     >
-      {!isFocusedPayment && (
+      {isFocusedPayment ? (
+      <header className="site-header sticky top-0 z-40">
+        {/* Mismo hueco de status bar que el header normal, para que los
+            iconos del sistema sigan legibles arriba del formulario de Stripe. */}
+        <div
+          className="bg-orange-500"
+          style={{ height: "env(safe-area-inset-top, 0px)" }}
+          aria-hidden
+        />
+        <div className="mx-auto flex h-16 max-w-xl items-center justify-center px-4">
+          <BrandLogo height={36} priority />
+        </div>
+      </header>
+      ) : (
       <header
         className={cn(
           "sticky top-0 z-40 transition-colors",
