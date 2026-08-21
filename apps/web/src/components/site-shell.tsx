@@ -59,9 +59,15 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     null;
 
   return (
+    // Este div (no el documento) es el que hace scroll -- body/html quedan
+    // fijos (ver layout.tsx). En iOS/WebKit, cuando el documento mismo es el
+    // scroller, los elementos `position: fixed` (el nav inferior) se
+    // desprenden visualmente y flotan a mitad del scroll antes de "encajar"
+    // de vuelta. Con el scroll movido a un contenedor interno el viewport
+    // nunca se mueve, así que ese bug no puede ocurrir.
     <div
       className={cn(
-        "flex min-h-full flex-col",
+        "flex h-full flex-col overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]",
         !isFocusedPayment && "pb-20 md:pb-0",
       )}
     >
