@@ -16,10 +16,13 @@ export function BrandLogo({
   height = 28,
   priority = false,
 }: BrandLogoProps) {
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, forcedTheme } = useTheme();
   const mounted = useHydrated();
 
-  const isDark = mounted && resolvedTheme === "dark";
+  // forcedTheme (p.ej. /checkout/pagar) fuerza la clase del DOM, pero
+  // resolvedTheme sigue reflejando la preferencia real del usuario/sistema
+  // -- hay que priorizar forcedTheme para que el logo coincida con el fondo.
+  const isDark = mounted && (forcedTheme ?? resolvedTheme) === "dark";
   // viewBox 1224 x 456.6 ≈ ratio 2.68
   const width = Math.round(height * 2.68);
 
