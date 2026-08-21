@@ -25,9 +25,9 @@ export default function PagarClient() {
   }
 
   return (
-    <div className="container-page max-w-xl py-8">
+    <div>
       <StripeEmbeddedCheckout clientSecret={pending.clientSecret} />
-      <div className="mt-4 text-center">
+      <div className="mt-4 pb-8 text-center">
         <button
           type="button"
           className="link-action"
