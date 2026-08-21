@@ -337,6 +337,10 @@ export default function OrderPageClient({
   viewToken?: string;
 }) {
   const [order, setOrder] = useState<Order | null>(null);
+  // El webhook de Stripe puede tardar un instante en convertir el intento de
+  // pago en un pedido real; mientras tanto la API responde `pending: true`
+  // en vez de 404 (ver GET /orders/:id).
+  const [pendingConfirmation, setPendingConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [notifyModalOpen, setNotifyModalOpen] = useState(false);
@@ -382,31 +386,43 @@ export default function OrderPageClient({
 
   useEffect(() => {
     let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
     async function load() {
       try {
         const t = resolveTrackingToken(id, viewToken);
         const token = getAuthToken();
         const qs = t ? `?t=${encodeURIComponent(t)}` : "";
-        const res = await apiFetch<{ data: Order }>(
+        const res = await apiFetch<{ data: Order | null; pending?: boolean }>(
           `/orders/${id}${qs}`,
           token,
         );
-        if (alive) {
+        if (!alive) return;
+        if (res.pending) {
+          // Todavía no hay pedido (webhook en camino): reintenta seguido,
+          // la ventana debería ser de milisegundos a pocos segundos.
+          setPendingConfirmation(true);
+          setError(null);
+          timer = setTimeout(() => void load(), 2000);
+          return;
+        }
+        if (res.data) {
           setOrder(res.data);
+          setPendingConfirmation(false);
           setUpdatedAt(new Date());
           setError(null);
         }
+        timer = setTimeout(() => void load(), 8000);
       } catch (err) {
         if (alive) {
           setError(err instanceof Error ? err.message : "Error al cargar");
+          timer = setTimeout(() => void load(), 8000);
         }
       }
     }
     void load();
-    const timer = setInterval(() => void load(), 8000);
     return () => {
       alive = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [id, viewToken]);
 
@@ -515,11 +531,23 @@ export default function OrderPageClient({
               Pago autorizado
             </p>
           )}
-          {!order && !error && (
+          {!order && !error && !pendingConfirmation && (
             <div className="space-y-3">
               <div className="skeleton h-4 w-24" />
               <div className="skeleton h-10 w-48" />
               <div className="skeleton h-4 w-64" />
+            </div>
+          )}
+          {!order && pendingConfirmation && (
+            <div className="space-y-2">
+              <p className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-orange-400 opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
+                </span>
+                Confirmando tu pago…
+              </p>
+              <p className="text-sm text-gray-500">No cierres esta pantalla.</p>
             </div>
           )}
           {order && meta && (

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Router } from "express";
 import Stripe from "stripe";
 import { prisma } from "@ordena/database";
@@ -24,6 +25,13 @@ import {
 import { findUnavailableCartLines } from "../utils/validate-cart-stock";
 
 export const checkoutRouter = Router();
+
+type CheckoutResponse = {
+  orderId: string;
+  viewToken: string;
+  clientSecret: string;
+  sessionId: string;
+};
 
 function assertStripeConfigured() {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
@@ -59,25 +67,14 @@ async function assertBranchAcceptingOrders(branchId: string) {
   return branch;
 }
 
-/** Respuesta de checkout para un pedido ya existente (retry idempotente). */
-async function existingOrderCheckoutResponse(orderId: string) {
-  const existing = await prisma.order.findUniqueOrThrow({
-    where: { id: orderId },
-  });
-  if (existing.status === "CANCELLED") {
-    throw new AppError(
-      409,
-      "Este intento de pago ya fue cancelado. Recarga la página e intenta de nuevo.",
-    );
-  }
-  if (!existing.stripeSessionId) {
-    throw new AppError(
-      409,
-      "Tu pedido anterior todavía se está procesando. Espera unos segundos.",
-    );
-  }
+/** Respuesta de checkout para un intento de pago ya en curso (retry idempotente). */
+async function pendingCheckoutResponse(pending: {
+  id: string;
+  viewToken: string;
+  stripeSessionId: string;
+}): Promise<CheckoutResponse> {
   const session = await getStripe().checkout.sessions.retrieve(
-    existing.stripeSessionId,
+    pending.stripeSessionId,
   );
   // Sesión ya completada o expirada: Stripe deja de exponer el client_secret
   // y el formulario embebido no puede montarse con él.
@@ -88,11 +85,42 @@ async function existingOrderCheckoutResponse(orderId: string) {
     );
   }
   return {
-    orderId: existing.id,
-    viewToken: existing.viewToken,
+    orderId: pending.id,
+    viewToken: pending.viewToken,
     clientSecret: session.client_secret,
     sessionId: session.id,
   };
+}
+
+/**
+ * Doble submit / retry de red con la misma idempotencyKey → reusar el
+ * intento de pago (o el pedido, si ya se pagó) en vez de duplicarlo.
+ */
+async function findExistingCheckoutByIdempotencyKey(
+  idempotencyKey: string,
+): Promise<CheckoutResponse | null> {
+  const pending = await prisma.pendingCheckout.findUnique({
+    where: { idempotencyKey },
+  });
+  if (pending) {
+    return pendingCheckoutResponse(pending);
+  }
+
+  // El webhook ya convirtió este intento en un pedido real antes de que
+  // llegara el retry: no hay client_secret que devolver (Stripe ya cobró),
+  // avisamos en vez de intentar reabrir o duplicar el pago.
+  const order = await prisma.order.findUnique({
+    where: { idempotencyKey },
+    select: { id: true },
+  });
+  if (order) {
+    throw new AppError(
+      409,
+      'Ya completaste el pago de este pedido. Revisa "Mis pedidos".',
+    );
+  }
+
+  return null;
 }
 
 /** Público: valida stock del carrito en vivo (sin crear pedido ni Stripe). */
@@ -123,22 +151,18 @@ checkoutRouter.post(
   // autenticado pasó login (que ya exige Turnstile) para llegar hasta acá.
   requireTurnstile({ skip: (req) => !!(req as AuthenticatedRequest).authUser }),
   async (req: AuthenticatedRequest, res, next) => {
-  let createdOrderId: string | null = null;
   try {
     assertStripeConfigured();
 
     const parsed = guestCheckoutSchema.parse(req.body);
     const user = req.authUser;
 
-    // Doble submit / retry de red con la misma idempotencyKey → reusar el
-    // pedido/Stripe Session ya creados en vez de duplicarlos.
     if (parsed.idempotencyKey) {
-      const existing = await prisma.order.findUnique({
-        where: { idempotencyKey: parsed.idempotencyKey },
-        select: { id: true },
-      });
+      const existing = await findExistingCheckoutByIdempotencyKey(
+        parsed.idempotencyKey,
+      );
       if (existing) {
-        res.json(await existingOrderCheckoutResponse(existing.id));
+        res.json(existing);
         return;
       }
     }
@@ -273,71 +297,13 @@ checkoutRouter.post(
     });
     const serviceFee = computeServiceFee(feeSettings, subtotal);
 
+    // Pre-generados: el Order real (creado recién cuando el webhook confirme
+    // el pago) va a reusar este mismo id/viewToken, así que el return_url de
+    // Stripe (construido acá abajo, antes de que el pedido exista) ya apunta
+    // al lugar correcto.
+    const pendingId = randomUUID();
     const viewToken = generateViewToken();
-    let order;
-    try {
-      order = await prisma.order.create({
-        data: {
-          orderNumber: generateOrderNumber(),
-          viewToken,
-          idempotencyKey: parsed.idempotencyKey ?? null,
-          branchId: branch.id,
-          userId: user?.id ?? null,
-          guestName: user ? null : parsed.guestName,
-          guestEmail: user ? null : parsed.guestEmail,
-          guestPhone: user ? null : parsed.guestPhone,
-          subtotal,
-          discount: 0,
-          serviceFee,
-          total: subtotal + serviceFee,
-          notes: parsed.notes,
-          items: {
-            create: resolvedItems.map(
-              ({
-                productId,
-                productName,
-                variantName,
-                secondaryProductId,
-                secondaryProductName,
-                plateLabel,
-                unitPrice,
-                quantity,
-                lineTotal,
-              }) => ({
-                productId,
-                productName,
-                variantName,
-                secondaryProductId,
-                secondaryProductName,
-                plateLabel,
-                unitPrice,
-                quantity,
-                lineTotal,
-              }),
-            ),
-          },
-        },
-      });
-    } catch (error) {
-      // Carrera: dos requests con la misma idempotencyKey crearon el Order casi
-      // a la vez; el constraint único la detecta acá. Devolvemos el que ganó.
-      const isUniqueClash =
-        parsed.idempotencyKey &&
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as { code?: string }).code === "P2002";
-      if (isUniqueClash) {
-        const winner = await prisma.order.findUniqueOrThrow({
-          where: { idempotencyKey: parsed.idempotencyKey },
-          select: { id: true },
-        });
-        res.json(await existingOrderCheckoutResponse(winner.id));
-        return;
-      }
-      throw error;
-    }
-    createdOrderId = order.id;
+    const orderNumber = generateOrderNumber();
 
     const appUrl = process.env.CUSTOMER_URL ?? "http://localhost:3000";
     const stripe = getStripe();
@@ -351,14 +317,15 @@ checkoutRouter.post(
       // Stripe renombró este valor: "embedded" fue reemplazado por
       // "embedded_page" (el modo anterior dejó de estar soportado).
       ui_mode: "embedded_page",
-      // Mínimo permitido por Stripe; pasado esto el webhook cancela el pedido.
+      // Mínimo permitido por Stripe; pasado esto el webhook borra el intento
+      // de pago pendiente (nunca llegó a existir un pedido que cancelar).
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       // Autoriza (congela) fondos; el cobro real ocurre al entregar (COMPLETED).
       payment_intent_data: {
         capture_method: "manual",
         metadata: {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
+          orderId: pendingId,
+          orderNumber,
           branchId: branch.id,
         },
       },
@@ -390,36 +357,66 @@ checkoutRouter.post(
           : []),
       ],
       metadata: {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
+        orderId: pendingId,
+        orderNumber,
         branchId: branch.id,
       },
-      // En ui_mode embedded no hay cancel_url: si el cliente abandona, el
-      // pedido queda PENDING_PAYMENT y lo cancela el webhook al expirar.
-      return_url: `${appUrl}/pedido/${order.id}?success=1&t=${encodeURIComponent(viewToken)}`,
+      // En ui_mode embedded_page no hay cancel_url: si el cliente abandona,
+      // el webhook borra este PendingCheckout cuando Stripe expira la sesión.
+      return_url: `${appUrl}/pedido/${pendingId}?success=1&t=${encodeURIComponent(viewToken)}`,
     }, parsed.idempotencyKey ? { idempotencyKey: parsed.idempotencyKey } : undefined);
 
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { stripeSessionId: session.id },
-    });
+    let pending;
+    try {
+      pending = await prisma.pendingCheckout.create({
+        data: {
+          id: pendingId,
+          viewToken,
+          orderNumber,
+          idempotencyKey: parsed.idempotencyKey ?? null,
+          branchId: branch.id,
+          userId: user?.id ?? null,
+          guestName: user ? null : parsed.guestName,
+          guestEmail: user ? null : parsed.guestEmail,
+          guestPhone: user ? null : parsed.guestPhone,
+          subtotal,
+          serviceFee,
+          total: subtotal + serviceFee,
+          notes: parsed.notes,
+          itemsJson: resolvedItems,
+          stripeSessionId: session.id,
+        },
+      });
+    } catch (error) {
+      // Carrera: dos requests con la misma idempotencyKey llegaron casi a la
+      // vez y ambas crearon una Stripe Session; el constraint único de acá
+      // detecta la segunda. Dejamos que esta sesión sobrante expire sola y
+      // devolvemos la que ganó la carrera.
+      const isUniqueClash =
+        parsed.idempotencyKey &&
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: string }).code === "P2002";
+      if (isUniqueClash && parsed.idempotencyKey) {
+        const existing = await findExistingCheckoutByIdempotencyKey(
+          parsed.idempotencyKey,
+        );
+        if (existing) {
+          res.json(existing);
+          return;
+        }
+      }
+      throw error;
+    }
 
     res.json({
-      orderId: order.id,
+      orderId: pending.id,
       viewToken,
       clientSecret: session.client_secret,
       sessionId: session.id,
     });
   } catch (error) {
-    if (createdOrderId) {
-      await prisma.order
-        .update({
-          where: { id: createdOrderId },
-          data: { status: "CANCELLED" },
-        })
-        .catch(() => undefined);
-    }
-
     if (error instanceof Stripe.errors.StripeError) {
       return next(
         new AppError(

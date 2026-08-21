@@ -582,6 +582,23 @@ ordersRouter.get(
         },
       });
       if (!order) {
+        // El pago puede estar recién autorizado y el webhook de Stripe
+        // todavía no convirtió el PendingCheckout en un Order real — el
+        // cliente ya fue redirigido acá (return_url) así que en vez de un
+        // 404 devolvemos "pending" para que la página siga esperando/
+        // sondeando en vez de mostrar un error.
+        const pending = await prisma.pendingCheckout.findUnique({
+          where: { id: String(req.params.id) },
+        });
+        const pendingViewToken =
+          typeof req.query.t === "string" ? req.query.t.trim() : "";
+        if (
+          pending &&
+          pendingViewToken &&
+          pendingViewToken === pending.viewToken
+        ) {
+          return res.json({ data: null, pending: true });
+        }
         throw new AppError(404, "Pedido no encontrado");
       }
 
@@ -950,91 +967,6 @@ ordersRouter.post(
       }
 
       res.json({ data: cancelled });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Admin: fuerza la expiración de la sesión de Stripe Checkout de un pedido
- * PENDING_PAYMENT abandonado. Solo dispara `checkout.session.expired` en
- * Stripe — la cancelación real la hace el webhook (única puerta de salida
- * de PENDING_PAYMENT), así que esperamos brevemente a que llegue antes de
- * responder, en vez de duplicar esa lógica acá.
- */
-ordersRouter.post(
-  "/:id/expire-checkout-session",
-  authenticate,
-  requireAdmin,
-  async (req: AuthenticatedRequest, res, next) => {
-    try {
-      const order = await prisma.order.findUnique({
-        where: { id: String(req.params.id) },
-        include: adminOrderDetailInclude,
-      });
-      if (!order) {
-        throw new AppError(404, "Pedido no encontrado");
-      }
-
-      if (order.status !== "PENDING_PAYMENT") {
-        throw new AppError(
-          400,
-          `No se puede expirar el pago de un pedido en estado ${order.status}`,
-        );
-      }
-
-      if (!order.stripeSessionId) {
-        throw new AppError(
-          400,
-          "Este pedido no tiene una sesión de Stripe asociada",
-        );
-      }
-
-      try {
-        await getStripe().checkout.sessions.expire(order.stripeSessionId);
-      } catch (error) {
-        const alreadyClosed =
-          error instanceof Stripe.errors.StripeInvalidRequestError &&
-          /expired|complete/i.test(error.message);
-        if (!alreadyClosed) {
-          if (error instanceof Stripe.errors.StripeError) {
-            throw new AppError(502, `Error de Stripe: ${error.message}`);
-          }
-          throw error;
-        }
-      }
-
-      await recordAdminAction({
-        actorId: req.authUser!.id,
-        action: "order.admin_expire_checkout",
-        entityType: "Order",
-        entityId: order.id,
-        metadata: {
-          orderNumber: order.orderNumber,
-          stripeSessionId: order.stripeSessionId,
-        },
-      });
-
-      let latest = order;
-      for (let attempt = 0; attempt < 5; attempt++) {
-        if (latest.status !== "PENDING_PAYMENT") break;
-        await sleep(1000);
-        const refreshed = await prisma.order.findUnique({
-          where: { id: order.id },
-          include: adminOrderDetailInclude,
-        });
-        if (refreshed) latest = refreshed;
-      }
-
-      res.json({
-        data: latest,
-        pendingWebhook: latest.status === "PENDING_PAYMENT",
-      });
     } catch (error) {
       next(error);
     }

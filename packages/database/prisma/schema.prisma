@@ -410,6 +410,39 @@ model Order {
   @@index([status, paidAt])
 }
 
+/// Carrito + datos de checkout entre "el cliente envía el formulario de pago"
+/// y "Stripe confirma el pago". No es un Order: no aparece en el listado de
+/// pedidos del admin ni tiene estados — antes se creaba un Order en
+/// PENDING_PAYMENT en este punto, lo que ensuciaba el admin con pedidos que
+/// nunca se pagaron (el cliente vuelve al menú a agregar más y reintenta).
+model PendingCheckout {
+  /// Mismo id que tendrá el Order real una vez confirmado el pago —
+  /// pre-generado con crypto.randomUUID() en checkout.ts (no @default), para
+  /// que el return_url de Stripe ya apunte a /pedido/{id} desde el inicio.
+  id              String   @id
+  /// Pre-generado con generateViewToken(); se reusa tal cual en el Order real.
+  viewToken       String   @unique
+  orderNumber     String   @unique
+  idempotencyKey  String?  @unique
+  branchId        String
+  userId          String?
+  guestName       String?
+  guestEmail      String?
+  guestPhone      String?
+  subtotal        Int
+  serviceFee      Int
+  total           Int
+  notes           String?
+  /// Snapshot de los ítems ya resueltos server-side (producto, combo,
+  /// modificadores, precios) — misma forma que espera items.create al crear
+  /// el Order real.
+  itemsJson       Json
+  stripeSessionId String   @unique
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model OAuthOneTimeCode {
   id        String   @id @default(cuid())
   code      String   @unique
