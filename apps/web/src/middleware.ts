@@ -23,7 +23,7 @@ export function middleware() {
     `default-src 'self'`,
     `script-src 'self' 'unsafe-inline' https://js.stripe.com https://challenges.cloudflare.com${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data: blob:`,
+    `img-src 'self' data: blob: https://elbajito.com https://*.elbajito.com`,
     `font-src 'self' data:`,
     `connect-src 'self' https://api.stripe.com https://js.stripe.com https://m.stripe.com https://errors.stripe.com https://challenges.cloudflare.com https://*.sentry.io https://*.ingest.sentry.io`,
     `frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://*.stripe.com https://challenges.cloudflare.com`,
