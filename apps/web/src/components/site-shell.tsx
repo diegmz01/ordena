@@ -29,6 +29,9 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/carrito") ||
     pathname.startsWith("/pedido/");
   const isHome = pathname === "/";
+  // Pantalla de pago: nada de header/nav/footer alrededor, para que la
+  // atención se concentre solo en el formulario embebido de Stripe.
+  const isFocusedPayment = pathname.startsWith("/checkout/pagar");
 
   useEffect(() => {
     const token = getAuthToken();
@@ -56,7 +59,13 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     null;
 
   return (
-    <div className="flex min-h-full flex-col pb-20 md:pb-0">
+    <div
+      className={cn(
+        "flex min-h-full flex-col",
+        !isFocusedPayment && "pb-20 md:pb-0",
+      )}
+    >
+      {!isFocusedPayment && (
       <header
         className={cn(
           "sticky top-0 z-40 transition-colors",
@@ -195,10 +204,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
+      )}
 
       <main className="flex-1">{children}</main>
 
-      <SiteFooter />
+      {!isFocusedPayment && <SiteFooter />}
 
       {itemCount > 0 && !hideStickyCart && (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 px-4 md:bottom-6">
@@ -214,6 +224,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
+      {!isFocusedPayment && (
       <nav
         className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur [transform:translateZ(0)] [-webkit-transform:translateZ(0)] will-change-transform md:hidden dark:border-gray-700 dark:bg-gray-900/95"
         aria-label="Navegación principal"
@@ -268,6 +279,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
+      )}
     </div>
   );
 }
