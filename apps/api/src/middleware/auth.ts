@@ -5,14 +5,18 @@ import { AppError } from "./error-handler";
 import { getJwtSecret } from "../utils/jwt";
 import {
   readBearerOrCookieToken,
+  resolveAudience,
+  setSessionCookie,
   type AuthAudience,
 } from "../utils/session-cookie";
+import { SESSION_RENEW_THRESHOLD_SEC, signSessionToken } from "../utils/session-token";
 
 export interface AuthPayload {
   sub: string;
   email: string;
   role: Role;
   branchId?: string | null;
+  exp?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -20,8 +24,14 @@ export interface AuthenticatedRequest extends Request {
   token?: string;
 }
 
+function isBearerToken(req: Request): boolean {
+  const header = req.headers.authorization;
+  return !!header?.startsWith("Bearer ") && header.slice(7).trim().length > 0;
+}
+
 async function runAuthenticate(
   req: AuthenticatedRequest,
+  res: Response,
   next: NextFunction,
   forcedAudience?: AuthAudience,
 ) {
@@ -45,6 +55,20 @@ async function runAuthenticate(
 
     req.authUser = user;
     req.token = token;
+
+    // Sliding session: si a la cookie le queda poco antes de expirar,
+    // reemitimos un token/cookie frescos de 7 días. Así una sesión que se usa
+    // con regularidad (p. ej. la PWA de staff) no se cierra sola, pero una
+    // sesión inactiva por 7 días completos sí expira. No aplica a tokens
+    // Bearer: no hay cookie de browser que renovar.
+    if (!isBearerToken(req) && payload.exp) {
+      const remainingSec = payload.exp - Math.floor(Date.now() / 1000);
+      if (remainingSec < SESSION_RENEW_THRESHOLD_SEC) {
+        const freshToken = signSessionToken(user);
+        setSessionCookie(res, freshToken, forcedAudience ?? resolveAudience(req));
+      }
+    }
+
     next();
   } catch (error) {
     if (error instanceof AppError) return next(error);
@@ -54,10 +78,10 @@ async function runAuthenticate(
 
 export async function authenticate(
   req: AuthenticatedRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ) {
-  return runAuthenticate(req, next);
+  return runAuthenticate(req, res, next);
 }
 
 /**
@@ -67,8 +91,8 @@ export async function authenticate(
  * vez de inferirla del header. Ver `GET /branches/me/stream`.
  */
 export function authenticateForAudience(audience: AuthAudience) {
-  return (req: AuthenticatedRequest, _res: Response, next: NextFunction) =>
-    runAuthenticate(req, next, audience);
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) =>
+    runAuthenticate(req, res, next, audience);
 }
 
 export function optionalAuth(
