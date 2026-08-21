@@ -31,7 +31,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   const isHome = pathname === "/";
   // Pantalla de pago: nada de header/nav/footer alrededor, para que la
   // atención se concentre solo en el formulario embebido de Stripe.
-  const isFocusedPayment = pathname.startsWith("/checkout/pagar");
+  const isFocusedPayment = pathname === "/checkout";
 
   useEffect(() => {
     const token = getAuthToken();

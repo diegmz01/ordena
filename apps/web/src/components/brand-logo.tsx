@@ -19,7 +19,7 @@ export function BrandLogo({
   const { resolvedTheme, forcedTheme } = useTheme();
   const mounted = useHydrated();
 
-  // forcedTheme (p.ej. /checkout/pagar) fuerza la clase del DOM, pero
+  // forcedTheme (p.ej. /checkout) fuerza la clase del DOM, pero
   // resolvedTheme sigue reflejando la preferencia real del usuario/sistema
   // -- hay que priorizar forcedTheme para que el logo coincida con el fondo.
   const isDark = mounted && (forcedTheme ?? resolvedTheme) === "dark";

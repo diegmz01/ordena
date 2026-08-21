@@ -33,6 +33,7 @@ type CartState = {
   branchName: string | null;
   plates: CartPlate[];
   items: CartItem[];
+  notes: string;
 };
 
 type CartContextValue = CartState & {
@@ -41,6 +42,7 @@ type CartContextValue = CartState & {
   itemCount: number;
   subtotal: number;
   setBranch: (id: string, name: string) => void;
+  setNotes: (notes: string) => void;
   /** Quita del carrito productos no disponibles; devuelve nombres únicos removidos. */
   pruneUnavailableProducts: (availableProductIds: Set<string>) => string[];
   /** Quita líneas concretas (producto + modificadores); devuelve nombres únicos. */
@@ -137,11 +139,12 @@ function newPlateId() {
 
 function loadCart(): CartState {
   if (typeof window === "undefined") {
-    return { branchId: null, branchName: null, plates: [], items: [] };
+    return { branchId: null, branchName: null, plates: [], items: [], notes: "" };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { branchId: null, branchName: null, plates: [], items: [] };
+    if (!raw)
+      return { branchId: null, branchName: null, plates: [], items: [], notes: "" };
     const parsed = JSON.parse(raw) as Partial<CartState>;
     const plates = Array.isArray(parsed.plates) ? parsed.plates : [];
     const plateIds = new Set(plates.map((p) => p.id));
@@ -176,9 +179,16 @@ function loadCart(): CartState {
       branchName: parsed.branchName ?? null,
       plates,
       items,
+      notes: typeof parsed.notes === "string" ? parsed.notes : "",
     };
   } catch {
-    return { branchId: null, branchName: null, plates: [], items: [] };
+    return {
+      branchId: null,
+      branchName: null,
+      plates: [],
+      items: [],
+      notes: "",
+    };
   }
 }
 
@@ -187,6 +197,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [branchName, setBranchName] = useState<string | null>(null);
   const [plates, setPlates] = useState<CartPlate[]>([]);
   const [items, setItems] = useState<CartItem[]>([]);
+  const [notes, setNotesState] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -196,6 +207,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setBranchName(saved.branchName);
     setPlates(saved.plates);
     setItems(saved.items);
+    setNotesState(saved.notes);
     setHydrated(true);
   }, []);
 
@@ -203,13 +215,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ branchId, branchName, plates, items }),
+      JSON.stringify({ branchId, branchName, plates, items, notes }),
     );
-  }, [hydrated, branchId, branchName, plates, items]);
+  }, [hydrated, branchId, branchName, plates, items, notes]);
 
   const setBranch = useCallback((id: string, name: string) => {
     setBranchId(id);
     setBranchName(name);
+  }, []);
+
+  const setNotes = useCallback((next: string) => {
+    setNotesState(next);
   }, []);
 
   const pruneUnavailableProducts = useCallback(
@@ -407,10 +423,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       branchName,
       plates,
       items,
+      notes,
       hydrated,
       itemCount,
       subtotal,
       setBranch,
+      setNotes,
       pruneUnavailableProducts,
       pruneUnavailableLines,
       addItem,
@@ -427,10 +445,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       branchName,
       plates,
       items,
+      notes,
       hydrated,
       itemCount,
       subtotal,
       setBranch,
+      setNotes,
       pruneUnavailableProducts,
       pruneUnavailableLines,
       addItem,
