@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Minus,
   Plus,
@@ -13,6 +20,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { comboProductName, computeServiceFee } from "@ordena/shared";
+import { apiFetch } from "@/lib/api";
+import { getAuthToken, login, register } from "@/lib/auth";
 import {
   clearUnavailableAlert,
   formatMoney,
@@ -26,14 +35,19 @@ import { useBranchStatus } from "@/lib/use-branch-status";
 import { useServiceFeeSettings } from "@/lib/service-fee";
 import { validateCartStock } from "@/lib/validate-cart-stock";
 import { cn } from "@/lib/utils";
+import { PagarModal } from "./pagar-modal";
+import { usePagarFlow } from "./use-pagar-flow";
 
-export default function CarritoPage() {
+function CarritoPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     items,
     plates,
     branchId,
     branchName,
+    notes,
+    setNotes,
     subtotal,
     itemCount,
     setQuantity,
@@ -50,6 +64,10 @@ export default function CarritoPage() {
   const [validatingCheckout, setValidatingCheckout] = useState(false);
   const [unavailableAlert, setUnavailableAlert] = useState<string[]>([]);
   const [stockError, setStockError] = useState<string | null>(null);
+  const [hasToken, setHasToken] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [autopaying, setAutopaying] = useState(false);
+  const autopayHandledRef = useRef(false);
 
   const branchStatus = useBranchStatus(branchId);
   const checkingBranch = !!branchId && branchStatus === undefined;
@@ -63,10 +81,55 @@ export default function CarritoPage() {
   const total = subtotal + serviceFee;
 
   const menuHref = branchId ? `/menu?branch=${branchId}` : "/sucursales";
-  const checkoutHref = branchId
-    ? `/checkout?branch=${branchId}`
-    : "/sucursales";
   const changeBranchHref = "/sucursales?from=carrito";
+  // Con este flag, el login social/telefono/registro nos devuelve directo
+  // aquí y retomamos el pago solos, sin que el cliente tenga que tocar de
+  // nuevo "Ir a pagar".
+  const returnPath = useMemo(() => {
+    const qs = new URLSearchParams();
+    if (branchId) qs.set("branch", branchId);
+    qs.set("autopay", "1");
+    return `/carrito?${qs.toString()}`;
+  }, [branchId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza con la cookie de presencia de sesión al montar
+    setHasToken(!!getAuthToken());
+  }, []);
+
+  const pagarFlow = usePagarFlow({
+    branchId,
+    items,
+    plates,
+    notes,
+    pruneUnavailableLines,
+    onUnavailable: setUnavailableAlert,
+  });
+
+  const payAsCustomer = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) {
+      setModalOpen(true);
+      return;
+    }
+    try {
+      const res = await apiFetch<{ user: { phone?: string | null } }>(
+        "/auth/me",
+        token,
+      );
+      if (!res.user.phone?.trim()) {
+        router.replace(
+          `/auth/telefono?next=${encodeURIComponent(returnPath)}`,
+        );
+        return;
+      }
+    } catch {
+      setHasToken(false);
+      setModalOpen(true);
+      return;
+    }
+    await pagarFlow.submitOrder({ token, asGuest: false });
+  }, [router, returnPath, pagarFlow]);
 
   const groups = useMemo(
     () => groupCartItemsByPlate(items, plates),
@@ -87,7 +150,7 @@ export default function CarritoPage() {
 
   async function goToCheckout() {
     if (!branchId || items.length === 0 || branchOpen !== true) return;
-    if (validatingCheckout) return;
+    if (validatingCheckout || pagarFlow.pending) return;
     setValidatingCheckout(true);
     setStockError(null);
     try {
@@ -110,7 +173,11 @@ export default function CarritoPage() {
         );
         return;
       }
-      router.push(checkoutHref);
+      if (hasToken) {
+        await payAsCustomer();
+      } else {
+        setModalOpen(true);
+      }
     } catch (err) {
       setStockError(
         err instanceof Error
@@ -121,6 +188,93 @@ export default function CarritoPage() {
       setValidatingCheckout(false);
     }
   }
+
+  // Si venimos de un login social (o de /login o /auth/telefono) que nos
+  // mandó de vuelta con ?autopay=1, retomamos el pago solos sin que el
+  // cliente tenga que volver a tocar "Ir a pagar".
+  useEffect(() => {
+    if (autopayHandledRef.current) return;
+    if (searchParams.get("autopay") !== "1") return;
+    autopayHandledRef.current = true;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("autopay");
+    const cleanPath = params.toString()
+      ? `/carrito?${params.toString()}`
+      : "/carrito";
+    router.replace(cleanPath);
+
+    if (!getAuthToken() || items.length === 0 || branchOpen !== true) return;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- retoma el pago justo al aterrizar tras el redirect de login social, no hay estado derivable en render
+    setAutopaying(true);
+    payAsCustomer()
+      .catch((err) => {
+        setStockError(err instanceof Error ? err.message : "Error");
+      })
+      .finally(() => setAutopaying(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo debe correr una vez al montar, gateado por autopayHandledRef
+  }, []);
+
+  async function handleGuestSubmit(form: {
+    guestName: string;
+    guestEmail: string;
+    guestPhone: string;
+    turnstileToken: string | null;
+  }) {
+    await pagarFlow.submitOrder({
+      token: null,
+      asGuest: true,
+      guestName: form.guestName,
+      guestEmail: form.guestEmail,
+      guestPhone: form.guestPhone,
+      turnstileToken: form.turnstileToken ?? undefined,
+    });
+  }
+
+  async function handleRegisterSubmit(form: {
+    regName: string;
+    regEmail: string;
+    regPassword: string;
+    regPhone: string;
+    turnstileToken: string | null;
+  }) {
+    try {
+      await register({
+        name: form.regName,
+        email: form.regEmail,
+        password: form.regPassword,
+        phone: form.regPhone || undefined,
+        turnstileToken: form.turnstileToken ?? undefined,
+      });
+    } catch (err) {
+      pagarFlow.setError(err instanceof Error ? err.message : "Error");
+      throw err;
+    }
+    setHasToken(true);
+    await pagarFlow.submitOrder({ token: getAuthToken(), asGuest: false });
+  }
+
+  async function handleLoginSubmit(form: {
+    email: string;
+    password: string;
+    turnstileToken: string | null;
+  }) {
+    try {
+      await login(
+        form.email,
+        form.password,
+        "CUSTOMER",
+        form.turnstileToken ?? undefined,
+      );
+    } catch (err) {
+      pagarFlow.setError(err instanceof Error ? err.message : "Error");
+      throw err;
+    }
+    setHasToken(true);
+    await pagarFlow.submitOrder({ token: getAuthToken(), asGuest: false });
+  }
+
   function startSplit() {
     if (plates.length > 0) return;
     const id = addPlate("Persona 1");
@@ -254,6 +408,17 @@ export default function CarritoPage() {
       </div>
 
       <div className="container-page max-w-xl !pt-6">
+        {autopaying ? (
+          <div className="customer-empty mt-8">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
+              Redirigiendo a pago…
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Ya iniciaste sesión, estamos preparando tu pago.
+            </p>
+          </div>
+        ) : (
+          <>
         {unavailableAlert.length > 0 && (
           <div
             className="mb-4 flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
@@ -446,6 +611,14 @@ export default function CarritoPage() {
               )}
             </div>
 
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notas para la cocina (opcional)"
+              maxLength={500}
+              className="input-field min-h-20 py-2"
+            />
+
             <Link
               href={menuHref}
               className="btn-secondary w-full justify-center"
@@ -461,14 +634,16 @@ export default function CarritoPage() {
               {canCheckout ? (
                 <button
                   type="button"
-                  disabled={validatingCheckout}
+                  disabled={validatingCheckout || pagarFlow.pending}
                   onClick={() => void goToCheckout()}
                   className="sticky-order-bar w-full disabled:opacity-70"
                 >
                   <span>
                     {validatingCheckout
                       ? "Verificando disponibilidad…"
-                      : "Ir a pagar"}
+                      : pagarFlow.pending
+                        ? "Preparando el pago…"
+                        : "Ir a pagar"}
                   </span>
                   <span className="tabular-nums">{formatMoney(total)}</span>
                 </button>
@@ -487,7 +662,31 @@ export default function CarritoPage() {
             </div>
           </div>
         )}
+          </>
+        )}
       </div>
+
+      <PagarModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        returnPath={returnPath}
+        total={total}
+        pending={pagarFlow.pending}
+        error={pagarFlow.error}
+        onSubmitGuest={handleGuestSubmit}
+        onSubmitRegister={handleRegisterSubmit}
+        onSubmitLogin={handleLoginSubmit}
+      />
     </div>
+  );
+}
+
+export default function CarritoPage() {
+  return (
+    <Suspense
+      fallback={<div className="p-10 text-sm">Cargando carrito…</div>}
+    >
+      <CarritoPageInner />
+    </Suspense>
   );
 }

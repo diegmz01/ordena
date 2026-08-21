@@ -8,7 +8,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   // El embed de Stripe siempre se renderiza en claro; forzamos light aquí para
   // que no se vea desalineado contra un fondo dark.
-  const forcedTheme = pathname === "/checkout/pagar" ? "light" : undefined;
+  const forcedTheme = pathname === "/checkout" ? "light" : undefined;
 
   return (
     <ThemeProvider

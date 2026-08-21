@@ -1,7 +1,7 @@
 /**
- * Handoff entre /checkout y /checkout/pagar: el client_secret de Stripe no
- * viaja en la URL (queda en el historial/referrer) ni en el estado de React
- * (se pierde al navegar a otra página) — se guarda en sessionStorage, mismo
+ * Handoff entre /carrito y /checkout: el client_secret de Stripe no viaja en
+ * la URL (queda en el historial/referrer) ni en el estado de React (se
+ * pierde al navegar a otra página) — se guarda en sessionStorage, mismo
  * patrón que readUnavailableAlert/writeUnavailableAlert en lib/cart.tsx.
  */
 
