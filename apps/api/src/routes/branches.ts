@@ -21,6 +21,7 @@ import {
 } from "../middleware/auth";
 import {
   effectiveAvailability,
+  isStaffPresenceStale,
   isWithinBranchHours,
   startOfNextBranchDay,
   type EffectiveAvailability,
@@ -143,6 +144,7 @@ function toAdminAvailabilitySnapshot(
   statusLabel: string;
   sourceLabel: string;
   offlineCauseLabel: string | null;
+  staffOnline: boolean;
 } {
   const effective = effectiveAvailability(branch);
   const modeLabel: Record<BranchAvailability, string> = {
@@ -180,6 +182,7 @@ function toAdminAvailabilitySnapshot(
     statusLabel,
     sourceLabel: sourceLabel[effective.source],
     offlineCauseLabel,
+    staffOnline: !isStaffPresenceStale(branch.staffLastSeenAt, new Date()),
   };
 }
 
@@ -810,6 +813,80 @@ branchesRouter.get(
           })),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * Admin: pausar/cerrar/reabrir una sucursal en remoto. Solo permitido si la
+ * PWA de staff tiene presencia activa (heartbeat reciente) — si no, el admin
+ * no tiene forma de saber si el cambio va a reflejarse, y el gate de
+ * presencia (`effectiveAvailability`) ya fuerza PAUSED por falta de conexión.
+ */
+branchesRouter.patch(
+  "/admin/:id/availability",
+  authenticate,
+  requireAdmin,
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const body = branchAvailabilityUpdateSchema.parse(req.body);
+      const branchId = String(req.params.id);
+
+      const existing = await prisma.branch.findUnique({
+        where: { id: branchId },
+        select: {
+          id: true,
+          isActive: true,
+          staffLastSeenAt: true,
+        },
+      });
+      if (!existing) throw new AppError(404, "Sucursal no encontrada");
+      if (!existing.isActive) {
+        throw new AppError(400, "La sucursal está desactivada");
+      }
+      if (isStaffPresenceStale(existing.staffLastSeenAt, new Date())) {
+        throw new AppError(
+          409,
+          "No se puede controlar la sucursal: el personal no tiene conexión activa en este momento",
+        );
+      }
+
+      let pausedUntil: Date | null = null;
+      if (body.availability === "PAUSED") {
+        if (body.pauseMinutes) {
+          pausedUntil = new Date(Date.now() + body.pauseMinutes * 60_000);
+        } else {
+          pausedUntil = startOfNextBranchDay();
+        }
+      } else if (body.availability === "CLOSED") {
+        pausedUntil = startOfNextBranchDay();
+      }
+
+      const branch = await prisma.branch.update({
+        where: { id: branchId },
+        data: {
+          availability: body.availability,
+          pausedUntil,
+        },
+        select: staffBranchSelect,
+      });
+
+      await recordAdminAction({
+        actorId: req.authUser!.id,
+        action: "branch.availability_update",
+        entityType: "Branch",
+        entityId: branchId,
+        metadata: {
+          actorRole: req.authUser!.role,
+          source: "admin_panel",
+          availability: body.availability,
+          pauseMinutes: body.pauseMinutes ?? null,
+        },
+      });
+
+      res.json({ data: toAdminAvailabilitySnapshot(branch) });
     } catch (error) {
       next(error);
     }

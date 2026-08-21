@@ -9,13 +9,16 @@ import {
   ChevronRight,
   Clock3,
   MapPin,
+  Pause,
   Phone,
+  Play,
   ShieldCheck,
   ShoppingBag,
   UserRound,
   Wallet,
   Wifi,
   WifiOff,
+  XCircle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getAuthToken } from "@/lib/auth";
@@ -33,7 +36,17 @@ type AvailabilityDetail = {
   statusLabel: string;
   sourceLabel: string;
   offlineCauseLabel: string | null;
+  staffOnline: boolean;
 };
+
+type AvailabilityMode = "AUTO" | "OPEN" | "PAUSED" | "CLOSED";
+
+const PAUSE_DURATIONS: { minutes: 15 | 30 | 60 | 120; label: string }[] = [
+  { minutes: 15, label: "15 min" },
+  { minutes: 30, label: "30 min" },
+  { minutes: 60, label: "1 h" },
+  { minutes: 120, label: "2 h" },
+];
 
 type PeriodStats = {
   ordersCount: number;
@@ -164,6 +177,40 @@ export default function AdminBranchDetailPage() {
   const [branch, setBranch] = useState<BranchDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [controlError, setControlError] = useState<string | null>(null);
+  const [pendingMode, setPendingMode] = useState<AvailabilityMode | null>(
+    null,
+  );
+
+  async function applyAvailability(
+    mode: AvailabilityMode,
+    pauseMinutes?: 15 | 30 | 60 | 120,
+  ) {
+    if (!branch) return;
+    const token = getAuthToken();
+    if (!token) return;
+    setControlError(null);
+    setPendingMode(mode);
+    try {
+      const res = await apiFetch<{ data: AvailabilityDetail }>(
+        `/branches/admin/${branch.id}/availability`,
+        token,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ availability: mode, pauseMinutes }),
+        },
+      );
+      setBranch((prev) =>
+        prev ? { ...prev, availabilityDetail: res.data } : prev,
+      );
+    } catch (err) {
+      setControlError(
+        err instanceof Error ? err.message : "No se pudo actualizar",
+      );
+    } finally {
+      setPendingMode(null);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -438,6 +485,88 @@ export default function AdminBranchDetailPage() {
                       </dd>
                     </div>
                   </dl>
+
+                  <div className="mt-4 space-y-2.5">
+                    <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      {branch.availabilityDetail.staffOnline ? (
+                        <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                      ) : (
+                        <WifiOff className="h-3.5 w-3.5 text-gray-400" />
+                      )}
+                      Control remoto
+                    </p>
+
+                    {!branch.availabilityDetail.staffOnline ? (
+                      <p className="rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        El personal de la sucursal no tiene conexión activa
+                        ahora mismo, así que no se puede pausar ni cerrar
+                        desde aquí.
+                      </p>
+                    ) : (
+                      <>
+                        {controlError && (
+                          <p className="admin-alert-error text-xs">
+                            {controlError}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={pendingMode !== null}
+                            onClick={() => applyAvailability("AUTO")}
+                            className={cn(
+                              "btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs",
+                              branch.availabilityDetail.mode === "AUTO" &&
+                                "ring-2 ring-orange-400",
+                            )}
+                          >
+                            <Clock3 className="h-3.5 w-3.5" />
+                            Automático
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pendingMode !== null}
+                            onClick={() => applyAvailability("OPEN")}
+                            className={cn(
+                              "btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs",
+                              branch.availabilityDetail.mode === "OPEN" &&
+                                "ring-2 ring-orange-400",
+                            )}
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                            Abrir
+                          </button>
+                          {PAUSE_DURATIONS.map(({ minutes, label }) => (
+                            <button
+                              key={minutes}
+                              type="button"
+                              disabled={pendingMode !== null}
+                              onClick={() =>
+                                applyAvailability("PAUSED", minutes)
+                              }
+                              className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+                            >
+                              <Pause className="h-3.5 w-3.5" />
+                              Pausar {label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={pendingMode !== null}
+                            onClick={() => applyAvailability("CLOSED")}
+                            className={cn(
+                              "btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs",
+                              branch.availabilityDetail.mode === "CLOSED" &&
+                                "ring-2 ring-orange-400",
+                            )}
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Cerrar hoy
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </section>
 
