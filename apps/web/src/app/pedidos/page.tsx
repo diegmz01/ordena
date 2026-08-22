@@ -89,7 +89,6 @@ type OrderRow = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING_PAYMENT: "Esperando pago",
   PAID: "Por verificar",
   ACCEPTED: "Aceptado",
   PREPARING: "Preparando",
@@ -99,8 +98,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  PENDING_PAYMENT:
-    "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
   PAID: "bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-200",
   ACCEPTED: "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200",
   PREPARING:

@@ -14,7 +14,6 @@ export const AUTH_COOKIE_NAME = AUTH_COOKIE_CUSTOMER;
 export const ROLES = ["CUSTOMER", "ADMIN", "BRANCH_STAFF"] as const;
 
 export const ORDER_STATUSES = [
-  "PENDING_PAYMENT",
   "PAID",
   "ACCEPTED",
   "PREPARING",
@@ -27,11 +26,10 @@ export const ORDER_STATUSES = [
  * Transiciones permitidas vía `PATCH /orders/:id/status` (staff / cocina).
  * Cancelación staff solo desde PAID (antes de aceptar).
  * `ACCEPTED → PREPARING` va por `PATCH /orders/:id/start-prep`.
- * `PENDING_PAYMENT → PAID` lo hace el webhook de Stripe.
+ * El Order se crea directamente en PAID (webhook de Stripe); no existe estado previo.
  * Cancelación post-aceptación (con devolución) → `POST /orders/:id/admin-cancel`.
  */
 export const ORDER_STATUS_TRANSITIONS = {
-  PENDING_PAYMENT: [],
   PAID: ["ACCEPTED", "CANCELLED"],
   ACCEPTED: [],
   PREPARING: ["READY"],
