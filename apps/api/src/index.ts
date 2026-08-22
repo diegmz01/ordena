@@ -24,6 +24,7 @@ import { startEscalateUnacceptedOrdersJob } from "./jobs/escalate-unaccepted-ord
 import { startBranchStatusSnapshotJob } from "./jobs/branch-status-snapshot-job";
 import { startHandleStalePaidOrdersJob } from "./jobs/handle-stale-paid-orders-job";
 import { startStaleActiveOrdersJob } from "./jobs/stale-active-orders-job";
+import { startReconcilePendingCheckoutsJob } from "./jobs/reconcile-pending-checkouts-job";
 import { initSentry } from "./utils/sentry";
 
 initSentry();
@@ -77,3 +78,4 @@ startEscalateUnacceptedOrdersJob();
 startBranchStatusSnapshotJob();
 startHandleStalePaidOrdersJob();
 startStaleActiveOrdersJob();
+startReconcilePendingCheckoutsJob();

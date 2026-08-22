@@ -3,8 +3,8 @@ import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
 import { generatePickupCode } from "./pickup-code";
 import { settleStripePayment } from "./stripe";
-import { notifyAdmins } from "./admin-alerts";
-import { sendCaptureFailedAlertEmail } from "../lib/mailer";
+import { flagCaptureFailure } from "./capture-failure-alert";
+import { sendCancellationEmailIfPossible } from "./send-cancellation-email";
 
 export const branchOrderInclude = {
   items: true,
@@ -38,7 +38,13 @@ export async function promoteDuePreparingOrders(branchId?: string) {
         await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
         const cancelled = await prisma.order.update({
           where: { id: order.id },
-          data: { status: "CANCELLED", discount: order.subtotal, total: 0 },
+          data: {
+            status: "CANCELLED",
+            discount: order.subtotal,
+            total: 0,
+            cancellationReason:
+              "Cancelado automáticamente: todos los productos del pedido se agotaron antes de que la sucursal lo aceptara.",
+          },
           include: branchOrderInclude,
         });
 
@@ -53,6 +59,7 @@ export async function promoteDuePreparingOrders(branchId?: string) {
         } catch (pushError) {
           console.error("[orders.auto-ready] web-push", pushError);
         }
+        await sendCancellationEmailIfPossible(cancelled, "orders.auto-ready");
 
         promoted.push(cancelled);
         continue;
@@ -92,36 +99,15 @@ export async function promoteDuePreparingOrders(branchId?: string) {
     } catch (error) {
       console.error("[orders.auto-ready] settle", order.id, error);
 
-      // Guarda contra reenviar el correo en cada tick del job mientras el
-      // pedido siga atorado (settle sigue fallando y reintentando).
-      const guard = await prisma.order.updateMany({
-        where: { id: order.id, captureFailedAt: null },
-        data: { captureFailedAt: new Date() },
-      });
-      if (guard.count === 0) continue;
-
-      await notifyBranchOrderUpdated(order.branchId, {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        status: order.status,
-      });
-
-      try {
-        const branch = await prisma.branch.findUnique({
-          where: { id: order.branchId },
-          select: { name: true },
+      // flagCaptureFailure ya trae su propia guarda para no reenviar el
+      // correo en cada tick mientras el pedido siga atorado.
+      const isFirstAlert = await flagCaptureFailure(order, error);
+      if (isFirstAlert) {
+        await notifyBranchOrderUpdated(order.branchId, {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          status: order.status,
         });
-        await notifyAdmins((to) =>
-          sendCaptureFailedAlertEmail({
-            to,
-            orderNumber: order.orderNumber,
-            orderId: order.id,
-            branchName: branch?.name ?? "Sucursal",
-            stripeStatus: error instanceof Error ? error.message : "error desconocido",
-          }),
-        );
-      } catch (alertError) {
-        console.error("[orders.auto-ready] admin-alert", order.id, alertError);
       }
     }
   }

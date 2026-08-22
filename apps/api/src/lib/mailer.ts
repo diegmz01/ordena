@@ -325,6 +325,31 @@ export async function sendStaleActiveOrderAlertEmail(params: {
   });
 }
 
+export async function sendMissedWebhookAlertEmail(params: {
+  to: string;
+  orderNumber: string;
+  orderId: string;
+}) {
+  const { transport, from } = await getSmtpTransport();
+  const orderUrl = adminOrderUrl(params.orderId);
+  const message = `El webhook de Stripe no llegó a tiempo para el pedido <strong>${params.orderNumber}</strong> — el cliente ya había pagado, pero el pedido no se había creado en Ordena hasta que el job de reconciliación lo detectó y lo recuperó. Vale la pena revisar que el endpoint del webhook (<code>/stripe/webhook</code>) esté respondiendo correctamente; si esto se repite, algún pedido podría no recuperarse a tiempo.`;
+
+  const html = emailLayout(
+    `<p style="margin:0 0 16px;">Se recuperó un pedido que el webhook de Stripe no había procesado.</p>` +
+      `<p style="margin:0 0 20px;">${message}</p>` +
+      `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background-color:#ea5e1f;"><a href="${orderUrl}" style="display:inline-block;padding:12px 24px;${EMAIL_FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Ver pedido</a></td></tr></table>`,
+    "Webhook perdido",
+  );
+
+  await transport.sendMail({
+    from,
+    to: params.to,
+    subject: `Pedido ${params.orderNumber} recuperado — revisa el webhook de Stripe`,
+    text: `El webhook de Stripe no llegó a tiempo para el pedido ${params.orderNumber}. Se recuperó automáticamente, pero vale la pena revisar el endpoint /stripe/webhook. Ver pedido: ${orderUrl}`,
+    html,
+  });
+}
+
 export async function sendTestEmail(to: string) {
   const { transport, from } = await getSmtpTransport();
   await transport.sendMail({
