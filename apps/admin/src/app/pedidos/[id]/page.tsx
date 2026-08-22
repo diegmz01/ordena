@@ -689,7 +689,7 @@ export default function AdminOrderDetailPage() {
               </div>
             ) : (
               <div className="border-t border-emerald-100 px-5 py-4 dark:border-emerald-900/30 sm:px-6">
-                <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                <ol className="flex flex-wrap gap-2">
                   {FLOW.map((step, index) => {
                     const done = flowIndex > index;
                     const current = flowIndex === index;
@@ -708,7 +708,7 @@ export default function AdminOrderDetailPage() {
                       <li
                         key={step}
                         className={cn(
-                          "rounded-lg px-2 py-2 text-center",
+                          "min-w-[100px] flex-1 rounded-lg px-2 py-2 text-center",
                           current &&
                             "bg-emerald-500 text-white shadow-sm shadow-emerald-500/25",
                           done &&
