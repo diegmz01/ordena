@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 export type BranchStatus = {
   id: string;
   name: string;
+  address: string;
   acceptingOrders: boolean;
 };
 

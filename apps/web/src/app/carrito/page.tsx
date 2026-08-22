@@ -392,9 +392,16 @@ function CarritoPageInner() {
           </p>
           <h1 className="page-title mt-1">Tu pedido</h1>
           <p className="page-description">
-            {branchName
-              ? `Recoges en ${branchName}`
-              : "Elige una sucursal para continuar"}
+            {branchName ? (
+              <>
+                <span className="font-semibold text-gray-700 dark:text-gray-200">
+                  Recoges en {branchName}:
+                </span>{" "}
+                {branchStatus?.address}
+              </>
+            ) : (
+              "Elige una sucursal para continuar"
+            )}
           </p>
           {branchName && (
             <Link
@@ -489,7 +496,10 @@ function CarritoPageInner() {
           </div>
         ) : (
           <div className="mt-2 space-y-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                Resumen del pedido
+              </h2>
               {!splitEnabled ? (
                 <button
                   type="button"
@@ -497,7 +507,7 @@ function CarritoPageInner() {
                   onClick={startSplit}
                 >
                   <UserRoundPlus className="h-4 w-4" />
-                  Asignar por persona
+                  Separar por persona
                 </button>
               ) : (
                 <button
@@ -506,7 +516,7 @@ function CarritoPageInner() {
                   onClick={() => addPlate()}
                 >
                   <UserRoundPlus className="h-4 w-4" />
-                  Asignar nueva persona
+                  Agregar persona
                 </button>
               )}
             </div>
