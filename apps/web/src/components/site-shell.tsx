@@ -58,6 +58,28 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     customer?.email?.split("@")[0] ||
     null;
 
+  useEffect(() => {
+    // En iOS Safari, `100dvh` en el body no se recalcula de forma fiable
+    // cuando el documento mismo no hace scroll (ver comentario más abajo):
+    // se queda con el alto de cuando la barra de direcciones estaba visible,
+    // dejando un hueco vacío debajo del nav inferior fijo cuando la barra se
+    // oculta. window.visualViewport sí refleja el alto real visible en todo
+    // momento, así que lo usamos para mantener --app-height sincronizado.
+    const setAppHeight = () => {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${height}px`);
+    };
+    setAppHeight();
+    window.visualViewport?.addEventListener("resize", setAppHeight);
+    window.visualViewport?.addEventListener("scroll", setAppHeight);
+    window.addEventListener("resize", setAppHeight);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", setAppHeight);
+      window.visualViewport?.removeEventListener("scroll", setAppHeight);
+      window.removeEventListener("resize", setAppHeight);
+    };
+  }, []);
+
   return (
     // Este div (no el documento) es el que hace scroll -- body/html quedan
     // fijos (ver layout.tsx). En iOS/WebKit, cuando el documento mismo es el

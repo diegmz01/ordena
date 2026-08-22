@@ -1,2 +1,9 @@
 @import "tailwindcss";
 @import "../../../../packages/shared/src/design-system.css";
+
+:root {
+  /* Fallback para SSR/JS deshabilitado; SiteShell la actualiza en cliente con
+     window.visualViewport para evitar el hueco que deja 100dvh en iOS Safari
+     cuando el documento no hace scroll (ver comentario en site-shell.tsx). */
+  --app-height: 100dvh;
+}

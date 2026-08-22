@@ -88,7 +88,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="h-dvh overflow-hidden overscroll-none bg-background text-foreground">
+      <body className="h-[var(--app-height)] overflow-hidden overscroll-none bg-background text-foreground">
         <Providers>
           <PwaRegister />
           <SiteShell>{children}</SiteShell>
