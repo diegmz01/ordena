@@ -78,6 +78,7 @@ type Order = {
   notes: string | null;
   cancelledByCustomer: boolean;
   customerCancelAckedAt: string | null;
+  captureFailedAt: string | null;
   items: OrderItem[];
   user: {
     id: string;
@@ -1080,6 +1081,7 @@ export default function BranchHomePage() {
                         : undefined
                     }
                     ackCancelPending={ackCancelPendingId === order.id}
+                    captureFailed={Boolean(order.captureFailedAt)}
                   />
                 </li>
               );
@@ -1281,6 +1283,13 @@ export default function BranchHomePage() {
         >
           <div className="space-y-4">
             {error && <p className="admin-alert-error">{error}</p>}
+
+            {selected.captureFailedAt && (
+              <p className="admin-alert-error">
+                No se pudo cobrar este pedido automáticamente — avisa a
+                administración para que lo revise.
+              </p>
+            )}
 
             {selected.status === "PAID" && (
               <p className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs font-semibold text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">

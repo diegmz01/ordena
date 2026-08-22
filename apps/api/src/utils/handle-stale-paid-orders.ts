@@ -1,12 +1,11 @@
 import { prisma } from "@ordena/database";
 import { PAID_ORDER_DELAY_ALERT_MS, PAID_ORDER_AUTO_CANCEL_MS } from "@ordena/shared";
-import { isStaffPresenceStale } from "./branch-availability";
 import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
 import { settleStripePayment } from "./stripe";
 
 const AUTO_CANCEL_REASON =
-  "Cancelado automáticamente: sucursal sin conexión y pedido sin aceptar por más de 20 minutos.";
+  "Cancelado automáticamente: pedido sin aceptar por más de 20 minutos.";
 
 /**
  * Avisa una sola vez al cliente cuando su pedido PAID lleva
@@ -53,9 +52,13 @@ export async function notifyCustomersOfDelay(branchId?: string) {
 }
 
 /**
- * Cancela y reembolsa automáticamente los pedidos PAID que llevan
- * PAID_ORDER_AUTO_CANCEL_MS sin aceptar y cuya sucursal está genuinamente
- * offline (heartbeat de staff vencido) — no solo "lenta para aceptar".
+ * Cancela y reembolsa automáticamente cualquier pedido PAID que lleve
+ * PAID_ORDER_AUTO_CANCEL_MS sin aceptar — sin importar si la sucursal está
+ * online o no. Antes esto solo aplicaba con sucursal genuinamente offline
+ * (heartbeat de staff vencido); se quitó esa condición porque un pedido
+ * ignorado con la sucursal online (dashboard abierto, push llegando, pero
+ * nadie le da aceptar) es el mismo riesgo para el cliente y no tenía
+ * ningún mecanismo automático de rescate.
  * Usa una guarda optimista (updateMany where status=PAID) antes de tocar
  * Stripe para no pisar una aceptación concurrente; si Stripe falla tras
  * marcar CANCELLED, revierte a PAID para no dejar el pedido en un estado
@@ -63,7 +66,6 @@ export async function notifyCustomersOfDelay(branchId?: string) {
  */
 export async function autoCancelOrphanedOrders(branchId?: string) {
   const threshold = new Date(Date.now() - PAID_ORDER_AUTO_CANCEL_MS);
-  const now = new Date();
 
   const due = await prisma.order.findMany({
     where: {
@@ -80,14 +82,11 @@ export async function autoCancelOrphanedOrders(branchId?: string) {
       guestEmail: true,
       viewToken: true,
       stripePaymentIntentId: true,
-      branch: { select: { staffLastSeenAt: true } },
     },
   });
 
   const cancelled: string[] = [];
   for (const order of due) {
-    if (!isStaffPresenceStale(order.branch.staffLastSeenAt, now)) continue;
-
     const guard = await prisma.order.updateMany({
       where: { id: order.id, status: "PAID" },
       data: { status: "CANCELLED", cancellationReason: AUTO_CANCEL_REASON },

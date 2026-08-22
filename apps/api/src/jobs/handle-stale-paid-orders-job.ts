@@ -14,8 +14,8 @@ const INTERVAL_MS = 30_000;
  * Igual que los otros jobs del proceso (promote-ready-orders,
  * escalate-unaccepted-orders): setInterval en el mismo proceso de la API,
  * barre todas las sucursales cada INTERVAL_MS para avisar al cliente de
- * pedidos PAID demorados y auto-cancelar/reembolsar los que quedaron
- * huérfanos por sucursal offline.
+ * pedidos PAID demorados y auto-cancelar/reembolsar los que llevan más de
+ * PAID_ORDER_AUTO_CANCEL_MS sin aceptar, esté la sucursal online o no.
  */
 export function startHandleStalePaidOrdersJob() {
   const timer = setInterval(() => {

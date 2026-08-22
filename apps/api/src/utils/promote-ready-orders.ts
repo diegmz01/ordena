@@ -3,6 +3,8 @@ import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
 import { generatePickupCode } from "./pickup-code";
 import { settleStripePayment } from "./stripe";
+import { notifyAdmins } from "./admin-alerts";
+import { sendCaptureFailedAlertEmail } from "../lib/mailer";
 
 export const branchOrderInclude = {
   items: true,
@@ -89,6 +91,38 @@ export async function promoteDuePreparingOrders(branchId?: string) {
       promoted.push(updated);
     } catch (error) {
       console.error("[orders.auto-ready] settle", order.id, error);
+
+      // Guarda contra reenviar el correo en cada tick del job mientras el
+      // pedido siga atorado (settle sigue fallando y reintentando).
+      const guard = await prisma.order.updateMany({
+        where: { id: order.id, captureFailedAt: null },
+        data: { captureFailedAt: new Date() },
+      });
+      if (guard.count === 0) continue;
+
+      await notifyBranchOrderUpdated(order.branchId, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+      });
+
+      try {
+        const branch = await prisma.branch.findUnique({
+          where: { id: order.branchId },
+          select: { name: true },
+        });
+        await notifyAdmins((to) =>
+          sendCaptureFailedAlertEmail({
+            to,
+            orderNumber: order.orderNumber,
+            orderId: order.id,
+            branchName: branch?.name ?? "Sucursal",
+            stripeStatus: error instanceof Error ? error.message : "error desconocido",
+          }),
+        );
+      } catch (alertError) {
+        console.error("[orders.auto-ready] admin-alert", order.id, alertError);
+      }
     }
   }
 

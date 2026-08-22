@@ -23,6 +23,7 @@ import { startPromoteReadyOrdersJob } from "./jobs/promote-ready-orders-job";
 import { startEscalateUnacceptedOrdersJob } from "./jobs/escalate-unaccepted-orders-job";
 import { startBranchStatusSnapshotJob } from "./jobs/branch-status-snapshot-job";
 import { startHandleStalePaidOrdersJob } from "./jobs/handle-stale-paid-orders-job";
+import { startStaleActiveOrdersJob } from "./jobs/stale-active-orders-job";
 import { initSentry } from "./utils/sentry";
 
 initSentry();
@@ -75,3 +76,4 @@ startPromoteReadyOrdersJob();
 startEscalateUnacceptedOrdersJob();
 startBranchStatusSnapshotJob();
 startHandleStalePaidOrdersJob();
+startStaleActiveOrdersJob();
