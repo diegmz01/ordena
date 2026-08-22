@@ -828,13 +828,17 @@ ordersRouter.patch(
       assertStatusTransition(currentStatus, status);
 
       if (status === "COMPLETED") {
+        // El bloqueo va ANTES de comparar el código: si solo se activara
+        // dentro de la rama "código incorrecto", un código correcto
+        // adivinado después del intento 5 igual pasaría — el límite tiene
+        // que frenar cualquier intento adicional, acertado o no.
+        if (order.pickupAttempts >= PICKUP_CODE_MAX_ATTEMPTS) {
+          throw new AppError(
+            429,
+            "Demasiados intentos con código incorrecto — pide a un admin que verifique el pedido desde el backoffice.",
+          );
+        }
         if (!order.pickupCode || pickupCode !== order.pickupCode) {
-          if (order.pickupAttempts >= PICKUP_CODE_MAX_ATTEMPTS) {
-            throw new AppError(
-              429,
-              "Demasiados intentos con código incorrecto — pide a un admin que verifique el pedido desde el backoffice.",
-            );
-          }
           await prisma.order.update({
             where: { id: order.id },
             data: { pickupAttempts: { increment: 1 } },
