@@ -13,6 +13,7 @@ import {
   canAdminCancelOrder,
   canCustomerCancelOrder,
   CUSTOMER_CANCELLATION_REASON,
+  PICKUP_CODE_MAX_ATTEMPTS,
   type OrderStatus,
 } from "@ordena/shared";
 import { AppError } from "../middleware/error-handler";
@@ -32,14 +33,22 @@ import {
   notifyCustomerOrderItemsChanged,
 } from "../utils/web-push";
 import {
-  sendOrderCancelledEmail,
   sendOrderConfirmationEmail,
   sendOrderRefundEmail,
 } from "../lib/mailer";
+import { sendCancellationEmailIfPossible } from "../utils/send-cancellation-email";
+import { flagCaptureFailure } from "../utils/capture-failure-alert";
 import { settleStripePayment, getStripe } from "../utils/stripe";
 import { getBusinessDate } from "../utils/branch-day-number";
 import { recordAdminAction } from "../utils/audit-log";
 import { generatePickupCode } from "../utils/pickup-code";
+import {
+  type MoneyItem,
+  itemsSubtotal,
+  itemsDiscount,
+  chargeableTotal,
+  orderTotalWithFee,
+} from "../utils/order-money";
 import {
   branchOrderInclude,
   promoteDuePreparingOrders,
@@ -79,28 +88,10 @@ const adminOrderDetailInclude = {
   },
 };
 
-export type MoneyItem = { unavailable: boolean; lineTotal: number };
-
-/** Exportadas (no solo usadas acá) para poder testearlas directamente. */
-export function itemsSubtotal(items: MoneyItem[]) {
-  return items.reduce((sum, item) => sum + item.lineTotal, 0);
-}
-
-export function itemsDiscount(items: MoneyItem[]) {
-  return items
-    .filter((item) => item.unavailable)
-    .reduce((sum, item) => sum + item.lineTotal, 0);
-}
-
-export function chargeableTotal(items: MoneyItem[]) {
-  return itemsSubtotal(items) - itemsDiscount(items);
-}
-
-/** `chargeableTotal` más la tarifa de servicios congelada del pedido (no se
- * pierde al marcar productos agotados antes de aceptar). */
-export function orderTotalWithFee(items: MoneyItem[], serviceFee: number) {
-  return chargeableTotal(items) + Math.max(0, serviceFee);
-}
+/** Reexportadas (usadas también fuera de este router, ej. al recrear un
+ * Order en create-order-from-pending-checkout.ts, y por orders.money.test.ts)
+ * — implementación real en utils/order-money.ts. */
+export { type MoneyItem, itemsSubtotal, itemsDiscount, chargeableTotal, orderTotalWithFee };
 
 function assertBranchAccess(
   user: NonNullable<AuthenticatedRequest["authUser"]>,
@@ -699,23 +690,56 @@ ordersRouter.post(
         );
       }
 
-      await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
-
-      const cancelled = await prisma.order.update({
-        where: { id: order.id },
+      // Guarda optimista: reclama la cancelación antes de tocar Stripe para
+      // no pisar una aceptación concurrente de staff (ver /:id/accept).
+      const guard = await prisma.order.updateMany({
+        where: { id: order.id, status: currentStatus },
         data: {
           status: "CANCELLED",
           cancellationReason: CUSTOMER_CANCELLATION_REASON,
           cancelledByCustomer: true,
         },
       });
+      if (guard.count === 0) {
+        throw new AppError(
+          409,
+          "El pedido cambió de estado, actualiza la página e intenta de nuevo",
+        );
+      }
+
+      try {
+        await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
+      } catch (error) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: currentStatus,
+            cancellationReason: order.cancellationReason,
+            cancelledByCustomer: order.cancelledByCustomer,
+          },
+        });
+        throw error;
+      }
 
       await notifyBranchCustomerCancelledOrder(order.branchId, {
         orderId: order.id,
         orderNumber: order.orderNumber,
       });
 
-      res.json({ data: { id: cancelled.id, status: cancelled.status } });
+      await sendCancellationEmailIfPossible(
+        {
+          orderNumber: order.orderNumber,
+          cancellationReason: CUSTOMER_CANCELLATION_REASON,
+          total: order.total,
+          currency: order.currency,
+          guestEmail: order.guestEmail,
+          guestName: order.guestName,
+          user: isOwner && user ? { email: user.email, name: user.name ?? null } : null,
+        },
+        "orders.cancel",
+      );
+
+      res.json({ data: { id: order.id, status: "CANCELLED" } });
     } catch (error) {
       next(error);
     }
@@ -803,82 +827,127 @@ ordersRouter.patch(
 
       assertStatusTransition(currentStatus, status);
 
-      if (status === "READY") {
-        // El cobro (captura Stripe) ocurre al quedar listo para recoger,
-        // no al entregar: aquí se retiene el hold, en COMPLETED ya no se toca Stripe.
-        const amount = order.total;
-        if (amount <= 0) {
-          await settleStripePayment(
-            order.stripePaymentIntentId,
-            "CANCELLED",
+      if (status === "COMPLETED") {
+        // El bloqueo va ANTES de comparar el código: si solo se activara
+        // dentro de la rama "código incorrecto", un código correcto
+        // adivinado después del intento 5 igual pasaría — el límite tiene
+        // que frenar cualquier intento adicional, acertado o no.
+        if (order.pickupAttempts >= PICKUP_CODE_MAX_ATTEMPTS) {
+          throw new AppError(
+            429,
+            "Demasiados intentos con código incorrecto — pide a un admin que verifique el pedido desde el backoffice.",
           );
-          const cancelled = await prisma.order.update({
-            where: { id: order.id },
-            data: {
-              status: "CANCELLED",
-              discount: order.subtotal,
-              total: 0,
-            },
-            include: branchOrderInclude,
-          });
-
-          await notifyBranchOrderUpdated(order.branchId, {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            status: "CANCELLED",
-          });
-
-          try {
-            await notifyCustomerOrderStatus(cancelled);
-          } catch (pushError) {
-            console.error("[orders.status] web-push", pushError);
-          }
-
-          return res.json({ data: cancelled });
         }
-
-        await settleStripePayment(
-          order.stripePaymentIntentId,
-          "COMPLETED",
-          amount,
-        );
-      } else if (status === "COMPLETED") {
         if (!order.pickupCode || pickupCode !== order.pickupCode) {
+          await prisma.order.update({
+            where: { id: order.id },
+            data: { pickupAttempts: { increment: 1 } },
+          });
           throw new AppError(400, "Código de entrega incorrecto");
         }
-      } else if (status === "CANCELLED") {
-        await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
       }
 
-      const updated = await prisma.order.update({
+      // READY con total <= 0 (todo agotado antes de aceptar): en realidad
+      // se cancela, no se pasa a READY.
+      const zeroTotalCancel = status === "READY" && order.total <= 0;
+      const finalStatus: OrderStatus = zeroTotalCancel ? "CANCELLED" : status;
+
+      const data: Record<string, unknown> = { status: finalStatus };
+      if (finalStatus === "ACCEPTED") data.acceptedAt = new Date();
+      if (zeroTotalCancel) {
+        data.discount = order.subtotal;
+        data.total = 0;
+        data.cancellationReason =
+          "Cancelado automáticamente: todos los productos del pedido se agotaron antes de que la sucursal lo aceptara.";
+      } else if (finalStatus === "READY") {
+        data.pickupCode = generatePickupCode();
+        data.readyReachedAt = new Date();
+      } else if (finalStatus === "COMPLETED") {
+        data.completedAt = new Date();
+      } else if (finalStatus === "CANCELLED") {
+        data.cancellationReason = cancellationReason;
+      }
+
+      // Guarda optimista: reclama la transición antes de tocar Stripe para
+      // no pisar una actualización concurrente (ej. cliente cancela justo
+      // cuando staff marca "Listo").
+      const guard = await prisma.order.updateMany({
+        where: { id: order.id, status: currentStatus },
+        data,
+      });
+      if (guard.count === 0) {
+        throw new AppError(
+          409,
+          "El pedido cambió de estado, actualiza la página e intenta de nuevo",
+        );
+      }
+
+      const revert = () =>
+        prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: currentStatus,
+            pickupCode: order.pickupCode,
+            readyReachedAt: order.readyReachedAt,
+            discount: order.discount,
+            total: order.total,
+            cancellationReason: order.cancellationReason,
+            completedAt: order.completedAt,
+            acceptedAt: order.acceptedAt,
+          },
+        });
+
+      // El cobro (captura Stripe) ocurre al quedar listo para recoger, no
+      // al entregar: aquí se retiene el hold, en COMPLETED ya no se toca
+      // Stripe.
+      if (finalStatus === "CANCELLED") {
+        try {
+          await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
+        } catch (error) {
+          await revert();
+          throw error;
+        }
+      } else if (finalStatus === "READY") {
+        try {
+          await settleStripePayment(
+            order.stripePaymentIntentId,
+            "COMPLETED",
+            order.total,
+          );
+        } catch (error) {
+          await revert();
+          // A diferencia del job automático, este fallo lo ve staff al
+          // instante (502 acá abajo) — pero igual avisamos a admin por
+          // correo, porque staff puede no saber qué hacer con el error.
+          await flagCaptureFailure(order, error);
+          throw error;
+        }
+      }
+
+      const updated = await prisma.order.findUniqueOrThrow({
         where: { id: order.id },
-        data: {
-          status,
-          ...(status === "ACCEPTED" ? { acceptedAt: new Date() } : {}),
-          ...(status === "READY"
-            ? { pickupCode: generatePickupCode(), readyReachedAt: new Date() }
-            : {}),
-          ...(status === "COMPLETED" ? { completedAt: new Date() } : {}),
-          ...(status === "CANCELLED" ? { cancellationReason } : {}),
-        },
         include: branchOrderInclude,
       });
 
       await notifyBranchOrderUpdated(order.branchId, {
         orderId: order.id,
         orderNumber: order.orderNumber,
-        status,
+        status: finalStatus,
       });
 
       try {
         await notifyCustomerOrderStatus(
           updated,
-          status === "READY" && updated.pickupCode
+          finalStatus === "READY" && updated.pickupCode
             ? { body: `Listo para recoger · Código: ${updated.pickupCode}` }
             : undefined,
         );
       } catch (pushError) {
         console.error("[orders.status] web-push", pushError);
+      }
+
+      if (finalStatus === "CANCELLED") {
+        await sendCancellationEmailIfPossible(updated, "orders.status");
       }
 
       res.json({ data: updated });
@@ -918,11 +987,35 @@ ordersRouter.post(
         );
       }
 
-      await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
-
-      const cancelled = await prisma.order.update({
-        where: { id: order.id },
+      // Guarda optimista: reclama la cancelación antes de tocar Stripe para
+      // no pisar una transición concurrente (ej. el pedido justo pasó a
+      // READY, o el cliente lo canceló él mismo un instante antes).
+      const guard = await prisma.order.updateMany({
+        where: { id: order.id, status: currentStatus },
         data: { status: "CANCELLED", cancellationReason },
+      });
+      if (guard.count === 0) {
+        throw new AppError(
+          409,
+          "El pedido cambió de estado, actualiza la página e intenta de nuevo",
+        );
+      }
+
+      try {
+        await settleStripePayment(order.stripePaymentIntentId, "CANCELLED");
+      } catch (error) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: currentStatus,
+            cancellationReason: order.cancellationReason,
+          },
+        });
+        throw error;
+      }
+
+      const cancelled = await prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
         include: adminOrderDetailInclude,
       });
 
@@ -950,21 +1043,7 @@ ordersRouter.post(
         console.error("[orders.admin-cancel] web-push", pushError);
       }
 
-      try {
-        const to = cancelled.user?.email ?? cancelled.guestEmail;
-        if (to) {
-          await sendOrderCancelledEmail({
-            to,
-            name: cancelled.user?.name ?? cancelled.guestName,
-            orderNumber: cancelled.orderNumber,
-            cancellationReason: cancelled.cancellationReason,
-            total: cancelled.total,
-            currency: cancelled.currency,
-          });
-        }
-      } catch (mailError) {
-        console.error("[orders.admin-cancel] mailer", mailError);
-      }
+      await sendCancellationEmailIfPossible(cancelled, "orders.admin-cancel");
 
       res.json({ data: cancelled });
     } catch (error) {
@@ -987,182 +1066,202 @@ ordersRouter.post(
   async (req: AuthenticatedRequest, res, next) => {
     try {
       const { reason, items } = orderRefundSchema.parse(req.body);
+      const orderId = String(req.params.id);
 
-      const order = await prisma.order.findUnique({
-        where: { id: String(req.params.id) },
-        include: { items: true },
-      });
-      if (!order) {
-        throw new AppError(404, "Pedido no encontrado");
-      }
+      // Todo el bloque (validar cantidades restantes, llamar Stripe,
+      // persistir) corre bajo un advisory lock de Postgres por pedido, para
+      // que dos reembolsos parciales concurrentes sobre el mismo pedido
+      // (doble clic, dos pestañas/admins) no lean el mismo "restante" antes
+      // de que el primero se persista y terminen sumando más de lo que
+      // existía. `_xact_lock` libera el lock solo al terminar la tx.
+      const { updated, amount, stripeRefundId, refundItemsData } =
+        await prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${orderId}))`;
 
-      const currentStatus = order.status as OrderStatus;
-      if (!REFUNDABLE_STATUSES.includes(currentStatus)) {
-        throw new AppError(
-          400,
-          `Solo se puede reembolsar un pedido cobrado (listo o entregado); estado actual: ${currentStatus}`,
-        );
-      }
-      if (!order.stripePaymentIntentId) {
-        throw new AppError(
-          400,
-          "El pedido no tiene un pago registrado en Stripe",
-        );
-      }
-
-      const alreadyRefunded = await prisma.refundItem.findMany({
-        where: { orderItem: { orderId: order.id } },
-      });
-      const refundedQtyByItem = new Map<string, number>();
-      for (const ri of alreadyRefunded) {
-        refundedQtyByItem.set(
-          ri.orderItemId,
-          (refundedQtyByItem.get(ri.orderItemId) ?? 0) + ri.quantity,
-        );
-      }
-
-      const seen = new Set<string>();
-      let amount = 0;
-      const refundItemsData: {
-        orderItemId: string;
-        quantity: number;
-        amount: number;
-      }[] = [];
-
-      for (const requested of items) {
-        if (seen.has(requested.orderItemId)) {
-          throw new AppError(
-            400,
-            "Producto repetido en la solicitud de devolución",
-          );
-        }
-        seen.add(requested.orderItemId);
-
-        const item = order.items.find((i) => i.id === requested.orderItemId);
-        if (!item) {
-          throw new AppError(400, "Artículo no encontrado en el pedido");
-        }
-        if (item.unavailable) {
-          throw new AppError(
-            400,
-            `${item.productName} ya fue descontado por agotado, no se puede reembolsar`,
-          );
-        }
-
-        const alreadyQty = refundedQtyByItem.get(item.id) ?? 0;
-        const remainingQty = item.quantity - alreadyQty;
-        if (requested.quantity > remainingQty) {
-          throw new AppError(
-            400,
-            `Solo quedan ${remainingQty} de "${item.productName}" por devolver`,
-          );
-        }
-
-        const unitAmount = Math.round(item.lineTotal / item.quantity);
-        const itemAmount = unitAmount * requested.quantity;
-        amount += itemAmount;
-        refundItemsData.push({
-          orderItemId: item.id,
-          quantity: requested.quantity,
-          amount: itemAmount,
-        });
-      }
-
-      if (amount <= 0) {
-        throw new AppError(400, "El monto a devolver debe ser mayor a 0");
-      }
-
-      const maxRefundable = order.total - order.refundedTotal;
-      if (amount > maxRefundable) {
-        throw new AppError(
-          400,
-          "El monto a devolver excede lo disponible en este pedido",
-        );
-      }
-
-      let stripeRefundId: string | null = null;
-      try {
-        const stripeRefund = await getStripe().refunds.create({
-          payment_intent: order.stripePaymentIntentId,
-          amount,
-          metadata: {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            reason,
-          },
-        });
-        stripeRefundId = stripeRefund.id;
-      } catch (error) {
-        if (error instanceof Stripe.errors.StripeError) {
-          throw new AppError(502, `Error de Stripe: ${error.message}`);
-        }
-        throw error;
-      }
-
-      const [, updatedOrder] = await prisma.$transaction([
-        prisma.refund.create({
-          data: {
-            orderId: order.id,
-            amount,
-            reason,
-            stripeRefundId,
-            actorId: req.authUser!.id,
-            items: { create: refundItemsData },
-          },
-        }),
-        prisma.order.update({
-          where: { id: order.id },
-          data: { refundedTotal: { increment: amount } },
-          include: {
-            items: true,
-            branch: {
-              select: { id: true, name: true, address: true, phone: true },
-            },
-            user: {
-              select: { id: true, name: true, email: true, phone: true },
-            },
-            refunds: {
-              orderBy: { createdAt: "desc" },
+            const order = await tx.order.findUnique({
+              where: { id: orderId },
               include: { items: true },
-            },
+            });
+            if (!order) {
+              throw new AppError(404, "Pedido no encontrado");
+            }
+
+            const currentStatus = order.status as OrderStatus;
+            if (!REFUNDABLE_STATUSES.includes(currentStatus)) {
+              throw new AppError(
+                400,
+                `Solo se puede reembolsar un pedido cobrado (listo o entregado); estado actual: ${currentStatus}`,
+              );
+            }
+            if (!order.stripePaymentIntentId) {
+              throw new AppError(
+                400,
+                "El pedido no tiene un pago registrado en Stripe",
+              );
+            }
+
+            const alreadyRefunded = await tx.refundItem.findMany({
+              where: { orderItem: { orderId: order.id } },
+            });
+            const refundedQtyByItem = new Map<string, number>();
+            for (const ri of alreadyRefunded) {
+              refundedQtyByItem.set(
+                ri.orderItemId,
+                (refundedQtyByItem.get(ri.orderItemId) ?? 0) + ri.quantity,
+              );
+            }
+
+            const seen = new Set<string>();
+            let amount = 0;
+            const refundItemsData: {
+              orderItemId: string;
+              quantity: number;
+              amount: number;
+            }[] = [];
+
+            for (const requested of items) {
+              if (seen.has(requested.orderItemId)) {
+                throw new AppError(
+                  400,
+                  "Producto repetido en la solicitud de devolución",
+                );
+              }
+              seen.add(requested.orderItemId);
+
+              const item = order.items.find(
+                (i) => i.id === requested.orderItemId,
+              );
+              if (!item) {
+                throw new AppError(400, "Artículo no encontrado en el pedido");
+              }
+              if (item.unavailable) {
+                throw new AppError(
+                  400,
+                  `${item.productName} ya fue descontado por agotado, no se puede reembolsar`,
+                );
+              }
+
+              const alreadyQty = refundedQtyByItem.get(item.id) ?? 0;
+              const remainingQty = item.quantity - alreadyQty;
+              if (requested.quantity > remainingQty) {
+                throw new AppError(
+                  400,
+                  `Solo quedan ${remainingQty} de "${item.productName}" por devolver`,
+                );
+              }
+
+              const unitAmount = Math.round(item.lineTotal / item.quantity);
+              const itemAmount = unitAmount * requested.quantity;
+              amount += itemAmount;
+              refundItemsData.push({
+                orderItemId: item.id,
+                quantity: requested.quantity,
+                amount: itemAmount,
+              });
+            }
+
+            if (amount <= 0) {
+              throw new AppError(400, "El monto a devolver debe ser mayor a 0");
+            }
+
+            const maxRefundable = order.total - order.refundedTotal;
+            if (amount > maxRefundable) {
+              throw new AppError(
+                400,
+                "El monto a devolver excede lo disponible en este pedido",
+              );
+            }
+
+            let stripeRefundId: string | null = null;
+            try {
+              const stripeRefund = await getStripe().refunds.create({
+                payment_intent: order.stripePaymentIntentId,
+                amount,
+                metadata: {
+                  orderId: order.id,
+                  orderNumber: order.orderNumber,
+                  reason,
+                },
+              });
+              stripeRefundId = stripeRefund.id;
+            } catch (error) {
+              if (error instanceof Stripe.errors.StripeError) {
+                throw new AppError(502, `Error de Stripe: ${error.message}`);
+              }
+              throw error;
+            }
+
+            await tx.refund.create({
+              data: {
+                orderId: order.id,
+                amount,
+                reason,
+                stripeRefundId,
+                actorId: req.authUser!.id,
+                items: { create: refundItemsData },
+              },
+            });
+
+            const updated = await tx.order.update({
+              where: { id: order.id },
+              data: { refundedTotal: { increment: amount } },
+              include: {
+                items: true,
+                branch: {
+                  select: { id: true, name: true, address: true, phone: true },
+                },
+                user: {
+                  select: { id: true, name: true, email: true, phone: true },
+                },
+                refunds: {
+                  orderBy: { createdAt: "desc" },
+                  include: { items: true },
+                },
+              },
+            });
+
+            return { updated, amount, stripeRefundId, refundItemsData };
           },
-        }),
-      ]);
+          // Holgura extra: la llamada a Stripe ocurre dentro de la tx (para
+          // que el lock cubra todo el ciclo validar→cobrar→persistir).
+          { timeout: 20_000, maxWait: 10_000 },
+        );
 
       await recordAdminAction({
         actorId: req.authUser!.id,
         action: "order.refund",
         entityType: "Order",
-        entityId: order.id,
+        entityId: updated.id,
         metadata: { amount, reason, items: refundItemsData, stripeRefundId },
       });
 
       try {
-        await notifyCustomerOrderStatus(updatedOrder, {
-          body: `Reembolso de ${(amount / 100).toFixed(2)} ${order.currency.toUpperCase()} · ${reason}`,
+        await notifyCustomerOrderStatus(updated, {
+          body: `Reembolso de ${(amount / 100).toFixed(2)} ${updated.currency.toUpperCase()} · ${reason}`,
         });
       } catch (pushError) {
         console.error("[orders.refund] web-push", pushError);
       }
 
       try {
-        const to = updatedOrder.user?.email ?? updatedOrder.guestEmail;
+        const to = updated.user?.email ?? updated.guestEmail;
         if (to) {
           await sendOrderRefundEmail({
             to,
-            name: updatedOrder.user?.name ?? updatedOrder.guestName,
-            orderNumber: updatedOrder.orderNumber,
+            name: updated.user?.name ?? updated.guestName,
+            orderNumber: updated.orderNumber,
             reason,
             amount,
-            isFullRefund: updatedOrder.refundedTotal >= updatedOrder.total,
-            currency: updatedOrder.currency,
+            isFullRefund: updated.refundedTotal >= updated.total,
+            currency: updated.currency,
           });
         }
       } catch (mailError) {
         console.error("[orders.refund] mailer", mailError);
       }
 
-      res.json({ data: updatedOrder });
+      res.json({ data: updated });
     } catch (error) {
       next(error);
     }
@@ -1197,8 +1296,12 @@ ordersRouter.patch(
 
       const now = new Date();
       const readyAt = new Date(now.getTime() + prepMinutes * 60_000);
-      const updated = await prisma.order.update({
-        where: { id: order.id },
+
+      // Guarda optimista: no toca Stripe, pero sin esto un accept concurrente
+      // con /:id/cancel podría sobrescribir una cancelación (y su reembolso)
+      // dejando el pedido en PREPARING como si nada.
+      const guard = await prisma.order.updateMany({
+        where: { id: order.id, status: "PAID" },
         data: {
           status: "PREPARING",
           ptvTicket,
@@ -1207,6 +1310,16 @@ ordersRouter.patch(
           acceptedAt: now,
           preparingAt: now,
         },
+      });
+      if (guard.count === 0) {
+        throw new AppError(
+          409,
+          "El pedido cambió de estado, actualiza la página e intenta de nuevo",
+        );
+      }
+
+      const updated = await prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
         include: branchOrderInclude,
       });
 
@@ -1277,14 +1390,27 @@ ordersRouter.patch(
       }
 
       const readyAt = new Date(Date.now() + prepMinutes * 60_000);
-      const updated = await prisma.order.update({
-        where: { id: order.id },
+
+      // Guarda optimista contra un admin-cancel concurrente sobre el mismo
+      // pedido ACCEPTED.
+      const guard = await prisma.order.updateMany({
+        where: { id: order.id, status: "ACCEPTED" },
         data: {
           status: "PREPARING",
           prepMinutes,
           readyAt,
           preparingAt: new Date(),
         },
+      });
+      if (guard.count === 0) {
+        throw new AppError(
+          409,
+          "El pedido cambió de estado, actualiza la página e intenta de nuevo",
+        );
+      }
+
+      const updated = await prisma.order.findUniqueOrThrow({
+        where: { id: order.id },
         include: branchOrderInclude,
       });
 

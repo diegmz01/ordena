@@ -363,6 +363,10 @@ model Order {
   /// Código de entrega (4 dígitos) generado al pasar a READY; el cliente lo
   /// debe dar en sucursal para que staff marque el pedido como COMPLETED.
   pickupCode            String?
+  /// Intentos fallidos consecutivos de pickupCode. Al llegar a
+  /// PICKUP_CODE_MAX_ATTEMPTS se bloquea el auto-servicio (protección contra
+  /// fuerza bruta de las 9,000 combinaciones posibles) — ver PATCH /:id/status.
+  pickupAttempts        Int         @default(0)
   notes                 String?
   /// Motivo obligatorio ingresado por sucursal o admin al cancelar el pedido
   cancellationReason    String?

@@ -187,3 +187,19 @@ export function getPaidOrderWaitStatus(
 
 /** Servicio externo de facturación (CFDI) de la empresa. */
 export const INVOICE_BASE_URL = "https://cfdi.elbajito.com/";
+
+/**
+ * Intentos fallidos de `pickupCode` (4 dígitos, ~9,000 combinaciones)
+ * permitidos antes de bloquear el auto-servicio de un pedido READY. Al
+ * llegar al tope, staff debe verificar identidad por otro medio o
+ * escalar a admin — ver PATCH /orders/:id/status.
+ */
+export const PICKUP_CODE_MAX_ATTEMPTS = 5;
+
+/**
+ * Antigüedad mínima de un `PendingCheckout` antes de que el job de
+ * reconciliación lo revise contra Stripe — generoso frente a la entrega
+ * normal del webhook (casi instantánea) para no pisarle la carrera.
+ * Ver apps/api/src/utils/reconcile-pending-checkouts.ts.
+ */
+export const RECONCILE_PENDING_CHECKOUT_AFTER_MS = 5 * 60_000;

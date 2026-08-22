@@ -3,6 +3,7 @@ import { PAID_ORDER_DELAY_ALERT_MS, PAID_ORDER_AUTO_CANCEL_MS } from "@ordena/sh
 import { notifyBranchOrderUpdated } from "./sse";
 import { notifyCustomerOrderStatus } from "./web-push";
 import { settleStripePayment } from "./stripe";
+import { sendCancellationEmailIfPossible } from "./send-cancellation-email";
 
 const AUTO_CANCEL_REASON =
   "Cancelado automáticamente: pedido sin aceptar por más de 20 minutos.";
@@ -79,9 +80,14 @@ export async function autoCancelOrphanedOrders(branchId?: string) {
       status: true,
       branchId: true,
       userId: true,
+      guestName: true,
       guestEmail: true,
       viewToken: true,
       stripePaymentIntentId: true,
+      total: true,
+      currency: true,
+      cancellationReason: true,
+      user: { select: { name: true, email: true } },
     },
   });
 
@@ -123,6 +129,10 @@ export async function autoCancelOrphanedOrders(branchId?: string) {
     } catch (pushError) {
       console.error("[handle-stale-paid-orders] web-push", order.id, pushError);
     }
+    await sendCancellationEmailIfPossible(
+      { ...order, cancellationReason: AUTO_CANCEL_REASON },
+      "handle-stale-paid-orders",
+    );
 
     cancelled.push(order.id);
   }
