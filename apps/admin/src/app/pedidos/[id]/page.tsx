@@ -86,6 +86,7 @@ type OrderDetail = {
   preparingAt: string | null;
   readyReachedAt: string | null;
   completedAt: string | null;
+  captureFailedAt: string | null;
   branch: {
     id: string;
     name: string;
@@ -1052,6 +1053,16 @@ export default function AdminOrderDetailPage() {
                       </dd>
                     </div>
                   </dl>
+
+                  {order.captureFailedAt && (
+                    <p className="admin-alert-error">
+                      No se pudo cobrar este pedido automáticamente al
+                      quedar listo — probablemente el hold de autorización
+                      de Stripe ya expiró (~7 días sin capturar). Cancela el
+                      pedido para reflejarlo correctamente; no hay fondos
+                      pendientes de cobrar.
+                    </p>
+                  )}
 
                   {(order.stripeSessionId || order.stripePaymentIntentId) && (
                     <details className="rounded-xl border border-gray-200 dark:border-gray-700">

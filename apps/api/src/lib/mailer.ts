@@ -256,6 +256,75 @@ export async function sendOrderRefundEmail(params: {
   });
 }
 
+/** Enlace al detalle del pedido en el backoffice, para los correos de alerta a admin. */
+function adminOrderUrl(orderId: string) {
+  const adminUrl = process.env.ADMIN_URL ?? "http://localhost:3001";
+  return `${adminUrl}/pedidos/${orderId}`;
+}
+
+export async function sendCaptureFailedAlertEmail(params: {
+  to: string;
+  orderNumber: string;
+  orderId: string;
+  branchName: string;
+  stripeStatus: string;
+}) {
+  const { transport, from } = await getSmtpTransport();
+  const orderUrl = adminOrderUrl(params.orderId);
+  const message = `El pedido <strong>${params.orderNumber}</strong> (${params.branchName}) no se pudo cobrar automáticamente al pasar a "Listo": Stripe reporta el pago como <strong>${params.stripeStatus}</strong>. Esto suele pasar cuando el hold de autorización expiró (Stripe libera los fondos ~7 días después de autorizar si no se capturan). El pedido quedó atorado y necesita revisión manual — probablemente cancelarlo desde el detalle del pedido.`;
+
+  const html = emailLayout(
+    `<p style="margin:0 0 16px;">Se detectó un pago que no se pudo cobrar.</p>` +
+      `<p style="margin:0 0 20px;">${message}</p>` +
+      `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background-color:#ea5e1f;"><a href="${orderUrl}" style="display:inline-block;padding:12px 24px;${EMAIL_FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Revisar pedido</a></td></tr></table>`,
+    "Pago no capturado",
+  );
+
+  await transport.sendMail({
+    from,
+    to: params.to,
+    subject: `⚠ No se pudo cobrar el pedido ${params.orderNumber}`,
+    text: `El pedido ${params.orderNumber} (${params.branchName}) no se pudo cobrar automáticamente al pasar a "Listo": Stripe reporta el pago como ${params.stripeStatus}. Probablemente el hold de autorización expiró. Revísalo aquí: ${orderUrl}`,
+    html,
+  });
+}
+
+const STALE_ORDER_STATUS_LABEL: Record<string, string> = {
+  PAID: "Autorizado",
+  ACCEPTED: "Aceptado",
+  PREPARING: "Preparando",
+};
+
+export async function sendStaleActiveOrderAlertEmail(params: {
+  to: string;
+  orderNumber: string;
+  orderId: string;
+  branchName: string;
+  status: string;
+  hoursStuck: number;
+}) {
+  const { transport, from } = await getSmtpTransport();
+  const orderUrl = adminOrderUrl(params.orderId);
+  const statusLabel =
+    STALE_ORDER_STATUS_LABEL[params.status] ?? params.status;
+  const message = `El pedido <strong>${params.orderNumber}</strong> (${params.branchName}) lleva más de <strong>${params.hoursStuck}h</strong> en estado "${statusLabel}" sin avanzar. Puede ser un pedido abandonado operativamente — vale la pena revisarlo antes de que el hold de pago con Stripe expire.`;
+
+  const html = emailLayout(
+    `<p style="margin:0 0 16px;">Un pedido lleva demasiado tiempo sin avanzar.</p>` +
+      `<p style="margin:0 0 20px;">${message}</p>` +
+      `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background-color:#ea5e1f;"><a href="${orderUrl}" style="display:inline-block;padding:12px 24px;${EMAIL_FONT}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Revisar pedido</a></td></tr></table>`,
+    "Pedido demorado",
+  );
+
+  await transport.sendMail({
+    from,
+    to: params.to,
+    subject: `Pedido ${params.orderNumber} lleva ${params.hoursStuck}h sin avanzar`,
+    text: `El pedido ${params.orderNumber} (${params.branchName}) lleva más de ${params.hoursStuck}h en estado "${statusLabel}" sin avanzar. Revísalo aquí: ${orderUrl}`,
+    html,
+  });
+}
+
 export async function sendTestEmail(to: string) {
   const { transport, from } = await getSmtpTransport();
   await transport.sendMail({

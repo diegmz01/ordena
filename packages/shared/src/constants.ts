@@ -148,12 +148,22 @@ export function computeServiceFee(
 export const PAID_ORDER_DELAY_ALERT_MS = 5 * 60_000;
 
 /**
- * Umbral para auto-cancelar y reembolsar un pedido PAID sin aceptar cuya
- * sucursal está offline (heartbeat de staff vencido). Compartido con el
- * dashboard admin para pintar el badge de "en riesgo" con el mismo criterio
- * que el backend usa para actuar.
+ * Umbral para auto-cancelar y reembolsar un pedido PAID sin aceptar,
+ * sin importar si la sucursal está online o no (ver
+ * autoCancelOrphanedOrders en handle-stale-paid-orders.ts). Compartido con
+ * el dashboard admin para pintar el badge de "en riesgo" con el mismo
+ * criterio que el backend usa para actuar.
  */
 export const PAID_ORDER_AUTO_CANCEL_MS = 20 * 60_000;
+
+/**
+ * Umbral para avisarle a admin (una sola vez, por correo) que un pedido
+ * activo (PAID/ACCEPTED/PREPARING) lleva demasiado tiempo sin avanzar a
+ * READY — pensado para detectar pedidos operativamente abandonados mucho
+ * antes de que Stripe expire el hold de autorización manual (~7 días para
+ * tarjeta). Ver apps/api/src/utils/stale-active-orders.ts.
+ */
+export const STALE_ACTIVE_ORDER_ALERT_MS = 24 * 60 * 60_000;
 
 export type PaidOrderWaitTone = "warning" | "danger";
 

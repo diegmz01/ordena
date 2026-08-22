@@ -398,6 +398,15 @@ model Order {
   /// Se envía una sola vez cuando el pedido lleva PAID_ORDER_DELAY_ALERT_MS
   /// sin aceptar (ver handle-stale-paid-orders.ts).
   customerDelayAlertSentAt DateTime?
+  /// Se marca cuando promoteDuePreparingOrders no pudo capturar el pago
+  /// (típicamente porque Stripe ya canceló automáticamente el
+  /// PaymentIntent tras ~7 días sin capturar). El pedido queda atorado en
+  /// PREPARING y requiere intervención manual de admin (admin-cancel) — ver
+  /// promote-ready-orders.ts.
+  captureFailedAt       DateTime?
+  /// Se envía una sola vez cuando el pedido lleva STALE_ACTIVE_ORDER_ALERT_MS
+  /// sin avanzar (PAID/ACCEPTED/PREPARING) — ver stale-active-orders.ts.
+  staleOrderAlertSentAt DateTime?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 

@@ -50,6 +50,8 @@ type OrderCardProps = {
   /** Presente solo mientras la cancelación del cliente no ha sido reconocida. */
   onAcknowledgeCancel?: () => void;
   ackCancelPending?: boolean;
+  /** True si el cobro automático de Stripe falló (ver captureFailedAt en Order). */
+  captureFailed?: boolean;
 };
 
 export function OrderCard({
@@ -66,6 +68,7 @@ export function OrderCard({
   cancelledByCustomer,
   onAcknowledgeCancel,
   ackCancelPending,
+  captureFailed,
 }: OrderCardProps) {
   const accentClass = STATUS_ACCENT[status] ?? STATUS_ACCENT.ACCEPTED;
   const isNew = status === "PAID";
@@ -176,6 +179,11 @@ export function OrderCard({
             >
               Visto
             </button>
+          )}
+          {captureFailed && (
+            <span className="mt-2 inline-flex w-fit items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 dark:bg-red-950/50 dark:text-red-300">
+              No se pudo cobrar — requiere revisión
+            </span>
           )}
           {isPendingCustomerCancel && onAcknowledgeCancel && (
             <button
