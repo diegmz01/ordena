@@ -174,6 +174,11 @@ checkoutRouter.post(
           "Invitado requiere nombre, email y teléfono",
         );
       }
+    } else if (!user.phone?.trim()) {
+      throw new AppError(
+        400,
+        "Debes registrar tu número de teléfono antes de generar el pedido",
+      );
     }
 
     const branch = await assertBranchAcceptingOrders(parsed.branchId);
