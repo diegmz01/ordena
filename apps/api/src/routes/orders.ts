@@ -254,7 +254,7 @@ ordersRouter.get(
       const orders = await prisma.order.findMany({
         where: {
           userId: user.id,
-          status: { notIn: ["CANCELLED", "PENDING_PAYMENT"] },
+          status: { not: "CANCELLED" },
         },
         orderBy: { createdAt: "desc" },
         take: 100,

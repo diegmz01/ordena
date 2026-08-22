@@ -33,18 +33,11 @@ describe("isValidOrderStatusTransition", () => {
     expect(isValidOrderStatusTransition("COMPLETED", "PAID")).toBe(false);
     expect(isValidOrderStatusTransition("CANCELLED", "PAID")).toBe(false);
   });
-
-  it("rejects any transition out of PENDING_PAYMENT (only the Stripe webhook can move it)", () => {
-    expect(isValidOrderStatusTransition("PENDING_PAYMENT", "PAID")).toBe(
-      false,
-    );
-  });
 });
 
 describe("canAdminCancelOrder", () => {
   it("matches ADMIN_ORDER_CANCEL_FROM exactly", () => {
     for (const status of [
-      "PENDING_PAYMENT",
       "PAID",
       "ACCEPTED",
       "PREPARING",
@@ -58,8 +51,7 @@ describe("canAdminCancelOrder", () => {
     }
   });
 
-  it("never allows cancelling an already-cancelled or unpaid order", () => {
+  it("never allows cancelling an already-cancelled order", () => {
     expect(canAdminCancelOrder("CANCELLED")).toBe(false);
-    expect(canAdminCancelOrder("PENDING_PAYMENT")).toBe(false);
   });
 });

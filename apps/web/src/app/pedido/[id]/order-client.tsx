@@ -118,11 +118,6 @@ const STATUS_META: Record<
     icon: typeof Clock3;
   }
 > = {
-  PENDING_PAYMENT: {
-    title: "Esperando pago",
-    description: "Completa el pago para que la sucursal prepare tu orden.",
-    icon: Clock3,
-  },
   PAID: {
     title: "Pago autorizado",
     description:
@@ -177,7 +172,7 @@ function formatReadyAt(iso: string | null) {
 }
 
 function showsOrderProgress(status: string) {
-  return status !== "CANCELLED" && status !== "PENDING_PAYMENT";
+  return status !== "CANCELLED";
 }
 
 function resolveTrackingToken(id: string, viewToken?: string) {
@@ -231,9 +226,6 @@ function formatPaymentMethodLabel(order: Order) {
   if (order.stripeSessionId || order.stripePaymentIntentId) {
     return "Tarjeta";
   }
-  if (order.status === "PENDING_PAYMENT") {
-    return "Pendiente de pago";
-  }
   return "Pago en línea";
 }
 
@@ -242,12 +234,6 @@ function paymentStatus(order: Order) {
     return {
       label: "Cancelado",
       tone: "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200",
-    };
-  }
-  if (order.status === "PENDING_PAYMENT") {
-    return {
-      label: "Pendiente",
-      tone: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
     };
   }
   if (order.status === "COMPLETED") {
@@ -449,7 +435,7 @@ export default function OrderPageClient({
 
   const live =
     order &&
-    !["COMPLETED", "CANCELLED", "PENDING_PAYMENT"].includes(order.status);
+    !["COMPLETED", "CANCELLED"].includes(order.status);
 
   useEffect(() => {
     if (!success || !live) return;

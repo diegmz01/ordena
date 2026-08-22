@@ -103,7 +103,6 @@ type OrderDetail = {
 };
 
 const FLOW = [
-  "PENDING_PAYMENT",
   "PAID",
   "ACCEPTED",
   "PREPARING",
@@ -112,7 +111,6 @@ const FLOW = [
 ] as const;
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING_PAYMENT: "Esperando pago",
   PAID: "Autorizado",
   ACCEPTED: "Aceptado",
   PREPARING: "Preparando",
@@ -122,7 +120,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_HINT: Record<string, string> = {
-  PENDING_PAYMENT: "El cliente aún no completó el pago en Stripe.",
   PAID: "Fondos retenidos. Verifica disponibilidad antes de aceptar; el cobro es al quedar listo para recoger.",
   ACCEPTED: "La sucursal aceptó el pedido.",
   PREPARING: "El pedido se está preparando.",
@@ -132,8 +129,6 @@ const STATUS_HINT: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  PENDING_PAYMENT:
-    "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200",
   PAID: "bg-orange-100 text-orange-900 dark:bg-orange-950/40 dark:text-orange-200",
   ACCEPTED: "bg-sky-100 text-sky-900 dark:bg-sky-950/40 dark:text-sky-200",
   PREPARING:
@@ -194,7 +189,6 @@ function formatStepDuration(fromIso: string, toIso: string) {
 }
 
 const STEP_TIMESTAMP_FIELD = {
-  PENDING_PAYMENT: "createdAt",
   PAID: "paidAt",
   ACCEPTED: "acceptedAt",
   PREPARING: "preparingAt",
@@ -205,9 +199,6 @@ const STEP_TIMESTAMP_FIELD = {
 function paymentStatus(order: OrderDetail) {
   if (order.status === "CANCELLED") {
     return { label: "Cancelado", tone: STATUS_TONE.CANCELLED };
-  }
-  if (order.status === "PENDING_PAYMENT") {
-    return { label: "Pendiente", tone: STATUS_TONE.PENDING_PAYMENT };
   }
   if (order.status === "COMPLETED") {
     return { label: "Cobrado", tone: STATUS_TONE.COMPLETED };

@@ -16,7 +16,6 @@ enum Role {
 }
 
 enum OrderStatus {
-  PENDING_PAYMENT
   PAID
   ACCEPTED
   PREPARING
@@ -326,7 +325,7 @@ model Order {
   /// Key idempotente generada por el cliente al iniciar el checkout; evita
   /// crear pedidos/Stripe Sessions duplicados por doble submit o retry de red.
   idempotencyKey        String?     @unique
-  status                OrderStatus @default(PENDING_PAYMENT)
+  status                OrderStatus @default(PAID)
   branchId              String
   branch                Branch      @relation(fields: [branchId], references: [id])
   userId                String?
